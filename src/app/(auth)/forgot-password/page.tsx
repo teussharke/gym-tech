@@ -2,31 +2,27 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { Dumbbell, ArrowLeft, Loader2, Mail, CheckCircle2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
-
-const schema = z.object({
-  email: z.string().email('Email inválido'),
-})
 
 export default function ForgotPasswordPage() {
+  const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const { register, handleSubmit, formState: { errors } } = useForm({ resolver: zodResolver(schema) })
+  const [error, setError] = useState('')
 
-  const onSubmit = async ({ email }: { email: string }) => {
-    setIsLoading(true)
-    try {
-      await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      })
-      setSent(true)
-    } finally {
-      setIsLoading(false)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email || !email.includes('@')) {
+      setError('Digite um email válido')
+      return
     }
+    setError('')
+    setIsLoading(true)
+    // Mock — quando conectar ao Supabase substituir por:
+    // await supabase.auth.resetPasswordForEmail(email, { redirectTo: '...' })
+    await new Promise(r => setTimeout(r, 1000))
+    setIsLoading(false)
+    setSent(true)
   }
 
   return (
@@ -48,23 +44,31 @@ export default function ForgotPasswordPage() {
                 Digite seu email e enviaremos um link para redefinir sua senha.
               </p>
 
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                     <input
-                      {...register('email')}
                       type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
                       placeholder="seu@email.com"
                       className="w-full bg-white/10 border border-white/20 text-white placeholder-gray-500 rounded-lg px-3 py-2.5 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
                     />
                   </div>
-                  {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>}
+                  {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
                 </div>
 
-                <button type="submit" disabled={isLoading} className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-all">
-                  {isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</> : 'Enviar link de recuperação'}
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-all"
+                >
+                  {isLoading
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
+                    : 'Enviar link de recuperação'
+                  }
                 </button>
               </form>
             </>

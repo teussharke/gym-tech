@@ -1,3 +1,115 @@
+'use client'
+
+import { createContext, useContext, useEffect, useState } from 'react'
+import type { Usuario, UserRole } from '@/lib/types'
+
+const MOCK_USERS: (Usuario & { password: string })[] = [
+  {
+    id: '1',
+    nome: 'Administrador',
+    email: 'admin@gymflow.com',
+    password: '123456',
+    role: 'admin',
+    status: 'ativo',
+    academia_id: 'academia-1',
+    foto_url: undefined,
+    telefone: '(32) 99999-0001',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: '2',
+    nome: 'Prof. Carlos Souza',
+    email: 'prof@gymflow.com',
+    password: '123456',
+    role: 'professor',
+    status: 'ativo',
+    academia_id: 'academia-1',
+    foto_url: undefined,
+    telefone: '(32) 99999-0002',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: '3',
+    nome: 'João Aluno Silva',
+    email: 'aluno@gymflow.com',
+    password: '123456',
+    role: 'aluno',
+    status: 'ativo',
+    academia_id: 'academia-1',
+    foto_url: undefined,
+    telefone: '(32) 99999-0003',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+]
+
+interface AuthContextType {
+  usuario: Usuario | null
+  role: UserRole | null
+  isLoading: boolean
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>
+  signOut: () => Promise<void>
+  refreshUser: () => Promise<void>
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+const STORAGE_KEY = 'gymflow_mock_user'
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [usuario, setUsuario] = useState<Usuario | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved) setUsuario(JSON.parse(saved))
+    } catch {
+      // ignora
+    }
+    setIsLoading(false)
+  }, [])
+
+  const signIn = async (email: string, password: string) => {
+    const found = MOCK_USERS.find(
+      u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+    )
+    if (!found) return { error: new Error('Invalid login credentials') }
+    const { password: _, ...user } = found
+    setUsuario(user)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(user))
+    return { error: null }
+  }
+
+  const signOut = async () => {
+    setUsuario(null)
+    localStorage.removeItem(STORAGE_KEY)
+  }
+
+  const refreshUser = async () => {}
+
+  return (
+    <AuthContext.Provider value={{
+      usuario,
+      role: usuario?.role ?? null,
+      isLoading,
+      signIn,
+      signOut,
+      refreshUser,
+    }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (!context) throw new Error('useAuth must be used within AuthProvider')
+  return context
+}
+
 // 'use client'
 
 // import { createContext, useContext, useEffect, useState, useCallback } from 'react'
@@ -121,120 +233,120 @@
 //   return context
 // }
 
-'use client'
+// 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import type { Usuario, UserRole } from '@/lib/types'
+// import { createContext, useContext, useEffect, useState } from 'react'
+// import type { Usuario, UserRole } from '@/lib/types'
 
-// Usuários de demonstração locais
-const MOCK_USERS: (Usuario & { password: string })[] = [
-  {
-    id: '1',
-    nome: 'Administrador',
-    email: 'admin@gymflow.com',
-    password: '123456',
-    role: 'admin',
-    status: 'ativo',
-    academia_id: 'academia-1',
-    foto_url: null,
-    telefone: '(32) 99999-0001',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    nome: 'Prof. Carlos Souza',
-    email: 'prof@gymflow.com',
-    password: '123456',
-    role: 'professor',
-    status: 'ativo',
-    academia_id: 'academia-1',
-    foto_url: null,
-    telefone: '(32) 99999-0002',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: '3',
-    nome: 'João Aluno Silva',
-    email: 'aluno@gymflow.com',
-    password: '123456',
-    role: 'aluno',
-    status: 'ativo',
-    academia_id: 'academia-1',
-    foto_url: null,
-    telefone: '(32) 99999-0003',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-]
+// // Usuários de demonstração locais
+// const MOCK_USERS: (Usuario & { password: string })[] = [
+//   {
+//     id: '1',
+//     nome: 'Administrador',
+//     email: 'admin@gymflow.com',
+//     password: '123456',
+//     role: 'admin',
+//     status: 'ativo',
+//     academia_id: 'academia-1',
+//     foto_url: null,
+//     telefone: '(32) 99999-0001',
+//     created_at: new Date().toISOString(),
+//     updated_at: new Date().toISOString(),
+//   },
+//   {
+//     id: '2',
+//     nome: 'Prof. Carlos Souza',
+//     email: 'prof@gymflow.com',
+//     password: '123456',
+//     role: 'professor',
+//     status: 'ativo',
+//     academia_id: 'academia-1',
+//     foto_url: null,
+//     telefone: '(32) 99999-0002',
+//     created_at: new Date().toISOString(),
+//     updated_at: new Date().toISOString(),
+//   },
+//   {
+//     id: '3',
+//     nome: 'João Aluno Silva',
+//     email: 'aluno@gymflow.com',
+//     password: '123456',
+//     role: 'aluno',
+//     status: 'ativo',
+//     academia_id: 'academia-1',
+//     foto_url: null,
+//     telefone: '(32) 99999-0003',
+//     created_at: new Date().toISOString(),
+//     updated_at: new Date().toISOString(),
+//   },
+// ]
 
-interface AuthContextType {
-  usuario: Usuario | null
-  role: UserRole | null
-  isLoading: boolean
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>
-  signOut: () => Promise<void>
-  refreshUser: () => Promise<void>
-}
+// interface AuthContextType {
+//   usuario: Usuario | null
+//   role: UserRole | null
+//   isLoading: boolean
+//   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
+//   signOut: () => Promise<void>
+//   refreshUser: () => Promise<void>
+// }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+// const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const STORAGE_KEY = 'gymflow_mock_user'
+// const STORAGE_KEY = 'gymflow_mock_user'
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [usuario, setUsuario] = useState<Usuario | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+// export function AuthProvider({ children }: { children: React.ReactNode }) {
+//   const [usuario, setUsuario] = useState<Usuario | null>(null)
+//   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    // Recupera sessão salva no localStorage
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) {
-        setUsuario(JSON.parse(saved))
-      }
-    } catch {
-      // ignora erro
-    }
-    setIsLoading(false)
-  }, [])
+//   useEffect(() => {
+//     // Recupera sessão salva no localStorage
+//     try {
+//       const saved = localStorage.getItem(STORAGE_KEY)
+//       if (saved) {
+//         setUsuario(JSON.parse(saved))
+//       }
+//     } catch {
+//       // ignora erro
+//     }
+//     setIsLoading(false)
+//   }, [])
 
-  const signIn = async (email: string, password: string) => {
-    const found = MOCK_USERS.find(
-      u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    )
-    if (!found) {
-      return { error: new Error('Invalid login credentials') }
-    }
-    const { password: _, ...userWithoutPassword } = found
-    setUsuario(userWithoutPassword)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(userWithoutPassword))
-    return { error: null }
-  }
+//   const signIn = async (email: string, password: string) => {
+//     const found = MOCK_USERS.find(
+//       u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+//     )
+//     if (!found) {
+//       return { error: new Error('Invalid login credentials') }
+//     }
+//     const { password: _, ...userWithoutPassword } = found
+//     setUsuario(userWithoutPassword)
+//     localStorage.setItem(STORAGE_KEY, JSON.stringify(userWithoutPassword))
+//     return { error: null }
+//   }
 
-  const signOut = async () => {
-    setUsuario(null)
-    localStorage.removeItem(STORAGE_KEY)
-  }
+//   const signOut = async () => {
+//     setUsuario(null)
+//     localStorage.removeItem(STORAGE_KEY)
+//   }
 
-  const refreshUser = async () => {}
+//   const refreshUser = async () => {}
 
-  return (
-    <AuthContext.Provider value={{
-      usuario,
-      role: usuario?.role ?? null,
-      isLoading,
-      signIn,
-      signOut,
-      refreshUser,
-    }}>
-      {children}
-    </AuthContext.Provider>
-  )
-}
+//   return (
+//     <AuthContext.Provider value={{
+//       usuario,
+//       role: usuario?.role ?? null,
+//       isLoading,
+//       signIn,
+//       signOut,
+//       refreshUser,
+//     }}>
+//       {children}
+//     </AuthContext.Provider>
+//   )
+// }
 
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) throw new Error('useAuth must be used within AuthProvider')
-  return context
-}
+// export function useAuth() {
+//   const context = useContext(AuthContext)
+//   if (!context) throw new Error('useAuth must be used within AuthProvider')
+//   return context
+// }

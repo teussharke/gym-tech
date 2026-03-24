@@ -68,11 +68,23 @@
 //   ],
 // }
 
+// import { NextResponse } from 'next/server'
+// import type { NextRequest } from 'next/server'
+
+// // No modo local, o controle de autenticação é feito no lado do cliente (useAuth + localStorage)
+// // O middleware apenas garante que rotas de auth não bloqueiem a navegação
+// export function middleware(req: NextRequest) {
+//   return NextResponse.next()
+// }
+
+// export const config = {
+//   matcher: [],
+// }
+
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// No modo local, o controle de autenticação é feito no lado do cliente (useAuth + localStorage)
-// O middleware apenas garante que rotas de auth não bloqueiem a navegação
+// Middleware mínimo — autenticação controlada no cliente via useAuth + localStorage
 export function middleware(req: NextRequest) {
   return NextResponse.next()
 }
