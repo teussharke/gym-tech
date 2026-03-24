@@ -131,7 +131,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span>Meu Perfil</span>
         </Link>
         <Link
-          href="/configuracoes"
+          href="/admin/configuracoes"
           className="sidebar-link"
           onClick={() => setSidebarOpen(false)}
         >
