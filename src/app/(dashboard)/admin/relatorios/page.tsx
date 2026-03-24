@@ -1,341 +1,294 @@
 'use client'
 
-import { useState } from 'react'
-import { Download, FileText, BarChart3, Users, DollarSign, Calendar, TrendingUp, Filter } from 'lucide-react'
-import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
-} from 'recharts'
+import { useState, useEffect, useCallback } from 'react'
+import { DollarSign, Users, Calendar, TrendingUp, Download } from 'lucide-react'
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { supabase } from '@/lib/supabase/client'
+import { useAuth } from '@/lib/hooks/useAuth'
+import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
-const retenção = [
-  { mes: 'Jul', novos: 12, cancelamentos: 4, total: 98 },
-  { mes: 'Ago', novos: 15, cancelamentos: 3, total: 110 },
-  { mes: 'Set', novos: 8, cancelamentos: 6, total: 112 },
-  { mes: 'Out', novos: 18, cancelamentos: 5, total: 125 },
-  { mes: 'Nov', novos: 10, cancelamentos: 4, total: 131 },
-  { mes: 'Dez', novos: 6, cancelamentos: 8, total: 129 },
-  { mes: 'Jan', novos: 14, cancelamentos: 3, total: 140 },
-]
-
-const planoDistribuicao = [
-  { name: 'Premium', value: 45, color: '#22c55e', receita: 8100 },
-  { name: 'Básico', value: 60, color: '#3b82f6', receita: 7200 },
-  { name: 'Família', value: 22, color: '#f59e0b', receita: 5500 },
-  { name: 'Trimestral', value: 13, color: '#a855f7', receita: 4680 },
-]
-
-const diasSemanaFreq = [
-  { dia: 'Seg', media: 45, pico: 68 },
-  { dia: 'Ter', media: 52, pico: 71 },
-  { dia: 'Qua', media: 48, pico: 65 },
-  { dia: 'Qui', media: 58, pico: 82 },
-  { dia: 'Sex', media: 62, pico: 89 },
-  { dia: 'Sáb', media: 35, pico: 55 },
-  { dia: 'Dom', media: 18, pico: 28 },
-]
-
-const alunosTop = [
-  { nome: 'Carlos Silva', checkins: 24, meta: 20, plano: 'Premium' },
-  { nome: 'Ana Oliveira', checkins: 22, meta: 20, plano: 'Premium' },
-  { nome: 'Pedro Santos', checkins: 21, meta: 20, plano: 'Básico' },
-  { nome: 'Maria Costa', checkins: 20, meta: 20, plano: 'Família' },
-  { nome: 'João Ferreira', checkins: 19, meta: 20, plano: 'Básico' },
-  { nome: 'Fernanda Lima', checkins: 18, meta: 20, plano: 'Premium' },
-  { nome: 'Roberto Alves', checkins: 17, meta: 20, plano: 'Básico' },
-  { nome: 'Juliana Santos', checkins: 16, meta: 20, plano: 'Família' },
-]
-
-type ReportType = 'financeiro' | 'presenca' | 'alunos' | 'retencao'
+type ReportTab = 'financeiro' | 'presenca' | 'alunos'
 
 export default function RelatoriosPage() {
-  const [activeReport, setActiveReport] = useState<ReportType>('financeiro')
-  const [periodo, setPeriodo] = useState('mes')
-  const [isGenerating, setIsGenerating] = useState(false)
+  const { usuario } = useAuth()
+  const [activeTab, setActiveTab] = useState<ReportTab>('financeiro')
+  const [loading, setLoading] = useState(true)
 
-  const handleExportPDF = async () => {
-    setIsGenerating(true)
-    // In production: use jsPDF to generate PDF
-    await new Promise(r => setTimeout(r, 1500))
-    setIsGenerating(false)
-    // toast.success('PDF gerado com sucesso!')
-  }
+  // Financeiro
+  const [faturamentoMensal, setFaturamentoMensal] = useState<{ mes: string; receita: number }[]>([])
+  const [totalMes, setTotalMes] = useState(0)
+  const [totalPendente, setTotalPendente] = useState(0)
+  const [formasPagamento, setFormasPagamento] = useState<{ forma: string; total: number; color: string }[]>([])
 
-  const reports = [
-    { key: 'financeiro', label: 'Financeiro', icon: DollarSign, color: 'text-green-500' },
-    { key: 'presenca', label: 'Presença', icon: Calendar, color: 'text-blue-500' },
-    { key: 'alunos', label: 'Alunos', icon: Users, color: 'text-purple-500' },
-    { key: 'retencao', label: 'Retenção', icon: TrendingUp, color: 'text-amber-500' },
+  // Presença
+  const [presencaMensal, setPresencaMensal] = useState<{ mes: string; checkins: number }[]>([])
+  const [rankingPresenca, setRankingPresenca] = useState<{ nome: string; checkins: number }[]>([])
+
+  // Alunos
+  const [evolucaoAlunos, setEvolucaoAlunos] = useState<{ mes: string; total: number }[]>([])
+  const [statsAlunos, setStatsAlunos] = useState({ total: 0, ativos: 0, novos: 0, inadimplentes: 0 })
+
+  const cores = ['#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ef4444', '#6b7280']
+  const formaLabels: Record<string, string> = { pix: 'PIX', cartao_credito: 'Cartão Crédito', dinheiro: 'Dinheiro', boleto: 'Boleto', transferencia: 'Transferência', cartao_debito: 'Cartão Débito' }
+
+  const fetchFinanceiro = useCallback(async () => {
+    if (!usuario?.academia_id) return
+    const meses = []
+    for (let i = 5; i >= 0; i--) {
+      const d = subMonths(new Date(), i)
+      const { data } = await supabase.from('pagamentos')
+        .select('valor, valor_desconto, forma_pagamento, status')
+        .eq('academia_id', usuario.academia_id)
+        .gte('data_pagamento', startOfMonth(d).toISOString())
+        .lte('data_pagamento', endOfMonth(d).toISOString())
+        .eq('status', 'pago')
+      const receita = (data ?? []).reduce((s, p) => s + (p.valor - (p.valor_desconto || 0)), 0)
+      meses.push({ mes: format(d, 'MMM/yy', { locale: ptBR }), receita })
+    }
+    setFaturamentoMensal(meses)
+
+    // Total mês atual e pendentes
+    const mesAtual = new Date()
+    const [{ data: pagos }, { data: pendentes }] = await Promise.all([
+      supabase.from('pagamentos').select('valor, valor_desconto').eq('academia_id', usuario.academia_id).eq('status', 'pago')
+        .gte('data_pagamento', startOfMonth(mesAtual).toISOString()),
+      supabase.from('pagamentos').select('valor').eq('academia_id', usuario.academia_id).in('status', ['pendente', 'vencido']),
+    ])
+    setTotalMes((pagos ?? []).reduce((s, p) => s + (p.valor - (p.valor_desconto || 0)), 0))
+    setTotalPendente((pendentes ?? []).reduce((s, p) => s + p.valor, 0))
+
+    // Formas de pagamento
+    const { data: todasFormas } = await supabase.from('pagamentos').select('forma_pagamento, valor').eq('academia_id', usuario.academia_id).eq('status', 'pago')
+    const agrup: Record<string, number> = {}
+    ;(todasFormas ?? []).forEach(p => { agrup[p.forma_pagamento] = (agrup[p.forma_pagamento] ?? 0) + p.valor })
+    setFormasPagamento(Object.entries(agrup).map(([forma, total], i) => ({ forma: formaLabels[forma] ?? forma, total, color: cores[i % cores.length] })))
+  }, [usuario?.academia_id])
+
+  const fetchPresenca = useCallback(async () => {
+    if (!usuario?.academia_id) return
+    const meses = []
+    for (let i = 5; i >= 0; i--) {
+      const d = subMonths(new Date(), i)
+      const { count } = await supabase.from('presencas').select('*', { count: 'exact', head: true })
+        .eq('academia_id', usuario.academia_id)
+        .gte('data_checkin', startOfMonth(d).toISOString())
+        .lte('data_checkin', endOfMonth(d).toISOString())
+      meses.push({ mes: format(d, 'MMM/yy', { locale: ptBR }), checkins: count ?? 0 })
+    }
+    setPresencaMensal(meses)
+
+    // Ranking
+    const { data: checkins } = await supabase.from('presencas')
+      .select('aluno_id, aluno:alunos(usuario:usuarios!alunos_usuario_id_fkey(nome))')
+      .eq('academia_id', usuario.academia_id)
+      .gte('data_checkin', startOfMonth(new Date()).toISOString())
+    
+    const cont: Record<string, { nome: string; count: number }> = {}
+    ;(checkins ?? []).forEach((c: any) => {
+      const nome = c.aluno?.usuario?.nome ?? 'Desconhecido'
+      if (!cont[c.aluno_id]) cont[c.aluno_id] = { nome, count: 0 }
+      cont[c.aluno_id].count++
+    })
+    setRankingPresenca(Object.values(cont).sort((a, b) => b.count - a.count).slice(0, 8).map(v => ({ nome: v.nome, checkins: v.count })))
+  }, [usuario?.academia_id])
+
+  const fetchAlunos = useCallback(async () => {
+    if (!usuario?.academia_id) return
+    const meses = []
+    for (let i = 5; i >= 0; i--) {
+      const d = subMonths(new Date(), i)
+      const { count } = await supabase.from('alunos').select('*', { count: 'exact', head: true })
+        .eq('academia_id', usuario.academia_id)
+        .lte('data_matricula', format(d, 'yyyy-MM-dd'))
+      meses.push({ mes: format(d, 'MMM/yy', { locale: ptBR }), total: count ?? 0 })
+    }
+    setEvolucaoAlunos(meses)
+
+    const [{ count: total }, { count: inadimplentes }] = await Promise.all([
+      supabase.from('alunos').select('*', { count: 'exact', head: true }).eq('academia_id', usuario.academia_id),
+      supabase.from('alunos').select('*', { count: 'exact', head: true }).eq('academia_id', usuario.academia_id).eq('status_pagamento', 'vencido'),
+    ])
+    const mesAtual = format(new Date(), 'yyyy-MM')
+    const { count: novos } = await supabase.from('alunos').select('*', { count: 'exact', head: true })
+      .eq('academia_id', usuario.academia_id).gte('data_matricula', `${mesAtual}-01`)
+    setStatsAlunos({ total: total ?? 0, ativos: (total ?? 0) - (inadimplentes ?? 0), novos: novos ?? 0, inadimplentes: inadimplentes ?? 0 })
+  }, [usuario?.academia_id])
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      await Promise.all([fetchFinanceiro(), fetchPresenca(), fetchAlunos()])
+      setLoading(false)
+    }
+    load()
+  }, [fetchFinanceiro, fetchPresenca, fetchAlunos])
+
+  const tabs = [
+    { key: 'financeiro', label: 'Financeiro', icon: DollarSign },
+    { key: 'presenca', label: 'Presença', icon: Calendar },
+    { key: 'alunos', label: 'Alunos', icon: Users },
   ]
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="page-header">
-        <div>
-          <h1 className="page-title">Relatórios</h1>
-          <p className="page-subtitle">Análises e métricas da academia</p>
-        </div>
-        <button
-          onClick={handleExportPDF}
-          disabled={isGenerating}
-          className="btn-primary flex items-center gap-2 text-sm"
-        >
-          {isGenerating ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Gerando...
-            </>
-          ) : (
-            <>
-              <Download className="w-4 h-4" />
-              Exportar PDF
-            </>
-          )}
+        <div><h1 className="page-title">Relatórios</h1><p className="page-subtitle">Análises e métricas da academia</p></div>
+        <button className="btn-secondary flex items-center gap-2 text-sm" onClick={() => window.print()}>
+          <Download className="w-4 h-4" />Exportar
         </button>
       </div>
 
-      {/* Report type selector */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {reports.map(r => {
-          const Icon = r.icon
+      {/* Tabs */}
+      <div className="grid grid-cols-3 gap-3">
+        {tabs.map(t => {
+          const Icon = t.icon
           return (
-            <button
-              key={r.key}
-              onClick={() => setActiveReport(r.key as ReportType)}
-              className={`card-base p-4 flex flex-col items-center gap-2 transition-all ${
-                activeReport === r.key
-                  ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                  : 'hover:shadow-md'
-              }`}
-            >
-              <Icon className={`w-6 h-6 ${activeReport === r.key ? 'text-primary-600' : r.color}`} />
-              <span className={`text-sm font-medium ${
-                activeReport === r.key
-                  ? 'text-primary-700 dark:text-primary-400'
-                  : 'text-gray-700 dark:text-gray-300'
-              }`}>{r.label}</span>
+            <button key={t.key} onClick={() => setActiveTab(t.key as ReportTab)}
+              className={`card-base p-4 flex flex-col items-center gap-2 transition-all ${activeTab === t.key ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'hover:shadow-md'}`}>
+              <Icon className={`w-6 h-6 ${activeTab === t.key ? 'text-primary-600' : 'text-gray-400'}`} />
+              <span className={`text-sm font-medium ${activeTab === t.key ? 'text-primary-700 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400'}`}>{t.label}</span>
             </button>
           )
         })}
       </div>
 
-      {/* Period filter */}
-      <div className="flex gap-2">
-        {[
-          { key: 'semana', label: 'Semana' },
-          { key: 'mes', label: 'Mês' },
-          { key: 'trimestre', label: 'Trimestre' },
-          { key: 'ano', label: 'Ano' },
-        ].map(p => (
-          <button
-            key={p.key}
-            onClick={() => setPeriodo(p.key)}
-            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
-              periodo === p.key
-                ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
+      {loading && (
+        <div className="card-base p-8 text-center">
+          <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-gray-400 text-sm">Carregando dados...</p>
+        </div>
+      )}
 
-      {/* FINANCIAL REPORT */}
-      {activeReport === 'financeiro' && (
-        <div className="space-y-4">
-          {/* KPIs */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: 'Faturamento', value: 'R$ 26.800', change: '+9.4%', positive: true },
-              { label: 'Ticket Médio', value: 'R$ 191', change: '+3.2%', positive: true },
-              { label: 'Inadimplência', value: '11.8%', change: '-1.2%', positive: true },
-              { label: 'Projeção Mês', value: 'R$ 28.500', change: '+6.3%', positive: true },
-            ].map(kpi => (
-              <div key={kpi.label} className="stat-card">
-                <p className="text-xs text-gray-500 dark:text-gray-400">{kpi.label}</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">{kpi.value}</p>
-                <p className={`text-xs font-medium ${kpi.positive ? 'text-green-500' : 'text-red-500'}`}>
-                  {kpi.change}
-                </p>
+      {!loading && (
+        <>
+          {/* FINANCEIRO */}
+          {activeTab === 'financeiro' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="stat-card">
+                  <p className="text-sm text-gray-500">Recebido/Mês</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">R$ {totalMes.toLocaleString('pt-BR')}</p>
+                </div>
+                <div className="stat-card">
+                  <p className="text-sm text-gray-500">A Receber</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">R$ {totalPendente.toLocaleString('pt-BR')}</p>
+                </div>
               </div>
-            ))}
-          </div>
-
-          {/* Distribution by plan */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="card-base p-5">
-              <h3 className="section-title">Receita por Plano</h3>
-              <div className="space-y-3">
-                {planoDistribuicao.map(p => (
-                  <div key={p.name}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />
-                        <span className="font-medium text-gray-700 dark:text-gray-300">{p.name}</span>
-                        <span className="text-gray-400">({p.value} alunos)</span>
+              <div className="card-base p-5">
+                <h3 className="section-title">Faturamento Mensal</h3>
+                {faturamentoMensal.every(m => m.receita === 0) ? (
+                  <p className="text-gray-400 text-sm text-center py-8">Nenhum pagamento registrado ainda.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={faturamentoMensal}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
+                      <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString('pt-BR')}`, 'Receita']} contentStyle={{ borderRadius: '8px', border: 'none' }} />
+                      <Bar dataKey="receita" fill="#22c55e" radius={[4, 4, 0, 0]} name="Receita" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+              {formasPagamento.length > 0 && (
+                <div className="card-base p-5">
+                  <h3 className="section-title">Formas de Pagamento</h3>
+                  <div className="space-y-3">
+                    {formasPagamento.map(fp => (
+                      <div key={fp.forma}>
+                        <div className="flex items-center justify-between text-sm mb-1">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ background: fp.color }} />
+                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{fp.forma}</span>
+                          </div>
+                          <span className="text-xs font-semibold">R$ {fp.total.toLocaleString('pt-BR')}</span>
+                        </div>
+                        <div className="progress-bar"><div className="progress-fill" style={{ width: `${(fp.total / formasPagamento.reduce((s, f) => s + f.total, 0)) * 100}%`, background: fp.color }} /></div>
                       </div>
-                      <span className="font-semibold text-gray-800 dark:text-gray-200">
-                        R$ {p.receita.toLocaleString('pt-BR')}
-                      </span>
-                    </div>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${(p.receita / 25480) * 100}%`, background: p.color }} />
-                    </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* PRESENÇA */}
+          {activeTab === 'presenca' && (
+            <div className="space-y-4">
+              <div className="card-base p-5">
+                <h3 className="section-title">Check-ins por Mês</h3>
+                {presencaMensal.every(m => m.checkins === 0) ? (
+                  <p className="text-gray-400 text-sm text-center py-8">Nenhum check-in registrado ainda.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={presencaMensal}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none' }} />
+                      <Bar dataKey="checkins" fill="#a855f7" radius={[4, 4, 0, 0]} name="Check-ins" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+              {rankingPresenca.length > 0 && (
+                <div className="card-base overflow-hidden">
+                  <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">Ranking do Mês</h3>
+                  </div>
+                  <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {rankingPresenca.map((a, i) => (
+                      <div key={a.nome} className="flex items-center gap-3 p-3.5">
+                        <span className="text-lg w-7 text-center">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}°`}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{a.nome}</p>
+                          <div className="progress-bar mt-1"><div className="progress-fill" style={{ width: `${(a.checkins / (rankingPresenca[0]?.checkins || 1)) * 100}%` }} /></div>
+                        </div>
+                        <span className="text-sm font-bold text-primary-600 dark:text-primary-400">{a.checkins}x</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ALUNOS */}
+          {activeTab === 'alunos' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: 'Total', value: statsAlunos.total },
+                  { label: 'Ativos', value: statsAlunos.ativos },
+                  { label: 'Novos/mês', value: statsAlunos.novos },
+                  { label: 'Inadimplentes', value: statsAlunos.inadimplentes },
+                ].map(s => (
+                  <div key={s.label} className="stat-card text-center">
+                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{s.value}</p>
+                    <p className="text-xs text-gray-500">{s.label}</p>
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div className="card-base p-5">
-              <h3 className="section-title">Distribuição por Plano</h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={planoDistribuicao} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
-                    {planoDistribuicao.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ATTENDANCE REPORT */}
-      {activeReport === 'presenca' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: 'Média diária', value: '45' },
-              { label: 'Pico do dia', value: '89 (Sex)' },
-              { label: 'Check-ins/mês', value: '1.423' },
-              { label: 'Frequência média', value: '68%' },
-            ].map(s => (
-              <div key={s.label} className="stat-card text-center">
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{s.value}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{s.label}</p>
+              <div className="card-base p-5">
+                <h3 className="section-title">Evolução da Base de Alunos</h3>
+                {evolucaoAlunos.every(m => m.total === 0) ? (
+                  <p className="text-gray-400 text-sm text-center py-8">Nenhum aluno cadastrado ainda.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={evolucaoAlunos}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none' }} />
+                      <Line type="monotone" dataKey="total" stroke="#22c55e" strokeWidth={2.5} dot={{ r: 4 }} name="Total alunos" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
               </div>
-            ))}
-          </div>
-
-          <div className="card-base p-5">
-            <h3 className="section-title">Frequência por Dia da Semana</h3>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={diasSemanaFreq} barCategoryGap="30%">
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="dia" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,.1)' }} />
-                <Legend />
-                <Bar dataKey="media" fill="#22c55e" name="Média" radius={[3,3,0,0]} />
-                <Bar dataKey="pico" fill="#3b82f6" name="Pico" radius={[3,3,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Top alunos ranking */}
-          <div className="card-base overflow-hidden">
-            <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">Ranking de Frequência — Janeiro</h3>
             </div>
-            <div className="divide-y divide-gray-100 dark:divide-gray-700">
-              {alunosTop.map((a, i) => (
-                <div key={a.nome} className="flex items-center gap-3 p-3.5">
-                  <span className="text-lg w-7 text-center flex-shrink-0">
-                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}°`}
-                  </span>
-                  <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center text-xs font-bold text-primary-700 dark:text-primary-400 flex-shrink-0">
-                    {a.nome.split(' ').map(n => n[0]).slice(0, 2).join('')}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{a.nome}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <div className="progress-bar flex-1">
-                        <div className="progress-fill" style={{ width: `${(a.checkins / a.meta) * 100}%` }} />
-                      </div>
-                      <span className="text-xs text-gray-400 flex-shrink-0">{a.checkins}/{a.meta}</span>
-                    </div>
-                  </div>
-                  <span className="badge-info flex-shrink-0">{a.plano}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* STUDENTS REPORT */}
-      {activeReport === 'alunos' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: 'Total de Alunos', value: '140', change: '+5.3%' },
-              { label: 'Ativos', value: '127', change: '+4.1%' },
-              { label: 'Novos no Mês', value: '14', change: '+16.7%' },
-              { label: 'Cancelamentos', value: '3', change: '-40%' },
-            ].map(s => (
-              <div key={s.label} className="stat-card">
-                <p className="text-xs text-gray-500 dark:text-gray-400">{s.label}</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">{s.value}</p>
-                <p className="text-xs text-green-500 font-medium">{s.change}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="card-base p-5">
-            <h3 className="section-title">Evolução da Base de Alunos</h3>
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={retenção}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,.1)' }} />
-                <Legend />
-                <Line type="monotone" dataKey="total" stroke="#22c55e" strokeWidth={2.5} name="Total" dot={{ r: 4 }} />
-                <Bar dataKey="novos" fill="#3b82f6" name="Novos" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* RETENTION REPORT */}
-      {activeReport === 'retencao' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: 'Taxa Retenção', value: '94.2%', positive: true },
-              { label: 'LTV Médio', value: 'R$ 2.292', positive: true },
-              { label: 'Churn Rate', value: '2.3%', positive: false },
-              { label: 'MRR', value: 'R$ 26.800', positive: true },
-            ].map(s => (
-              <div key={s.label} className="stat-card">
-                <p className="text-xs text-gray-500 dark:text-gray-400">{s.label}</p>
-                <p className={`text-xl font-bold mt-1 ${s.positive ? 'text-gray-900 dark:text-gray-100' : 'text-gray-900 dark:text-gray-100'}`}>
-                  {s.value}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          <div className="card-base p-5">
-            <h3 className="section-title">Novos Alunos x Cancelamentos</h3>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={retenção} barCategoryGap="30%">
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,.1)' }} />
-                <Legend />
-                <Bar dataKey="novos" fill="#22c55e" name="Novos" radius={[3,3,0,0]} />
-                <Bar dataKey="cancelamentos" fill="#ef4444" name="Cancelamentos" radius={[3,3,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   )

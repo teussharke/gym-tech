@@ -1,296 +1,319 @@
 'use client'
 
-import { useState } from 'react'
-import {
-  DollarSign, TrendingUp, AlertCircle, CheckCircle2,
-  Plus, Download, Search, Filter, CreditCard, Calendar
-} from 'lucide-react'
-import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis,
-  CartesianGrid, Tooltip, ResponsiveContainer, Cell
-} from 'recharts'
+import { useState, useEffect, useCallback } from 'react'
+import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, Plus, Search, Download } from 'lucide-react'
+import { supabase } from '@/lib/supabase/client'
+import { useAuth } from '@/lib/hooks/useAuth'
 import { format } from 'date-fns'
+import toast from 'react-hot-toast'
 
-const mockPagamentos = [
-  { id: '1', aluno: 'Carlos Silva', plano: 'Premium', valor: 180, desconto: 0, forma: 'pix', status: 'pago', vencimento: '2024-01-15', pagamento: '2024-01-14' },
-  { id: '2', aluno: 'Ana Oliveira', plano: 'Básico', valor: 120, desconto: 10, forma: 'cartao_credito', status: 'pago', vencimento: '2024-01-20', pagamento: '2024-01-20' },
-  { id: '3', aluno: 'Pedro Santos', plano: 'Premium', valor: 180, desconto: 0, forma: 'dinheiro', status: 'vencido', vencimento: '2024-01-10', pagamento: null },
-  { id: '4', aluno: 'Maria Costa', plano: 'Família', valor: 250, desconto: 20, forma: 'pix', status: 'pago', vencimento: '2024-01-28', pagamento: '2024-01-25' },
-  { id: '5', aluno: 'João Ferreira', plano: 'Básico', valor: 120, desconto: 0, forma: 'boleto', status: 'pendente', vencimento: '2024-02-05', pagamento: null },
-  { id: '6', aluno: 'Fernanda Lima', plano: 'Premium', valor: 180, desconto: 0, forma: 'pix', status: 'pago', vencimento: '2024-01-22', pagamento: '2024-01-22' },
-  { id: '7', aluno: 'Roberto Alves', plano: 'Básico', valor: 120, desconto: 0, forma: 'cartao_debito', status: 'pago', vencimento: '2024-01-18', pagamento: '2024-01-17' },
-]
+interface Pagamento {
+  id: string
+  valor: number
+  valor_desconto: number
+  forma_pagamento: string
+  status: string
+  data_vencimento: string
+  data_pagamento: string | null
+  observacoes: string | null
+  aluno: { matricula: string; usuario: { nome: string } } | null
+  plano: { nome: string } | null
+}
 
-const faturamentoMensal = [
-  { mes: 'Jul/23', receita: 18400, meta: 20000 },
-  { mes: 'Ago/23', receita: 21200, meta: 20000 },
-  { mes: 'Set/23', receita: 19800, meta: 20000 },
-  { mes: 'Out/23', receita: 23100, meta: 22000 },
-  { mes: 'Nov/23', receita: 24500, meta: 22000 },
-  { mes: 'Dez/23', receita: 22300, meta: 22000 },
-  { mes: 'Jan/24', receita: 26800, meta: 25000 },
-]
-
-const formasPagamento = [
-  { forma: 'PIX', total: 14200, count: 48, color: '#22c55e' },
-  { forma: 'Cartão Crédito', total: 7800, count: 23, color: '#3b82f6' },
-  { forma: 'Dinheiro', total: 3200, count: 18, color: '#f59e0b' },
-  { forma: 'Boleto', total: 1600, count: 12, color: '#a855f7' },
-]
+interface NovoPagamentoForm {
+  aluno_id: string
+  plano_id: string
+  valor: string
+  forma_pagamento: string
+  data_vencimento: string
+  observacoes: string
+}
 
 const statusConfig: Record<string, { label: string; class: string }> = {
-  pago: { label: 'Pago', class: 'badge-success' },
-  pendente: { label: 'Pendente', class: 'badge-warning' },
-  vencido: { label: 'Vencido', class: 'badge-danger' },
-  cancelado: { label: 'Cancelado', class: 'badge-gray' },
+  pago:      { label: 'Pago',      class: 'badge-success' },
+  pendente:  { label: 'Pendente',  class: 'badge-warning' },
+  vencido:   { label: 'Vencido',   class: 'badge-danger'  },
+  cancelado: { label: 'Cancelado', class: 'badge-gray'    },
 }
 
 const formaLabel: Record<string, string> = {
-  pix: 'PIX',
+  pix:            'PIX',
   cartao_credito: 'Cartão Crédito',
-  cartao_debito: 'Cartão Débito',
-  dinheiro: 'Dinheiro',
-  boleto: 'Boleto',
-  transferencia: 'Transferência',
+  cartao_debito:  'Cartão Débito',
+  dinheiro:       'Dinheiro',
+  boleto:         'Boleto',
+  transferencia:  'Transferência',
 }
 
 export default function FinanceiroPage() {
+  const { usuario } = useAuth()
+  const [pagamentos, setPagamentos] = useState<Pagamento[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('todos')
-  const [showNovoPagamento, setShowNovoPagamento] = useState(false)
+  const [statusFiltro, setStatusFiltro] = useState('todos')
+  const [showForm, setShowForm] = useState(false)
+  const [alunos, setAlunos] = useState<{ id: string; usuario: { nome: string } }[]>([])
+  const [planos, setPlanos] = useState<{ id: string; nome: string; valor: number }[]>([])
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<NovoPagamentoForm>({
+    aluno_id: '', plano_id: '', valor: '', forma_pagamento: 'pix',
+    data_vencimento: new Date().toISOString().split('T')[0], observacoes: '',
+  })
 
-  const totalMes = mockPagamentos.filter(p => p.status === 'pago').reduce((sum, p) => sum + (p.valor - p.desconto), 0)
-  const totalPendente = mockPagamentos.filter(p => p.status === 'pendente').reduce((sum, p) => sum + p.valor, 0)
-  const totalVencido = mockPagamentos.filter(p => p.status === 'vencido').reduce((sum, p) => sum + p.valor, 0)
-  const inadimplentes = mockPagamentos.filter(p => p.status === 'vencido').length
+  const fetchPagamentos = useCallback(async () => {
+    if (!usuario?.academia_id) return
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('pagamentos')
+        .select(`
+          id, valor, valor_desconto, forma_pagamento, status,
+          data_vencimento, data_pagamento, observacoes,
+          aluno:alunos (matricula, usuario:usuarios!alunos_usuario_id_fkey (nome)),
+          plano:planos (nome)
+        `)
+        .eq('academia_id', usuario.academia_id)
+        .order('data_vencimento', { ascending: false })
+        .limit(100)
 
-  const filtered = mockPagamentos.filter(p => {
-    const matchSearch = p.aluno.toLowerCase().includes(search.toLowerCase())
-    const matchStatus = statusFilter === 'todos' || p.status === statusFilter
+      if (error) throw error
+      setPagamentos((data as unknown as Pagamento[]) ?? [])
+    } catch {
+      toast.error('Erro ao carregar pagamentos')
+    } finally {
+      setLoading(false)
+    }
+  }, [usuario?.academia_id])
+
+  const fetchAlunosPlanos = useCallback(async () => {
+    if (!usuario?.academia_id) return
+    const [{ data: a }, { data: p }] = await Promise.all([
+      supabase.from('alunos').select('id, usuario:usuarios!alunos_usuario_id_fkey (nome)').eq('academia_id', usuario.academia_id),
+      supabase.from('planos').select('id, nome, valor').eq('academia_id', usuario.academia_id).eq('ativo', true),
+    ])
+    setAlunos((a as unknown as { id: string; usuario: { nome: string } }[]) ?? [])
+    setPlanos(p ?? [])
+  }, [usuario?.academia_id])
+
+  useEffect(() => { fetchPagamentos(); fetchAlunosPlanos() }, [fetchPagamentos, fetchAlunosPlanos])
+
+  const registrarPagamento = async (id: string) => {
+    const { error } = await supabase
+      .from('pagamentos')
+      .update({ status: 'pago', data_pagamento: new Date().toISOString().split('T')[0] })
+      .eq('id', id)
+    if (error) { toast.error('Erro ao registrar pagamento'); return }
+    toast.success('Pagamento registrado!')
+    fetchPagamentos()
+  }
+
+  const salvarNovoPagamento = async () => {
+    if (!form.aluno_id || !form.valor) { toast.error('Preencha aluno e valor'); return }
+    if (!usuario?.academia_id) return
+    setSaving(true)
+    try {
+      const { error } = await supabase.from('pagamentos').insert({
+        aluno_id: form.aluno_id,
+        academia_id: usuario.academia_id,
+        plano_id: form.plano_id || null,
+        valor: Number(form.valor),
+        valor_desconto: 0,
+        forma_pagamento: form.forma_pagamento,
+        status: 'pendente',
+        data_vencimento: form.data_vencimento,
+        observacoes: form.observacoes || null,
+        created_by: usuario.id,
+      })
+      if (error) throw error
+      toast.success('Pagamento criado!')
+      setShowForm(false)
+      fetchPagamentos()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const filtered = pagamentos.filter(p => {
+    const nome = (p.aluno as unknown as { usuario: { nome: string } })?.usuario?.nome ?? ''
+    const matchSearch = nome.toLowerCase().includes(search.toLowerCase())
+    const matchStatus = statusFiltro === 'todos' || p.status === statusFiltro
     return matchSearch && matchStatus
   })
 
+  const totalMes    = pagamentos.filter(p => p.status === 'pago').reduce((s, p) => s + (p.valor - (p.valor_desconto || 0)), 0)
+  const totalPendente = pagamentos.filter(p => p.status === 'pendente').reduce((s, p) => s + p.valor, 0)
+  const totalVencido  = pagamentos.filter(p => p.status === 'vencido').reduce((s, p) => s + p.valor, 0)
+
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Financeiro</h1>
           <p className="page-subtitle">Gestão de mensalidades e pagamentos</p>
         </div>
-        <div className="flex gap-2">
-          <button className="btn-secondary flex items-center gap-2 text-sm">
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Exportar</span>
-          </button>
-          <button
-            onClick={() => setShowNovoPagamento(true)}
-            className="btn-primary flex items-center gap-2 text-sm"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Novo Pagamento</span>
-          </button>
-        </div>
+        <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2 text-sm">
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline">Novo Pagamento</span>
+        </button>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="stat-card">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Faturamento/Mês</p>
-            <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-white" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            R$ {totalMes.toLocaleString('pt-BR')}
-          </p>
-          <p className="text-xs text-green-600 flex items-center gap-1">
-            <TrendingUp className="w-3 h-3" /> +9.4% vs mês anterior
-          </p>
-        </div>
-
-        <div className="stat-card">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">A Receber</p>
-            <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-white" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            R$ {totalPendente.toLocaleString('pt-BR')}
-          </p>
-          <p className="text-xs text-gray-400">{mockPagamentos.filter(p => p.status === 'pendente').length} pendentes</p>
-        </div>
-
-        <div className="stat-card">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Inadimplência</p>
-            <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center">
-              <AlertCircle className="w-5 h-5 text-white" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            R$ {totalVencido.toLocaleString('pt-BR')}
-          </p>
-          <p className="text-xs text-red-500">{inadimplentes} alunos inadimplentes</p>
-        </div>
-
-        <div className="stat-card">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Taxa Adimplência</p>
-            <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5 text-white" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">88%</p>
-          <div className="progress-bar">
-            <div className="progress-fill" style={{ width: '88%' }} />
-          </div>
-        </div>
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Faturamento */}
-        <div className="card-base p-5 lg:col-span-2">
-          <h3 className="section-title">Faturamento x Meta</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={faturamentoMensal} barCategoryGap="30%">
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
-              <Tooltip
-                formatter={(value: number, name: string) => [
-                  `R$ ${value.toLocaleString('pt-BR')}`,
-                  name === 'receita' ? 'Receita' : 'Meta'
-                ]}
-                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,.1)' }}
-              />
-              <Bar dataKey="meta" fill="#e5e7eb" radius={[4,4,0,0]} name="meta" />
-              <Bar dataKey="receita" fill="#22c55e" radius={[4,4,0,0]} name="receita" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Formas de pagamento */}
-        <div className="card-base p-5">
-          <h3 className="section-title">Formas de Pagamento</h3>
-          <div className="space-y-3 mt-2">
-            {formasPagamento.map(fp => (
-              <div key={fp.forma}>
-                <div className="flex items-center justify-between text-sm mb-1">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: fp.color }} />
-                    <span className="text-gray-700 dark:text-gray-300 text-xs font-medium">{fp.forma}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
-                      R$ {fp.total.toLocaleString('pt-BR')}
-                    </span>
-                    <span className="text-xs text-gray-400 ml-1">({fp.count})</span>
-                  </div>
-                </div>
-                <div className="progress-bar">
-                  <div className="progress-fill" style={{ width: `${(fp.total / 26800) * 100}%`, background: fp.color }} />
+        {[
+          { label: 'Recebido/Mês', value: `R$ ${totalMes.toLocaleString('pt-BR')}`, icon: DollarSign, color: 'bg-green-500' },
+          { label: 'A Receber',    value: `R$ ${totalPendente.toLocaleString('pt-BR')}`, icon: TrendingUp, color: 'bg-amber-500' },
+          { label: 'Inadimplência',value: `R$ ${totalVencido.toLocaleString('pt-BR')}`, icon: AlertCircle, color: 'bg-red-500' },
+          { label: 'Pagamentos',   value: pagamentos.filter(p => p.status === 'pago').length, icon: CheckCircle2, color: 'bg-blue-500' },
+        ].map(s => {
+          const Icon = s.icon
+          return (
+            <div key={s.label} className="stat-card">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500 dark:text-gray-400">{s.label}</p>
+                <div className={`w-10 h-10 ${s.color} rounded-xl flex items-center justify-center`}>
+                  <Icon className="w-5 h-5 text-white" />
                 </div>
               </div>
-            ))}
-          </div>
+              <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{s.value}</p>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Filtros */}
+      <div className="card-base p-4 space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input type="text" placeholder="Buscar aluno..." value={search} onChange={e => setSearch(e.target.value)} className="input-base pl-9" />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {['todos', 'pago', 'pendente', 'vencido'].map(s => (
+            <button key={s} onClick={() => setStatusFiltro(s)}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors capitalize ${
+                statusFiltro === s ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+              }`}>
+              {s === 'todos' ? 'Todos' : s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Payments table */}
-      <div className="card-base overflow-hidden">
-        <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar aluno..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="input-base pl-9"
-              />
-            </div>
-            <div className="flex gap-2">
-              {['todos', 'pago', 'pendente', 'vencido'].map(s => (
-                <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors capitalize ${
-                    statusFilter === s
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                  }`}
-                >
-                  {s === 'todos' ? 'Todos' : s.charAt(0).toUpperCase() + s.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* Tabela */}
+      {loading ? (
+        <div className="card-base p-8 text-center">
+          <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-gray-400 text-sm">Carregando...</p>
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="table-base">
-            <thead className="table-header">
-              <tr>
-                <th className="table-th">Aluno</th>
-                <th className="table-th">Plano</th>
-                <th className="table-th">Valor</th>
-                <th className="table-th">Forma</th>
-                <th className="table-th">Vencimento</th>
-                <th className="table-th">Pagamento</th>
-                <th className="table-th">Status</th>
-                <th className="table-th">Ação</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
-              {filtered.map(p => (
-                <tr key={p.id} className="table-row">
-                  <td className="table-td font-medium">{p.aluno}</td>
-                  <td className="table-td">
-                    <span className="badge-info">{p.plano}</span>
-                  </td>
-                  <td className="table-td">
-                    <div>
-                      <span className="font-semibold">R$ {(p.valor - p.desconto).toLocaleString('pt-BR')}</span>
-                      {p.desconto > 0 && (
-                        <span className="text-xs text-gray-400 ml-1 line-through">R$ {p.valor}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="table-td">
-                    <div className="flex items-center gap-1.5">
-                      <CreditCard className="w-3.5 h-3.5 text-gray-400" />
-                      <span className="text-xs">{formaLabel[p.forma]}</span>
-                    </div>
-                  </td>
-                  <td className="table-td text-xs">
-                    {format(new Date(p.vencimento), 'dd/MM/yyyy')}
-                  </td>
-                  <td className="table-td text-xs">
-                    {p.pagamento ? format(new Date(p.pagamento), 'dd/MM/yyyy') : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="table-td">
-                    <span className={statusConfig[p.status].class}>{statusConfig[p.status].label}</span>
-                  </td>
-                  <td className="table-td">
-                    {p.status !== 'pago' && (
-                      <button className="text-xs text-primary-600 hover:text-primary-700 font-medium">
-                        Registrar
-                      </button>
-                    )}
-                  </td>
+      ) : (
+        <div className="card-base overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="table-base">
+              <thead className="table-header">
+                <tr>
+                  <th className="table-th">Aluno</th>
+                  <th className="table-th">Plano</th>
+                  <th className="table-th">Valor</th>
+                  <th className="table-th">Forma</th>
+                  <th className="table-th">Vencimento</th>
+                  <th className="table-th">Status</th>
+                  <th className="table-th">Ação</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
+                {filtered.map(p => (
+                  <tr key={p.id} className="table-row">
+                    <td className="table-td font-medium">
+                      {(p.aluno as unknown as { usuario: { nome: string } })?.usuario?.nome ?? '—'}
+                    </td>
+                    <td className="table-td">
+                      {p.plano ? <span className="badge-info">{p.plano.nome}</span> : <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className="table-td font-semibold">R$ {(p.valor - (p.valor_desconto || 0)).toLocaleString('pt-BR')}</td>
+                    <td className="table-td text-xs">{formaLabel[p.forma_pagamento] ?? p.forma_pagamento}</td>
+                    <td className="table-td text-xs">{format(new Date(p.data_vencimento), 'dd/MM/yyyy')}</td>
+                    <td className="table-td">
+                      <span className={statusConfig[p.status]?.class ?? 'badge-gray'}>
+                        {statusConfig[p.status]?.label ?? p.status}
+                      </span>
+                    </td>
+                    <td className="table-td">
+                      {p.status !== 'pago' && (
+                        <button onClick={() => registrarPagamento(p.id)} className="text-xs text-primary-600 hover:text-primary-700 font-medium">
+                          Registrar
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {filtered.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-gray-400">{pagamentos.length === 0 ? 'Nenhum pagamento cadastrado.' : 'Nenhum resultado.'}</p>
+            </div>
+          )}
         </div>
-      </div>
+      )}
+
+      {/* Modal novo pagamento */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="font-bold text-gray-900 dark:text-gray-100">Novo Pagamento</h3>
+              <button onClick={() => setShowForm(false)} className="btn-ghost p-1.5">✕</button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="label-base">Aluno *</label>
+                <select value={form.aluno_id} onChange={e => setForm(p => ({ ...p, aluno_id: e.target.value }))} className="input-base">
+                  <option value="">Selecionar aluno...</option>
+                  {alunos.map(a => <option key={a.id} value={a.id}>{(a.usuario as unknown as { nome: string })?.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label-base">Plano</label>
+                <select value={form.plano_id} onChange={e => {
+                  const plano = planos.find(p => p.id === e.target.value)
+                  setForm(p => ({ ...p, plano_id: e.target.value, valor: plano ? String(plano.valor) : p.valor }))
+                }} className="input-base">
+                  <option value="">Selecionar plano...</option>
+                  {planos.map(p => <option key={p.id} value={p.id}>{p.nome} — R$ {p.valor}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label-base">Valor (R$) *</label>
+                  <input type="number" value={form.valor} onChange={e => setForm(p => ({ ...p, valor: e.target.value }))} className="input-base" />
+                </div>
+                <div>
+                  <label className="label-base">Forma</label>
+                  <select value={form.forma_pagamento} onChange={e => setForm(p => ({ ...p, forma_pagamento: e.target.value }))} className="input-base">
+                    {Object.entries(formaLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="label-base">Vencimento *</label>
+                <input type="date" value={form.data_vencimento} onChange={e => setForm(p => ({ ...p, data_vencimento: e.target.value }))} className="input-base" />
+              </div>
+              <div>
+                <label className="label-base">Observações</label>
+                <input type="text" value={form.observacoes} onChange={e => setForm(p => ({ ...p, observacoes: e.target.value }))} className="input-base" />
+              </div>
+            </div>
+            <div className="p-5 border-t border-gray-100 dark:border-gray-700 flex gap-3">
+              <button onClick={() => setShowForm(false)} className="btn-secondary flex-1">Cancelar</button>
+              <button onClick={salvarNovoPagamento} disabled={saving} className="btn-primary flex-1">
+                {saving ? 'Salvando...' : 'Criar Pagamento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
