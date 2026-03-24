@@ -3,40 +3,45 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { Dumbbell, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import toast from 'react-hot-toast'
 
-const loginSchema = z.object({
-  email: z.string().email('Email inválido'),
-  password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
-})
-
-type LoginForm = z.infer<typeof loginSchema>
+const DEMO_ACCOUNTS = [
+  { label: 'Admin',     email: 'admin@gymflow.com', color: 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300' },
+  { label: 'Professor', email: 'prof@gymflow.com',  color: 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-300' },
+  { label: 'Aluno',     email: 'aluno@gymflow.com', color: 'bg-green-500/20 hover:bg-green-500/30 text-green-300' },
+]
 
 export default function LoginPage() {
   const router = useRouter()
   const { signIn } = useAuth()
+
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
 
-  const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
-  })
+  const validate = () => {
+    const errs: { email?: string; password?: string } = {}
+    if (!email) errs.email = 'Email obrigatório'
+    else if (!/\S+@\S+\.\S+/.test(email)) errs.email = 'Email inválido'
+    if (!password) errs.password = 'Senha obrigatória'
+    else if (password.length < 6) errs.password = 'Mínimo 6 caracteres'
+    return errs
+  }
 
-  const onSubmit = async (data: LoginForm) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length > 0) { setErrors(errs); return }
+    setErrors({})
     setIsLoading(true)
     try {
-      const { error } = await signIn(data.email, data.password)
+      const { error } = await signIn(email, password)
       if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          toast.error('Email ou senha incorretos')
-        } else {
-          toast.error('Erro ao fazer login. Tente novamente.')
-        }
+        toast.error('Email ou senha incorretos')
         return
       }
       toast.success('Login realizado com sucesso!')
@@ -44,6 +49,12 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const fillDemo = (demoEmail: string) => {
+    setEmail(demoEmail)
+    setPassword('123456')
+    setErrors({})
   }
 
   return (
@@ -68,39 +79,35 @@ export default function LoginPage() {
         <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-2xl animate-slide-in">
           <h2 className="text-xl font-semibold text-white mb-6">Entrar na sua conta</h2>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                Email
-              </label>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
               <input
-                {...register('email')}
                 type="email"
+                value={email}
+                onChange={e => { setEmail(e.target.value); setErrors(p => ({ ...p, email: undefined })) }}
                 placeholder="seu@email.com"
                 autoComplete="email"
-                className="w-full bg-white/10 border border-white/20 text-white placeholder-gray-500 
-                           rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 
+                className="w-full bg-white/10 border border-white/20 text-white placeholder-gray-500
+                           rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2
                            focus:ring-primary-500 focus:border-transparent transition-all"
               />
-              {errors.email && (
-                <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>
-              )}
+              {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
             </div>
 
-            {/* Password */}
+            {/* Senha */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                Senha
-              </label>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">Senha</label>
               <div className="relative">
                 <input
-                  {...register('password')}
                   type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => { setPassword(e.target.value); setErrors(p => ({ ...p, password: undefined })) }}
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  className="w-full bg-white/10 border border-white/20 text-white placeholder-gray-500 
-                             rounded-lg px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 
+                  className="w-full bg-white/10 border border-white/20 text-white placeholder-gray-500
+                             rounded-lg px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2
                              focus:ring-primary-500 focus:border-transparent transition-all"
                 />
                 <button
@@ -111,17 +118,12 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              {errors.password && (
-                <p className="text-red-400 text-xs mt-1">{errors.password.message}</p>
-              )}
+              {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
             </div>
 
-            {/* Forgot password */}
+            {/* Esqueceu senha */}
             <div className="flex justify-end">
-              <Link
-                href="/forgot-password"
-                className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
-              >
+              <Link href="/forgot-password" className="text-sm text-primary-400 hover:text-primary-300 transition-colors">
                 Esqueceu sua senha?
               </Link>
             </div>
@@ -130,41 +132,26 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 
-                         disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold 
+              className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500
+                         disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold
                          py-2.5 rounded-lg transition-all duration-200 active:scale-95 mt-2
                          shadow-lg shadow-primary-500/30"
             >
               {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Entrando...
-                </>
-              ) : (
-                'Entrar'
-              )}
+                <><Loader2 className="w-4 h-4 animate-spin" /> Entrando...</>
+              ) : 'Entrar'}
             </button>
           </form>
 
-          {/* Demo accounts */}
+          {/* Contas demo */}
           <div className="mt-6 pt-6 border-t border-white/10">
             <p className="text-gray-400 text-xs text-center mb-3">Contas de demonstração</p>
             <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: 'Admin', email: 'admin@gymflow.com', color: 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300' },
-                { label: 'Professor', email: 'prof@gymflow.com', color: 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-300' },
-                { label: 'Aluno', email: 'aluno@gymflow.com', color: 'bg-green-500/20 hover:bg-green-500/30 text-green-300' },
-              ].map(({ label, email, color }) => (
+              {DEMO_ACCOUNTS.map(({ label, email: demoEmail, color }) => (
                 <button
                   key={label}
                   type="button"
-                  onClick={() => {
-                    const emailInput = document.querySelector('input[type="email"]') as HTMLInputElement
-                    const passInput = document.querySelector('input[type="password"], input[placeholder="••••••••"]') as HTMLInputElement
-                    if (emailInput) emailInput.value = email
-                    if (passInput) passInput.value = '123456'
-                    // Trigger react-hook-form
-                  }}
+                  onClick={() => fillDemo(demoEmail)}
                   className={`${color} text-xs font-medium py-1.5 px-2 rounded-lg transition-all`}
                 >
                   {label}
@@ -175,7 +162,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-gray-500 text-xs mt-6">
           © 2024 GymFlow. Todos os direitos reservados.
         </p>
