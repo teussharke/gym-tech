@@ -6,6 +6,19 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 
+interface MedidasCorporais {
+  cintura: number | null
+  abdomen: number | null
+  quadril: number | null
+  coxa_direita: number | null
+  braco_direito: number | null
+  braco_esquerdo: number | null
+  coxa_esquerda: number | null
+  panturrilha_direita: number | null
+  ombro: number | null
+  peito: number | null
+}
+
 interface Avaliacao {
   id: string
   data_avaliacao: string
@@ -14,13 +27,17 @@ interface Avaliacao {
   imc: number | null
   percentual_gordura: number | null
   observacoes: string | null
-  medidas: {
-    cintura: number | null
-    braco_direito: number | null
-    coxa_direita: number | null
-    quadril: number | null
-    abdomen: number | null
-  } | null
+  // medidas vem como array do join
+  medidas_corporais: MedidasCorporais[] | null
+}
+
+// Medidas extraídas de forma segura (o join retorna array)
+function getMedidas(av: Avaliacao): MedidasCorporais | null {
+  if (!av.medidas_corporais) return null
+  if (Array.isArray(av.medidas_corporais) && av.medidas_corporais.length > 0) {
+    return av.medidas_corporais[0]
+  }
+  return null
 }
 
 interface AnaliseIA {
@@ -51,7 +68,7 @@ export default function AvaliacoesAlunoPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [analiseIA, setAnaliseIA] = useState<AnaliseIA | null>(null)
   const [loadingIA, setLoadingIA] = useState(false)
-  const [objetivoAluno, setObjetivoAluno] = useState<string>('')
+  const [objetivoAluno, setObjetivoAluno] = useState('')
 
   const fetchAlunoId = useCallback(async () => {
     if (!usuario?.id) return
@@ -63,16 +80,26 @@ export default function AvaliacoesAlunoPage() {
   const fetchAvaliacoes = useCallback(async () => {
     if (!alunoId) return
     setLoading(true)
-    const { data } = await supabase
-      .from('avaliacoes_fisicas')
-      .select(`
-        id, data_avaliacao, peso_kg, altura_cm, imc, percentual_gordura, observacoes,
-        medidas:medidas_corporais (cintura, braco_direito, coxa_direita, quadril, abdomen)
-      `)
-      .eq('aluno_id', alunoId)
-      .order('data_avaliacao', { ascending: false })
-    setAvaliacoes((data as unknown as Avaliacao[]) ?? [])
-    setLoading(false)
+    try {
+      const { data, error } = await supabase
+        .from('avaliacoes_fisicas')
+        .select(`
+          id, data_avaliacao, peso_kg, altura_cm, imc, percentual_gordura, observacoes,
+          medidas_corporais (
+            cintura, abdomen, quadril, coxa_direita, coxa_esquerda,
+            braco_direito, braco_esquerdo, panturrilha_direita, ombro, peito
+          )
+        `)
+        .eq('aluno_id', alunoId)
+        .order('data_avaliacao', { ascending: false })
+
+      if (error) throw error
+      setAvaliacoes((data as unknown as Avaliacao[]) ?? [])
+    } catch (err) {
+      console.error('Erro ao buscar avaliações:', err)
+    } finally {
+      setLoading(false)
+    }
   }, [alunoId])
 
   useEffect(() => { fetchAlunoId() }, [fetchAlunoId])
@@ -83,13 +110,23 @@ export default function AvaliacoesAlunoPage() {
     setLoadingIA(true)
     setActiveTab('ia')
     try {
-      // Busca histórico de treinos
       const { data: historico } = await supabase
         .from('historico_treinos')
         .select('data_treino, status, duracao_min')
         .eq('aluno_id', alunoId!)
         .order('data_treino', { ascending: false })
         .limit(20)
+
+      const avalDados = avaliacoes.slice(0, 5).map(a => {
+        const m = getMedidas(a)
+        return {
+          data: a.data_avaliacao,
+          peso: a.peso_kg,
+          imc: a.imc,
+          gordura: a.percentual_gordura,
+          cintura: m?.cintura ?? null,
+        }
+      })
 
       const res = await fetch('/api/ia', {
         method: 'POST',
@@ -98,13 +135,7 @@ export default function AvaliacoesAlunoPage() {
           tipo: 'analisar_evolucao',
           dados: {
             aluno: { nome: usuario?.nome, objetivo: objetivoAluno },
-            avaliacoes: avaliacoes.slice(0, 5).map(a => ({
-              data: a.data_avaliacao,
-              peso: a.peso_kg,
-              imc: a.imc,
-              gordura: a.percentual_gordura,
-              cintura: a.medidas?.cintura,
-            })),
+            avaliacoes: avalDados,
             historico: (historico ?? []).slice(0, 10),
           },
         }),
@@ -135,25 +166,48 @@ export default function AvaliacoesAlunoPage() {
 
   const ultima = avaliacoes[0]
   const penultima = avaliacoes[1]
+  const ultimaMedidas = getMedidas(ultima)
+  const penultimaMedidas = getMedidas(penultima ?? null as unknown as Avaliacao)
   const imcInfo = ultima.imc ? getIMCLabel(ultima.imc) : null
+
   const diff = (a: number | null | undefined, b: number | null | undefined) =>
     a != null && b != null ? Number((a - b).toFixed(1)) : null
 
   const graficoData = avaliacoes.slice().reverse().map(a => ({
     data: new Date(a.data_avaliacao).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-    peso: a.peso_kg, gordura: a.percentual_gordura, imc: a.imc,
+    peso: a.peso_kg,
+    gordura: a.percentual_gordura,
+    imc: a.imc,
   }))
 
-  const medidasData = avaliacoes.slice().reverse().map(a => ({
-    data: new Date(a.data_avaliacao).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-    cintura: a.medidas?.cintura, braco: a.medidas?.braco_direito, coxa: a.medidas?.coxa_direita,
-  }))
+  const medidasGrafico = avaliacoes.slice().reverse().map(a => {
+    const m = getMedidas(a)
+    return {
+      data: new Date(a.data_avaliacao).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+      cintura: m?.cintura ?? null,
+      braco: m?.braco_direito ?? null,
+      coxa: m?.coxa_direita ?? null,
+    }
+  })
 
   const tabs = [
-    { key: 'resumo',   label: 'Resumo'   },
-    { key: 'graficos', label: 'Evolução' },
-    { key: 'historico',label: 'Histórico'},
-    { key: 'ia',       label: '🤖 IA',   },
+    { key: 'resumo',    label: 'Resumo'    },
+    { key: 'graficos',  label: 'Evolução'  },
+    { key: 'historico', label: 'Histórico' },
+    { key: 'ia',        label: '🤖 IA'     },
+  ]
+
+  const medidasLabels: { key: keyof MedidasCorporais; label: string }[] = [
+    { key: 'cintura',            label: 'Cintura'       },
+    { key: 'abdomen',            label: 'Abdômen'       },
+    { key: 'quadril',            label: 'Quadril'       },
+    { key: 'peito',              label: 'Peito'         },
+    { key: 'braco_direito',      label: 'Braço D.'      },
+    { key: 'braco_esquerdo',     label: 'Braço E.'      },
+    { key: 'coxa_direita',       label: 'Coxa D.'       },
+    { key: 'coxa_esquerda',      label: 'Coxa E.'       },
+    { key: 'panturrilha_direita',label: 'Panturrilha'   },
+    { key: 'ombro',              label: 'Ombro'         },
   ]
 
   return (
@@ -163,15 +217,13 @@ export default function AvaliacoesAlunoPage() {
           <h1 className="page-title">Minhas Avaliações</h1>
           <p className="page-subtitle">{avaliacoes.length} avaliação{avaliacoes.length !== 1 ? 'ões' : ''}</p>
         </div>
-        <button
-          onClick={analisarComIA}
-          disabled={loadingIA}
-          className="btn-primary flex items-center gap-2 text-sm bg-gradient-to-r from-orange-500 to-purple-600"
-        >
+        <button onClick={analisarComIA} disabled={loadingIA}
+          className="btn-primary flex items-center gap-2 text-sm bg-gradient-to-r from-orange-500 to-purple-600">
           {loadingIA ? <><Loader2 className="w-4 h-4 animate-spin" />Analisando...</> : <><Sparkles className="w-4 h-4" />Analisar com IA</>}
         </button>
       </div>
 
+      {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
         {tabs.map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key as Tab)}
@@ -187,20 +239,24 @@ export default function AvaliacoesAlunoPage() {
           <div className="card-base p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-900 dark:text-gray-100">Última Avaliação</h3>
-              <span className="text-xs text-gray-400">{new Date(ultima.data_avaliacao).toLocaleDateString('pt-BR')}</span>
+              <span className="text-xs text-gray-400">
+                {new Date(ultima.data_avaliacao).toLocaleDateString('pt-BR')}
+              </span>
             </div>
+
+            {/* Dados biométricos */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: 'Peso', value: ultima.peso_kg ? `${ultima.peso_kg}kg` : '—', delta: diff(ultima.peso_kg, penultima?.peso_kg), bom: 'negativo' },
-                { label: 'IMC',  value: ultima.imc ?? '—',                            delta: diff(ultima.imc, penultima?.imc),          bom: 'negativo' },
-                { label: '% Gordura', value: ultima.percentual_gordura ? `${ultima.percentual_gordura}%` : '—', delta: diff(ultima.percentual_gordura, penultima?.percentual_gordura), bom: 'negativo' },
-                { label: 'Altura', value: ultima.altura_cm ? `${ultima.altura_cm}cm` : '—', delta: null, bom: 'positivo' },
+                { label: 'Peso',      value: ultima.peso_kg ? `${ultima.peso_kg}kg` : '—', delta: diff(ultima.peso_kg, penultima?.peso_kg) },
+                { label: 'Altura',    value: ultima.altura_cm ? `${ultima.altura_cm}cm` : '—', delta: null },
+                { label: 'IMC',       value: ultima.imc ?? '—', delta: diff(ultima.imc, penultima?.imc) },
+                { label: '% Gordura', value: ultima.percentual_gordura ? `${ultima.percentual_gordura}%` : '—', delta: diff(ultima.percentual_gordura, penultima?.percentual_gordura) },
               ].map(item => (
                 <div key={item.label} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 text-center">
                   <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{String(item.value)}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{item.label}</p>
                   {item.delta != null && item.delta !== 0 && (
-                    <p className={`text-xs font-medium mt-1 flex items-center justify-center gap-0.5 ${(item.delta < 0 && item.bom === 'negativo') ? 'text-green-500' : 'text-red-500'}`}>
+                    <p className={`text-xs font-medium mt-1 flex items-center justify-center gap-0.5 ${item.delta < 0 ? 'text-green-500' : 'text-red-500'}`}>
                       {item.delta < 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
                       {Math.abs(item.delta)}
                     </p>
@@ -208,12 +264,14 @@ export default function AvaliacoesAlunoPage() {
                 </div>
               ))}
             </div>
+
             {imcInfo && (
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 flex items-center justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">IMC</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Classificação IMC</span>
                 <span className={`text-sm font-bold ${imcInfo.color}`}>{imcInfo.label}</span>
               </div>
             )}
+
             {ultima.observacoes && (
               <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-3">
                 <p className="text-xs font-semibold text-orange-700 dark:text-orange-400 mb-1">Observações do Professor</p>
@@ -222,25 +280,26 @@ export default function AvaliacoesAlunoPage() {
             )}
           </div>
 
-          {ultima.medidas && (
+          {/* Medidas corporais */}
+          {ultimaMedidas && (
             <div className="card-base p-5 space-y-3">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">Medidas Corporais</h3>
-              {[
-                { label: 'Cintura',  atual: ultima.medidas.cintura,       anterior: penultima?.medidas?.cintura },
-                { label: 'Abdômen', atual: ultima.medidas.abdomen,        anterior: penultima?.medidas?.abdomen },
-                { label: 'Quadril', atual: ultima.medidas.quadril,        anterior: penultima?.medidas?.quadril },
-                { label: 'Braço D.',atual: ultima.medidas.braco_direito,  anterior: penultima?.medidas?.braco_direito },
-                { label: 'Coxa D.', atual: ultima.medidas.coxa_direita,   anterior: penultima?.medidas?.coxa_direita },
-              ].filter(m => m.atual != null).map(m => {
-                const delta = diff(m.atual, m.anterior)
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100">Medidas Corporais (cm)</h3>
+              {medidasLabels.map(({ key, label }) => {
+                const atual = ultimaMedidas[key]
+                const anterior = penultimaMedidas?.[key]
+                if (atual == null) return null
+                const delta = diff(atual, anterior)
                 return (
-                  <div key={m.label} className="flex items-center gap-3">
-                    <span className="text-sm text-gray-600 dark:text-gray-400 w-20 flex-shrink-0">{m.label}</span>
-                    <div className="flex-1 progress-bar"><div className="progress-fill" style={{ width: `${((m.atual ?? 0) / 120) * 100}%` }} /></div>
-                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 w-14 text-right">{m.atual}cm</span>
+                  <div key={key} className="flex items-center gap-3">
+                    <span className="text-sm text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">{label}</span>
+                    <div className="flex-1 progress-bar">
+                      <div className="progress-fill" style={{ width: `${Math.min((atual / 120) * 100, 100)}%` }} />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 w-12 text-right">{atual}cm</span>
                     {delta != null && delta !== 0 && (
-                      <span className={`text-xs w-10 flex items-center gap-0.5 ${delta < 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        {delta < 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}{Math.abs(delta)}
+                      <span className={`text-xs w-10 flex items-center gap-0.5 flex-shrink-0 ${delta < 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {delta < 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+                        {Math.abs(delta)}
                       </span>
                     )}
                   </div>
@@ -271,11 +330,12 @@ export default function AvaliacoesAlunoPage() {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-              {medidasData.some(m => m.cintura || m.braco || m.coxa) && (
+
+              {medidasGrafico.some(m => m.cintura || m.braco || m.coxa) && (
                 <div className="card-base p-5">
                   <h3 className="section-title">Medidas (cm)</h3>
                   <ResponsiveContainer width="100%" height={200}>
-                    <LineChart data={medidasData}>
+                    <LineChart data={medidasGrafico}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis dataKey="data" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} />
@@ -303,10 +363,13 @@ export default function AvaliacoesAlunoPage() {
         <div className="space-y-3">
           {avaliacoes.map((av, i) => {
             const isExpanded = expandedId === av.id
+            const medidas = getMedidas(av)
             return (
               <div key={av.id} className="card-base overflow-hidden">
-                <div className="p-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30"
-                  onClick={() => setExpandedId(isExpanded ? null : av.id)}>
+                <div
+                  className="p-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                  onClick={() => setExpandedId(isExpanded ? null : av.id)}
+                >
                   <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/20 rounded-xl flex items-center justify-center flex-shrink-0">
                     <Activity className="w-5 h-5 text-orange-500" />
                   </div>
@@ -318,22 +381,58 @@ export default function AvaliacoesAlunoPage() {
                       {i === 0 && <span className="badge-success text-xs">Mais recente</span>}
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {av.peso_kg && `${av.peso_kg}kg`}{av.imc && ` · IMC ${av.imc}`}{av.percentual_gordura && ` · ${av.percentual_gordura}% gordura`}
+                      {[
+                        av.peso_kg && `${av.peso_kg}kg`,
+                        av.imc && `IMC ${av.imc}`,
+                        av.percentual_gordura && `${av.percentual_gordura}% gordura`,
+                      ].filter(Boolean).join(' · ')}
                     </p>
                   </div>
                   {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                 </div>
-                {isExpanded && av.medidas && (
-                  <div className="border-t border-gray-100 dark:border-gray-700 p-4 space-y-2">
-                    <div className="grid grid-cols-3 gap-2">
-                      {Object.entries(av.medidas).filter(([, v]) => v != null).map(([key, val]) => (
-                        <div key={key} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2 text-center">
-                          <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{val}cm</p>
-                          <p className="text-xs text-gray-400 capitalize">{key.replace(/_/g, ' ')}</p>
+
+                {isExpanded && (
+                  <div className="border-t border-gray-100 dark:border-gray-700 p-4 space-y-4 animate-fade-in">
+                    {/* Dados biométricos */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { label: 'Peso',      value: av.peso_kg ? `${av.peso_kg}kg` : null },
+                        { label: 'Altura',    value: av.altura_cm ? `${av.altura_cm}cm` : null },
+                        { label: 'IMC',       value: av.imc ? String(av.imc) : null },
+                        { label: '% Gordura', value: av.percentual_gordura ? `${av.percentual_gordura}%` : null },
+                      ].filter(x => x.value).map(({ label, value }) => (
+                        <div key={label} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-2.5 text-center">
+                          <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{value}</p>
+                          <p className="text-xs text-gray-400">{label}</p>
                         </div>
                       ))}
                     </div>
-                    {av.observacoes && <p className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">{av.observacoes}</p>}
+
+                    {/* Medidas corporais — renderizado com segurança, sem passar objeto como filho */}
+                    {medidas && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Medidas corporais</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {medidasLabels.map(({ key, label }) => {
+                            const val = medidas[key]
+                            if (val == null) return null
+                            return (
+                              <div key={key} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-2.5 text-center">
+                                <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{val}cm</p>
+                                <p className="text-xs text-gray-400">{label}</p>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {av.observacoes && (
+                      <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-3">
+                        <p className="text-xs font-semibold text-orange-700 dark:text-orange-400 mb-1">Observações</p>
+                        <p className="text-sm text-orange-800 dark:text-orange-300">{av.observacoes}</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -342,7 +441,7 @@ export default function AvaliacoesAlunoPage() {
         </div>
       )}
 
-      {/* ── IA ANÁLISE ── */}
+      {/* ── IA ── */}
       {activeTab === 'ia' && (
         <div className="space-y-4">
           {loadingIA ? (
@@ -352,20 +451,19 @@ export default function AvaliacoesAlunoPage() {
               </div>
               <div>
                 <p className="font-bold text-gray-900 dark:text-gray-100">Analisando sua evolução...</p>
-                <p className="text-sm text-gray-400 mt-1">A IA está avaliando seus dados</p>
+                <p className="text-sm text-gray-400 mt-1">A IA está processando seus dados</p>
               </div>
             </div>
           ) : analiseIA ? (
             <div className="space-y-4 animate-fade-in">
-              {/* Nota geral */}
-              <div className="card-base p-5 bg-gradient-to-br from-orange-50 to-purple-50 dark:from-orange-900/20 dark:to-purple-900/20 border-orange-200 dark:border-orange-700">
+              <div className="card-base p-5 bg-gradient-to-br from-orange-50 to-purple-50 dark:from-orange-900/20 dark:to-purple-900/20">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-purple-500" />Análise da IA
                   </h3>
                   <div className="flex items-center gap-1">
                     {Array.from({ length: 10 }, (_, i) => (
-                      <Star key={i} className={`w-3.5 h-3.5 ${i < analiseIA.nota_evolucao ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
+                      <Star key={i} className={`w-3 h-3 ${i < analiseIA.nota_evolucao ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
                     ))}
                     <span className="text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">{analiseIA.nota_evolucao}/10</span>
                   </div>
@@ -375,40 +473,25 @@ export default function AvaliacoesAlunoPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="card-base p-4 space-y-2">
-                  <h4 className="font-semibold text-green-700 dark:text-green-400 flex items-center gap-2 text-sm">
-                    ✅ Pontos positivos
-                  </h4>
+                  <h4 className="font-semibold text-green-700 dark:text-green-400 text-sm">✅ Pontos positivos</h4>
                   <ul className="space-y-1.5">
                     {analiseIA.pontos_positivos?.map((p, i) => (
                       <li key={i} className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
-                        <span className="text-green-500 mt-0.5">•</span>{p}
+                        <span className="text-green-500 mt-0.5 flex-shrink-0">•</span>{p}
                       </li>
                     ))}
                   </ul>
                 </div>
                 <div className="card-base p-4 space-y-2">
-                  <h4 className="font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-2 text-sm">
-                    ⚠️ Pontos de atenção
-                  </h4>
+                  <h4 className="font-semibold text-amber-700 dark:text-amber-400 text-sm">⚠️ Pontos de atenção</h4>
                   <ul className="space-y-1.5">
                     {analiseIA.pontos_atencao?.map((p, i) => (
                       <li key={i} className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
-                        <span className="text-amber-500 mt-0.5">•</span>{p}
+                        <span className="text-amber-500 mt-0.5 flex-shrink-0">•</span>{p}
                       </li>
                     ))}
                   </ul>
                 </div>
-              </div>
-
-              <div className="card-base p-4 space-y-2">
-                <h4 className="font-semibold text-blue-700 dark:text-blue-400 text-sm">💡 Recomendações</h4>
-                <ul className="space-y-2">
-                  {analiseIA.recomendacoes?.map((r, i) => (
-                    <li key={i} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
-                      <span className="w-5 h-5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i+1}</span>{r}
-                    </li>
-                  ))}
-                </ul>
               </div>
 
               {analiseIA.ajustes_treino && (
@@ -434,10 +517,8 @@ export default function AvaliacoesAlunoPage() {
               <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto">
                 <Sparkles className="w-8 h-8 text-white" />
               </div>
-              <div>
-                <p className="font-bold text-gray-900 dark:text-gray-100">Análise com Inteligência Artificial</p>
-                <p className="text-sm text-gray-400 mt-1">Clique no botão acima para analisar sua evolução com IA</p>
-              </div>
+              <p className="font-bold text-gray-900 dark:text-gray-100">Análise com Inteligência Artificial</p>
+              <p className="text-sm text-gray-400">Clique em "Analisar com IA" para ver sua análise personalizada</p>
             </div>
           )}
         </div>
