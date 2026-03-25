@@ -138,3 +138,9 @@ export const grupoColors: Record<string, string> = {
   'Cardio':   'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
   'Glúteos':  'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
 }
+
+export const nivelColors: Record<string, string> = {
+  'Iniciante':     'badge-success',
+  'Intermediário': 'badge-warning',
+  'Avançado':      'badge-danger',
+}
