@@ -43,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id, fetchUsuario])
 
   useEffect(() => {
+    // Verifica sessão inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
@@ -53,12 +54,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })
 
+    // Escuta mudanças de auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setSession(session)
         setUser(session?.user ?? null)
+
         if (session?.user) {
           await fetchUsuario(session.user.id)
+          // Atualiza último login
           if (event === 'SIGNED_IN') {
             await supabase
               .from('usuarios')

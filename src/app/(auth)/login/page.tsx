@@ -1,27 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Dumbbell, Eye, EyeOff, Loader2 } from 'lucide-react'
-import { useAuth } from '@/lib/hooks/useAuth'
+import { supabase } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
 
 const DEMO_ACCOUNTS = [
-  { label: 'Admin',     email: 'admin@gymflow.com', color: 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300' },
-  { label: 'Professor', email: 'prof@gymflow.com',  color: 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-300' },
-  { label: 'Aluno',     email: 'aluno@gymflow.com', color: 'bg-green-500/20 hover:bg-green-500/30 text-green-300' },
+  { label: 'Admin',     email: 'admin@gymflow.com',  color: 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300' },
+  { label: 'Professor', email: 'prof@gymflow.com',   color: 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-300' },
+  { label: 'Aluno',     email: 'aluno@gymflow.com',  color: 'bg-green-500/20 hover:bg-green-500/30 text-green-300' },
 ]
 
 export default function LoginPage() {
   const router = useRouter()
-  const { signIn } = useAuth()
-
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
+
+  // Se já está logado, redireciona
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.replace('/dashboard')
+    })
+  }, [router])
 
   const validate = () => {
     const errs: { email?: string; password?: string } = {}
@@ -38,15 +43,24 @@ export default function LoginPage() {
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
     setErrors({})
     setIsLoading(true)
+
     try {
-      const { error } = await signIn(email, password)
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+
       if (error) {
         toast.error('Email ou senha incorretos')
+        setIsLoading(false)
         return
       }
-      toast.success('Login realizado com sucesso!')
-      router.push('/dashboard')
-    } finally {
+
+      if (data.session) {
+        toast.success('Login realizado!')
+        // Aguarda um tick para o auth state propagar
+        await new Promise(r => setTimeout(r, 300))
+        router.replace('/dashboard')
+      }
+    } catch {
+      toast.error('Erro ao fazer login')
       setIsLoading(false)
     }
   }
@@ -59,14 +73,12 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
-      {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-500/10 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary-700/10 rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo */}
         <div className="text-center mb-8 animate-fade-in">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4 shadow-lg shadow-primary-500/30">
             <Dumbbell className="w-8 h-8 text-white" />
@@ -75,12 +87,10 @@ export default function LoginPage() {
           <p className="text-gray-400 mt-1">Sistema de Gestão de Academia</p>
         </div>
 
-        {/* Card */}
         <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-2xl animate-slide-in">
           <h2 className="text-xl font-semibold text-white mb-6">Entrar na sua conta</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
               <input
@@ -89,14 +99,14 @@ export default function LoginPage() {
                 onChange={e => { setEmail(e.target.value); setErrors(p => ({ ...p, email: undefined })) }}
                 placeholder="seu@email.com"
                 autoComplete="email"
+                disabled={isLoading}
                 className="w-full bg-white/10 border border-white/20 text-white placeholder-gray-500
                            rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2
-                           focus:ring-primary-500 focus:border-transparent transition-all"
+                           focus:ring-primary-500 focus:border-transparent transition-all disabled:opacity-50"
               />
               {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
             </div>
 
-            {/* Senha */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1.5">Senha</label>
               <div className="relative">
@@ -106,14 +116,15 @@ export default function LoginPage() {
                   onChange={e => { setPassword(e.target.value); setErrors(p => ({ ...p, password: undefined })) }}
                   placeholder="••••••••"
                   autoComplete="current-password"
+                  disabled={isLoading}
                   className="w-full bg-white/10 border border-white/20 text-white placeholder-gray-500
                              rounded-lg px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2
-                             focus:ring-primary-500 focus:border-transparent transition-all"
+                             focus:ring-primary-500 focus:border-transparent transition-all disabled:opacity-50"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -121,14 +132,12 @@ export default function LoginPage() {
               {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
             </div>
 
-            {/* Esqueceu senha */}
             <div className="flex justify-end">
               <Link href="/forgot-password" className="text-sm text-primary-400 hover:text-primary-300 transition-colors">
                 Esqueceu sua senha?
               </Link>
             </div>
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={isLoading}
@@ -137,13 +146,13 @@ export default function LoginPage() {
                          py-2.5 rounded-lg transition-all duration-200 active:scale-95 mt-2
                          shadow-lg shadow-primary-500/30"
             >
-              {isLoading ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Entrando...</>
-              ) : 'Entrar'}
+              {isLoading
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Entrando...</>
+                : 'Entrar'
+              }
             </button>
           </form>
 
-          {/* Contas demo */}
           <div className="mt-6 pt-6 border-t border-white/10">
             <p className="text-gray-400 text-xs text-center mb-3">Contas de demonstração</p>
             <div className="grid grid-cols-3 gap-2">
@@ -152,7 +161,8 @@ export default function LoginPage() {
                   key={label}
                   type="button"
                   onClick={() => fillDemo(demoEmail)}
-                  className={`${color} text-xs font-medium py-1.5 px-2 rounded-lg transition-all`}
+                  disabled={isLoading}
+                  className={`${color} text-xs font-medium py-1.5 px-2 rounded-lg transition-all disabled:opacity-50`}
                 >
                   {label}
                 </button>
