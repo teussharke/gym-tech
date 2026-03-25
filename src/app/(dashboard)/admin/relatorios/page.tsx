@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { DollarSign, Users, Calendar, TrendingUp, Download } from 'lucide-react'
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { DollarSign, Users, Calendar, Download } from 'lucide-react'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns'
@@ -15,119 +15,180 @@ export default function RelatoriosPage() {
   const [activeTab, setActiveTab] = useState<ReportTab>('financeiro')
   const [loading, setLoading] = useState(true)
 
-  // Financeiro
-  const [faturamentoMensal, setFaturamentoMensal] = useState<{ mes: string; receita: number }[]>([])
-  const [totalMes, setTotalMes] = useState(0)
-  const [totalPendente, setTotalPendente] = useState(0)
-  const [formasPagamento, setFormasPagamento] = useState<{ forma: string; total: number; color: string }[]>([])
+  const [dadosFinanceiro, setDadosFinanceiro] = useState<{
+    faturamentoMensal: { mes: string; receita: number }[]
+    totalMes: number
+    totalPendente: number
+    formasPagamento: { forma: string; total: number; color: string }[]
+  }>({ faturamentoMensal: [], totalMes: 0, totalPendente: 0, formasPagamento: [] })
 
-  // Presença
-  const [presencaMensal, setPresencaMensal] = useState<{ mes: string; checkins: number }[]>([])
-  const [rankingPresenca, setRankingPresenca] = useState<{ nome: string; checkins: number }[]>([])
+  const [dadosPresenca, setDadosPresenca] = useState<{
+    presencaMensal: { mes: string; checkins: number }[]
+    rankingPresenca: { nome: string; checkins: number }[]
+  }>({ presencaMensal: [], rankingPresenca: [] })
 
-  // Alunos
-  const [evolucaoAlunos, setEvolucaoAlunos] = useState<{ mes: string; total: number }[]>([])
-  const [statsAlunos, setStatsAlunos] = useState({ total: 0, ativos: 0, novos: 0, inadimplentes: 0 })
+  const [dadosAlunos, setDadosAlunos] = useState<{
+    evolucao: { mes: string; total: number }[]
+    stats: { total: number; ativos: number; novos: number; inadimplentes: number }
+  }>({ evolucao: [], stats: { total: 0, ativos: 0, novos: 0, inadimplentes: 0 } })
 
   const cores = ['#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ef4444', '#6b7280']
-  const formaLabels: Record<string, string> = { pix: 'PIX', cartao_credito: 'Cartão Crédito', dinheiro: 'Dinheiro', boleto: 'Boleto', transferencia: 'Transferência', cartao_debito: 'Cartão Débito' }
+  const formaLabels: Record<string, string> = {
+    pix: 'PIX', cartao_credito: 'Cartão Crédito', dinheiro: 'Dinheiro',
+    boleto: 'Boleto', transferencia: 'Transferência', cartao_debito: 'Cartão Débito',
+  }
 
-  const fetchFinanceiro = useCallback(async () => {
+  const fetchTudo = useCallback(async () => {
     if (!usuario?.academia_id) return
-    const meses = []
-    for (let i = 5; i >= 0; i--) {
-      const d = subMonths(new Date(), i)
-      const { data } = await supabase.from('pagamentos')
-        .select('valor, valor_desconto, forma_pagamento, status')
-        .eq('academia_id', usuario.academia_id)
-        .gte('data_pagamento', startOfMonth(d).toISOString())
-        .lte('data_pagamento', endOfMonth(d).toISOString())
-        .eq('status', 'pago')
-      const receita = (data ?? []).reduce((s, p) => s + (p.valor - (p.valor_desconto || 0)), 0)
-      meses.push({ mes: format(d, 'MMM/yy', { locale: ptBR }), receita })
-    }
-    setFaturamentoMensal(meses)
+    setLoading(true)
+    const id = usuario.academia_id
 
-    // Total mês atual e pendentes
+    // Gera array dos últimos 6 meses
+    const meses = Array.from({ length: 6 }, (_, i) => subMonths(new Date(), 5 - i))
     const mesAtual = new Date()
-    const [{ data: pagos }, { data: pendentes }] = await Promise.all([
-      supabase.from('pagamentos').select('valor, valor_desconto').eq('academia_id', usuario.academia_id).eq('status', 'pago')
-        .gte('data_pagamento', startOfMonth(mesAtual).toISOString()),
-      supabase.from('pagamentos').select('valor').eq('academia_id', usuario.academia_id).in('status', ['pendente', 'vencido']),
-    ])
-    setTotalMes((pagos ?? []).reduce((s, p) => s + (p.valor - (p.valor_desconto || 0)), 0))
-    setTotalPendente((pendentes ?? []).reduce((s, p) => s + p.valor, 0))
+    const inicioMesAtual = startOfMonth(mesAtual).toISOString()
+    const fimMesAtual = endOfMonth(mesAtual).toISOString()
+    const inicioMes6 = startOfMonth(meses[0]).toISOString()
 
-    // Formas de pagamento
-    const { data: todasFormas } = await supabase.from('pagamentos').select('forma_pagamento, valor').eq('academia_id', usuario.academia_id).eq('status', 'pago')
-    const agrup: Record<string, number> = {}
-    ;(todasFormas ?? []).forEach(p => { agrup[p.forma_pagamento] = (agrup[p.forma_pagamento] ?? 0) + p.valor })
-    setFormasPagamento(Object.entries(agrup).map(([forma, total], i) => ({ forma: formaLabels[forma] ?? forma, total, color: cores[i % cores.length] })))
-  }, [usuario?.academia_id])
+    try {
+      // ── Todas as queries em paralelo ──────────────────────
+      const [
+        { data: pagamentosTodos },
+        { data: pagamentosPendentes },
+        { data: presencasTodas },
+        { data: alunosTodos },
+        { count: novosCount },
+        { count: inadimplentesCount },
+      ] = await Promise.all([
+        // Pagamentos dos últimos 6 meses (pago)
+        supabase.from('pagamentos')
+          .select('valor, valor_desconto, forma_pagamento, data_pagamento')
+          .eq('academia_id', id)
+          .eq('status', 'pago')
+          .gte('data_pagamento', inicioMes6),
 
-  const fetchPresenca = useCallback(async () => {
-    if (!usuario?.academia_id) return
-    const meses = []
-    for (let i = 5; i >= 0; i--) {
-      const d = subMonths(new Date(), i)
-      const { count } = await supabase.from('presencas').select('*', { count: 'exact', head: true })
-        .eq('academia_id', usuario.academia_id)
-        .gte('data_checkin', startOfMonth(d).toISOString())
-        .lte('data_checkin', endOfMonth(d).toISOString())
-      meses.push({ mes: format(d, 'MMM/yy', { locale: ptBR }), checkins: count ?? 0 })
-    }
-    setPresencaMensal(meses)
+        // Pagamentos pendentes/vencidos
+        supabase.from('pagamentos')
+          .select('valor')
+          .eq('academia_id', id)
+          .in('status', ['pendente', 'vencido']),
 
-    // Ranking
-    const { data: checkins } = await supabase.from('presencas')
-      .select('aluno_id, aluno:alunos(usuario:usuarios!alunos_usuario_id_fkey(nome))')
-      .eq('academia_id', usuario.academia_id)
-      .gte('data_checkin', startOfMonth(new Date()).toISOString())
-    
-    const cont: Record<string, { nome: string; count: number }> = {}
-    ;(checkins ?? []).forEach((c: any) => {
-      const nome = c.aluno?.usuario?.nome ?? 'Desconhecido'
-      if (!cont[c.aluno_id]) cont[c.aluno_id] = { nome, count: 0 }
-      cont[c.aluno_id].count++
-    })
-    setRankingPresenca(Object.values(cont).sort((a, b) => b.count - a.count).slice(0, 8).map(v => ({ nome: v.nome, checkins: v.count })))
-  }, [usuario?.academia_id])
+        // Presenças dos últimos 6 meses
+        supabase.from('presencas')
+          .select('aluno_id, data_checkin')
+          .eq('academia_id', id)
+          .gte('data_checkin', inicioMes6),
 
-  const fetchAlunos = useCallback(async () => {
-    if (!usuario?.academia_id) return
-    const meses = []
-    for (let i = 5; i >= 0; i--) {
-      const d = subMonths(new Date(), i)
-      const { count } = await supabase.from('alunos').select('*', { count: 'exact', head: true })
-        .eq('academia_id', usuario.academia_id)
-        .lte('data_matricula', format(d, 'yyyy-MM-dd'))
-      meses.push({ mes: format(d, 'MMM/yy', { locale: ptBR }), total: count ?? 0 })
-    }
-    setEvolucaoAlunos(meses)
+        // Alunos com data de matrícula
+        supabase.from('alunos')
+          .select('data_matricula, status_pagamento')
+          .eq('academia_id', id),
 
-    const [{ count: total }, { count: inadimplentes }] = await Promise.all([
-      supabase.from('alunos').select('*', { count: 'exact', head: true }).eq('academia_id', usuario.academia_id),
-      supabase.from('alunos').select('*', { count: 'exact', head: true }).eq('academia_id', usuario.academia_id).eq('status_pagamento', 'vencido'),
-    ])
-    const mesAtual = format(new Date(), 'yyyy-MM')
-    const { count: novos } = await supabase.from('alunos').select('*', { count: 'exact', head: true })
-      .eq('academia_id', usuario.academia_id).gte('data_matricula', `${mesAtual}-01`)
-    setStatsAlunos({ total: total ?? 0, ativos: (total ?? 0) - (inadimplentes ?? 0), novos: novos ?? 0, inadimplentes: inadimplentes ?? 0 })
-  }, [usuario?.academia_id])
+        // Novos alunos este mês
+        supabase.from('alunos')
+          .select('*', { count: 'exact', head: true })
+          .eq('academia_id', id)
+          .gte('data_matricula', inicioMesAtual),
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      await Promise.all([fetchFinanceiro(), fetchPresenca(), fetchAlunos()])
+        // Inadimplentes
+        supabase.from('alunos')
+          .select('*', { count: 'exact', head: true })
+          .eq('academia_id', id)
+          .eq('status_pagamento', 'vencido'),
+      ])
+
+      // ── Processar financeiro ──────────────────────────────
+      const faturamentoMensal = meses.map(d => {
+        const inicio = startOfMonth(d).toISOString().split('T')[0]
+        const fim = endOfMonth(d).toISOString().split('T')[0]
+        const receita = (pagamentosTodos ?? [])
+          .filter(p => p.data_pagamento >= inicio && p.data_pagamento <= fim)
+          .reduce((s, p) => s + (p.valor - (p.valor_desconto || 0)), 0)
+        return { mes: format(d, 'MMM/yy', { locale: ptBR }), receita }
+      })
+
+      const totalMes = (pagamentosTodos ?? [])
+        .filter(p => p.data_pagamento >= inicioMesAtual.split('T')[0])
+        .reduce((s, p) => s + (p.valor - (p.valor_desconto || 0)), 0)
+
+      const totalPendente = (pagamentosPendentes ?? []).reduce((s, p) => s + p.valor, 0)
+
+      const agrupFormas: Record<string, number> = {}
+      ;(pagamentosTodos ?? []).forEach(p => {
+        agrupFormas[p.forma_pagamento] = (agrupFormas[p.forma_pagamento] ?? 0) + p.valor
+      })
+      const formasPagamento = Object.entries(agrupFormas).map(([forma, total], i) => ({
+        forma: formaLabels[forma] ?? forma, total, color: cores[i % cores.length],
+      }))
+
+      // ── Processar presenças ───────────────────────────────
+      const presencaMensal = meses.map(d => {
+        const inicio = startOfMonth(d).toISOString().split('T')[0]
+        const fim = endOfMonth(d).toISOString().split('T')[0]
+        const checkins = new Set(
+          (presencasTodas ?? [])
+            .filter(p => p.data_checkin.split('T')[0] >= inicio && p.data_checkin.split('T')[0] <= fim)
+            .map(p => `${p.aluno_id}-${p.data_checkin.split('T')[0]}`)
+        ).size
+        return { mes: format(d, 'MMM/yy', { locale: ptBR }), checkins }
+      })
+
+      // Ranking do mês atual
+      const inicioMesStr = inicioMesAtual.split('T')[0]
+      const presencasMes = (presencasTodas ?? []).filter(p => p.data_checkin.split('T')[0] >= inicioMesStr)
+      
+      // Buscar nomes dos alunos do ranking
+      const contagem: Record<string, number> = {}
+      presencasMes.forEach(p => { contagem[p.aluno_id] = (contagem[p.aluno_id] ?? 0) + 1 })
+      const topIds = Object.entries(contagem).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([id]) => id)
+
+      let rankingPresenca: { nome: string; checkins: number }[] = []
+      if (topIds.length > 0) {
+        const { data: usuariosRanking } = await supabase
+          .from('alunos')
+          .select('id, usuario:usuarios!alunos_usuario_id_fkey(nome)')
+          .in('id', topIds)
+        
+        rankingPresenca = topIds.map(id => {
+          const aluno = (usuariosRanking ?? []).find(a => a.id === id)
+          return {
+            nome: (aluno?.usuario as unknown as { nome: string })?.nome ?? 'Desconhecido',
+            checkins: contagem[id],
+          }
+        })
+      }
+
+      // ── Processar alunos ──────────────────────────────────
+      const evolucao = meses.map(d => {
+        const fimMes = format(endOfMonth(d), 'yyyy-MM-dd')
+        const total = (alunosTodos ?? []).filter(a => !a.data_matricula || a.data_matricula <= fimMes).length
+        return { mes: format(d, 'MMM/yy', { locale: ptBR }), total }
+      })
+
+      setDadosFinanceiro({ faturamentoMensal, totalMes, totalPendente, formasPagamento })
+      setDadosPresenca({ presencaMensal, rankingPresenca })
+      setDadosAlunos({
+        evolucao,
+        stats: {
+          total: alunosTodos?.length ?? 0,
+          ativos: (alunosTodos ?? []).filter(a => a.status_pagamento !== 'cancelado').length,
+          novos: novosCount ?? 0,
+          inadimplentes: inadimplentesCount ?? 0,
+        },
+      })
+    } catch (err) {
+      console.error('Erro relatórios:', err)
+    } finally {
       setLoading(false)
     }
-    load()
-  }, [fetchFinanceiro, fetchPresenca, fetchAlunos])
+  }, [usuario?.academia_id])
+
+  useEffect(() => { fetchTudo() }, [fetchTudo])
 
   const tabs = [
     { key: 'financeiro', label: 'Financeiro', icon: DollarSign },
-    { key: 'presenca', label: 'Presença', icon: Calendar },
-    { key: 'alunos', label: 'Alunos', icon: Users },
+    { key: 'presenca',   label: 'Presença',   icon: Calendar   },
+    { key: 'alunos',     label: 'Alunos',      icon: Users      },
   ]
 
   return (
@@ -139,7 +200,6 @@ export default function RelatoriosPage() {
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="grid grid-cols-3 gap-3">
         {tabs.map(t => {
           const Icon = t.icon
@@ -153,35 +213,32 @@ export default function RelatoriosPage() {
         })}
       </div>
 
-      {loading && (
-        <div className="card-base p-8 text-center">
+      {loading ? (
+        <div className="card-base p-12 text-center">
           <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           <p className="text-gray-400 text-sm">Carregando dados...</p>
         </div>
-      )}
-
-      {!loading && (
+      ) : (
         <>
-          {/* FINANCEIRO */}
           {activeTab === 'financeiro' && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="stat-card">
-                  <p className="text-sm text-gray-500">Recebido/Mês</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">R$ {totalMes.toLocaleString('pt-BR')}</p>
+                  <p className="text-sm text-gray-500">Recebido este mês</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">R$ {dadosFinanceiro.totalMes.toLocaleString('pt-BR')}</p>
                 </div>
                 <div className="stat-card">
-                  <p className="text-sm text-gray-500">A Receber</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">R$ {totalPendente.toLocaleString('pt-BR')}</p>
+                  <p className="text-sm text-gray-500">A receber</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">R$ {dadosFinanceiro.totalPendente.toLocaleString('pt-BR')}</p>
                 </div>
               </div>
               <div className="card-base p-5">
                 <h3 className="section-title">Faturamento Mensal</h3>
-                {faturamentoMensal.every(m => m.receita === 0) ? (
-                  <p className="text-gray-400 text-sm text-center py-8">Nenhum pagamento registrado ainda.</p>
+                {dadosFinanceiro.faturamentoMensal.every(m => m.receita === 0) ? (
+                  <p className="text-gray-400 text-sm text-center py-8">Nenhum pagamento registrado.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={faturamentoMensal}>
+                    <BarChart data={dadosFinanceiro.faturamentoMensal}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
@@ -191,38 +248,32 @@ export default function RelatoriosPage() {
                   </ResponsiveContainer>
                 )}
               </div>
-              {formasPagamento.length > 0 && (
-                <div className="card-base p-5">
+              {dadosFinanceiro.formasPagamento.length > 0 && (
+                <div className="card-base p-5 space-y-3">
                   <h3 className="section-title">Formas de Pagamento</h3>
-                  <div className="space-y-3">
-                    {formasPagamento.map(fp => (
-                      <div key={fp.forma}>
-                        <div className="flex items-center justify-between text-sm mb-1">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full" style={{ background: fp.color }} />
-                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{fp.forma}</span>
-                          </div>
-                          <span className="text-xs font-semibold">R$ {fp.total.toLocaleString('pt-BR')}</span>
-                        </div>
-                        <div className="progress-bar"><div className="progress-fill" style={{ width: `${(fp.total / formasPagamento.reduce((s, f) => s + f.total, 0)) * 100}%`, background: fp.color }} /></div>
+                  {dadosFinanceiro.formasPagamento.map(fp => (
+                    <div key={fp.forma}>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full" style={{ background: fp.color }} /><span className="text-xs font-medium text-gray-700 dark:text-gray-300">{fp.forma}</span></div>
+                        <span className="text-xs font-semibold">R$ {fp.total.toLocaleString('pt-BR')}</span>
                       </div>
-                    ))}
-                  </div>
+                      <div className="progress-bar"><div className="progress-fill" style={{ width: `${(fp.total / dadosFinanceiro.formasPagamento.reduce((s, f) => s + f.total, 0)) * 100}%`, background: fp.color }} /></div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
           )}
 
-          {/* PRESENÇA */}
           {activeTab === 'presenca' && (
             <div className="space-y-4">
               <div className="card-base p-5">
                 <h3 className="section-title">Check-ins por Mês</h3>
-                {presencaMensal.every(m => m.checkins === 0) ? (
-                  <p className="text-gray-400 text-sm text-center py-8">Nenhum check-in registrado ainda.</p>
+                {dadosPresenca.presencaMensal.every(m => m.checkins === 0) ? (
+                  <p className="text-gray-400 text-sm text-center py-8">Nenhum check-in registrado.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={presencaMensal}>
+                    <BarChart data={dadosPresenca.presencaMensal}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} />
@@ -232,18 +283,16 @@ export default function RelatoriosPage() {
                   </ResponsiveContainer>
                 )}
               </div>
-              {rankingPresenca.length > 0 && (
+              {dadosPresenca.rankingPresenca.length > 0 && (
                 <div className="card-base overflow-hidden">
-                  <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">Ranking do Mês</h3>
-                  </div>
+                  <div className="p-4 border-b border-gray-100 dark:border-gray-700"><h3 className="font-semibold text-gray-900 dark:text-gray-100">Ranking do Mês</h3></div>
                   <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {rankingPresenca.map((a, i) => (
+                    {dadosPresenca.rankingPresenca.map((a, i) => (
                       <div key={a.nome} className="flex items-center gap-3 p-3.5">
                         <span className="text-lg w-7 text-center">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}°`}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{a.nome}</p>
-                          <div className="progress-bar mt-1"><div className="progress-fill" style={{ width: `${(a.checkins / (rankingPresenca[0]?.checkins || 1)) * 100}%` }} /></div>
+                          <div className="progress-bar mt-1"><div className="progress-fill" style={{ width: `${(a.checkins / (dadosPresenca.rankingPresenca[0]?.checkins || 1)) * 100}%` }} /></div>
                         </div>
                         <span className="text-sm font-bold text-primary-600 dark:text-primary-400">{a.checkins}x</span>
                       </div>
@@ -254,15 +303,14 @@ export default function RelatoriosPage() {
             </div>
           )}
 
-          {/* ALUNOS */}
           {activeTab === 'alunos' && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                  { label: 'Total', value: statsAlunos.total },
-                  { label: 'Ativos', value: statsAlunos.ativos },
-                  { label: 'Novos/mês', value: statsAlunos.novos },
-                  { label: 'Inadimplentes', value: statsAlunos.inadimplentes },
+                  { label: 'Total',        value: dadosAlunos.stats.total },
+                  { label: 'Ativos',       value: dadosAlunos.stats.ativos },
+                  { label: 'Novos/mês',    value: dadosAlunos.stats.novos },
+                  { label: 'Inadimplentes',value: dadosAlunos.stats.inadimplentes },
                 ].map(s => (
                   <div key={s.label} className="stat-card text-center">
                     <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{s.value}</p>
@@ -271,12 +319,12 @@ export default function RelatoriosPage() {
                 ))}
               </div>
               <div className="card-base p-5">
-                <h3 className="section-title">Evolução da Base de Alunos</h3>
-                {evolucaoAlunos.every(m => m.total === 0) ? (
-                  <p className="text-gray-400 text-sm text-center py-8">Nenhum aluno cadastrado ainda.</p>
+                <h3 className="section-title">Evolução da Base</h3>
+                {dadosAlunos.evolucao.every(m => m.total === 0) ? (
+                  <p className="text-gray-400 text-sm text-center py-8">Nenhum aluno cadastrado.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
-                    <LineChart data={evolucaoAlunos}>
+                    <LineChart data={dadosAlunos.evolucao}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} />
