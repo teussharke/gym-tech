@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { UserPlus, Search, Edit, Ban, CheckCircle2, Eye, Phone, Mail, GraduationCap, RefreshCw } from 'lucide-react'
+import { UserPlus, Search, Edit, Ban, CheckCircle2, Eye, Phone, Mail, GraduationCap, RefreshCw, Trash2, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import toast from 'react-hot-toast'
@@ -37,6 +37,8 @@ export default function ProfessoresPage() {
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ type: 'none' })
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<Professor | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [form, setForm] = useState({
     nome: '', email: '', telefone: '', cref: '',
     especialidades: [] as string[], bio: '', senha: '123456',
@@ -46,79 +48,40 @@ export default function ProfessoresPage() {
     if (!usuario?.academia_id) return
     setLoading(true)
     try {
-      // Step 1: buscar professores
-      const { data: profs, error: profsError } = await supabase
+      const { data: profs } = await supabase
         .from('professores')
         .select('id, usuario_id, cref, especialidades, bio')
         .eq('academia_id', usuario.academia_id)
         .order('created_at', { ascending: false })
 
-      if (profsError) {
-        console.error('Erro professores:', profsError)
-        toast.error('Erro ao carregar professores')
-        setLoading(false)
-        return
-      }
+      if (!profs || profs.length === 0) { setProfessores([]); setLoading(false); return }
 
-      if (!profs || profs.length === 0) {
-        setProfessores([])
-        setLoading(false)
-        return
-      }
-
-      // Step 2: buscar usuários separadamente
       const usuarioIds = profs.map(p => p.usuario_id).filter(Boolean)
       const { data: usuarios } = await supabase
-        .from('usuarios')
-        .select('id, nome, email, telefone, status')
-        .in('id', usuarioIds)
+        .from('usuarios').select('id, nome, email, telefone, status').in('id', usuarioIds)
 
       const usuariosMap = Object.fromEntries((usuarios ?? []).map(u => [u.id, u]))
 
-      const profsFull: Professor[] = profs.map(p => {
-        const u = usuariosMap[p.usuario_id] ?? {}
-        return {
-          id: p.id,
-          usuario_id: p.usuario_id,
-          cref: p.cref,
-          especialidades: p.especialidades,
-          bio: p.bio,
-          nome: u.nome ?? 'Sem nome',
-          email: u.email ?? '',
-          telefone: u.telefone ?? null,
-          status: u.status ?? 'ativo',
-        }
-      })
-
-      setProfessores(profsFull)
-    } catch (err) {
-      console.error('Erro inesperado:', err)
-      toast.error('Erro ao carregar professores')
-    } finally {
-      setLoading(false)
-    }
+      setProfessores(profs.map(p => ({
+        id: p.id, usuario_id: p.usuario_id, cref: p.cref,
+        especialidades: p.especialidades, bio: p.bio,
+        nome: usuariosMap[p.usuario_id]?.nome ?? 'Sem nome',
+        email: usuariosMap[p.usuario_id]?.email ?? '',
+        telefone: usuariosMap[p.usuario_id]?.telefone ?? null,
+        status: usuariosMap[p.usuario_id]?.status ?? 'ativo',
+      })))
+    } catch { toast.error('Erro ao carregar professores') }
+    finally { setLoading(false) }
   }, [usuario?.academia_id])
 
   useEffect(() => { fetchProfessores() }, [fetchProfessores])
-
-  const abrirNovo = () => {
-    setForm({ nome: '', email: '', telefone: '', cref: '', especialidades: [], bio: '', senha: '123456' })
-    setModal({ type: 'form', prof: null })
-  }
-
-  const abrirEditar = (prof: Professor) => {
-    setForm({ nome: prof.nome, email: prof.email, telefone: prof.telefone ?? '', cref: prof.cref ?? '', especialidades: prof.especialidades ?? [], bio: prof.bio ?? '', senha: '' })
-    setModal({ type: 'form', prof })
-  }
 
   const salvar = async () => {
     if (!form.nome || !form.email) { toast.error('Nome e email são obrigatórios'); return }
     if (!usuario?.academia_id) return
     setSaving(true)
-
     try {
       if (modal.type === 'form' && !modal.prof) {
-        // Novo professor via API
         const res = await fetch('/api/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -133,7 +96,6 @@ export default function ProfessoresPage() {
         if (!res.ok) throw new Error(data.error ?? 'Erro ao cadastrar')
         toast.success('Professor cadastrado!')
       } else if (modal.type === 'form' && modal.prof) {
-        // Editar
         await Promise.all([
           supabase.from('usuarios').update({ nome: form.nome, telefone: form.telefone || null }).eq('id', modal.prof.usuario_id),
           supabase.from('professores').update({ cref: form.cref || null, especialidades: form.especialidades.length ? form.especialidades : null, bio: form.bio || null }).eq('id', modal.prof.id),
@@ -141,21 +103,36 @@ export default function ProfessoresPage() {
         toast.success('Professor atualizado!')
       }
       setModal({ type: 'none' })
-      // Aguarda um pouco antes de recarregar para garantir que o banco atualizou
       setTimeout(() => fetchProfessores(), 500)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erro ao salvar')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   const toggleStatus = async (prof: Professor) => {
     const novo = prof.status === 'ativo' ? 'inativo' : 'ativo'
-    const { error } = await supabase.from('usuarios').update({ status: novo }).eq('id', prof.usuario_id)
-    if (error) { toast.error('Erro ao atualizar'); return }
+    await supabase.from('usuarios').update({ status: novo }).eq('id', prof.usuario_id)
     toast.success(`Professor ${novo === 'ativo' ? 'ativado' : 'desativado'}`)
     fetchProfessores()
+  }
+
+  const excluirProfessor = async () => {
+    if (!confirmDelete) return
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuario_id: confirmDelete.usuario_id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success('Professor excluído')
+      setConfirmDelete(null)
+      fetchProfessores()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao excluir')
+    } finally { setDeleting(false) }
   }
 
   const filtered = professores.filter(p =>
@@ -166,61 +143,36 @@ export default function ProfessoresPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="page-header">
-        <div>
-          <h1 className="page-title">Professores</h1>
-          <p className="page-subtitle">{professores.length} professor{professores.length !== 1 ? 'es' : ''}</p>
-        </div>
+        <div><h1 className="page-title">Professores</h1><p className="page-subtitle">{professores.length} professor{professores.length !== 1 ? 'es' : ''}</p></div>
         <div className="flex items-center gap-2">
-          <button onClick={fetchProfessores} disabled={loading} className="btn-ghost p-2" title="Atualizar">
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          <button onClick={abrirNovo} className="btn-primary flex items-center gap-2 text-sm">
-            <UserPlus className="w-4 h-4" />
-            <span className="hidden sm:inline">Novo Professor</span>
-            <span className="sm:hidden">+</span>
+          <button onClick={fetchProfessores} disabled={loading} className="btn-ghost p-2"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
+          <button onClick={() => { setForm({ nome: '', email: '', telefone: '', cref: '', especialidades: [], bio: '', senha: '123456' }); setModal({ type: 'form', prof: null }) }}
+            className="btn-primary flex items-center gap-2 text-sm">
+            <UserPlus className="w-4 h-4" /><span className="hidden sm:inline">Novo Professor</span><span className="sm:hidden">+</span>
           </button>
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="stat-card text-center">
-          <GraduationCap className="w-6 h-6 text-blue-500 mx-auto mb-1" />
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{professores.length}</p>
-          <p className="text-xs text-gray-500">Total</p>
-        </div>
-        <div className="stat-card text-center">
-          <CheckCircle2 className="w-6 h-6 text-green-500 mx-auto mb-1" />
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {professores.filter(p => p.status === 'ativo').length}
-          </p>
-          <p className="text-xs text-gray-500">Ativos</p>
-        </div>
+        <div className="stat-card text-center"><GraduationCap className="w-6 h-6 text-blue-500 mx-auto mb-1" /><p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{professores.length}</p><p className="text-xs text-gray-500">Total</p></div>
+        <div className="stat-card text-center"><CheckCircle2 className="w-6 h-6 text-green-500 mx-auto mb-1" /><p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{professores.filter(p => p.status === 'ativo').length}</p><p className="text-xs text-gray-500">Ativos</p></div>
       </div>
 
-      {/* Busca */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input type="text" placeholder="Buscar professor..." value={search} onChange={e => setSearch(e.target.value)} className="input-base pl-9" />
       </div>
 
-      {/* Loading */}
-      {loading && (
-        <div className="card-base p-8 text-center">
-          <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-gray-400 text-sm">Carregando...</p>
-        </div>
-      )}
-
-      {/* Cards */}
-      {!loading && (
+      {loading ? (
+        <div className="card-base p-8 text-center"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" /><p className="text-gray-400 text-sm">Carregando...</p></div>
+      ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map(prof => (
             <div key={prof.id} className="card-base p-5 space-y-4">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <span className="text-lg font-bold text-primary-700 dark:text-primary-400">
+                  <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <span className="text-lg font-bold text-orange-700 dark:text-orange-400">
                       {prof.nome.split(' ').map(n => n[0]).slice(0, 2).join('')}
                     </span>
                   </div>
@@ -237,27 +189,25 @@ export default function ProfessoresPage() {
               {prof.especialidades && prof.especialidades.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {prof.especialidades.map(esp => (
-                    <span key={esp} className={`text-xs px-2 py-0.5 rounded-full font-medium ${especialidadeColors[esp] ?? 'badge-gray'}`}>
-                      {esp}
-                    </span>
+                    <span key={esp} className={`text-xs px-2 py-0.5 rounded-full font-medium ${especialidadeColors[esp] ?? 'badge-gray'}`}>{esp}</span>
                   ))}
                 </div>
               )}
 
-              <div className="space-y-1.5 text-xs text-gray-500">
+              <div className="space-y-1 text-xs text-gray-500">
                 <div className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 flex-shrink-0" /><span className="truncate">{prof.email}</span></div>
                 {prof.telefone && <div className="flex items-center gap-2"><Phone className="w-3.5 h-3.5" /><span>{prof.telefone}</span></div>}
               </div>
 
-              <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                <button onClick={() => setModal({ type: 'view', prof })} className="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1">
-                  <Eye className="w-3.5 h-3.5" />Ver
-                </button>
-                <button onClick={() => abrirEditar(prof)} className="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1">
-                  <Edit className="w-3.5 h-3.5" />Editar
-                </button>
-                <button onClick={() => toggleStatus(prof)} className={`btn-secondary text-xs py-1.5 px-2.5 ${prof.status === 'ativo' ? 'text-red-500' : 'text-green-500'}`}>
+              <div className="flex gap-1.5 pt-2 border-t border-gray-100 dark:border-gray-700">
+                <button onClick={() => setModal({ type: 'view', prof })} className="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1"><Eye className="w-3.5 h-3.5" />Ver</button>
+                <button onClick={() => { setForm({ nome: prof.nome, email: prof.email, telefone: prof.telefone ?? '', cref: prof.cref ?? '', especialidades: prof.especialidades ?? [], bio: prof.bio ?? '', senha: '' }); setModal({ type: 'form', prof }) }}
+                  className="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1"><Edit className="w-3.5 h-3.5" />Editar</button>
+                <button onClick={() => toggleStatus(prof)} className={`btn-secondary text-xs py-1.5 px-2.5 ${prof.status === 'ativo' ? 'text-amber-500' : 'text-green-500'}`}>
                   {prof.status === 'ativo' ? <Ban className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                </button>
+                <button onClick={() => setConfirmDelete(prof)} className="btn-secondary text-xs py-1.5 px-2.5 text-red-500">
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -266,9 +216,7 @@ export default function ProfessoresPage() {
           {filtered.length === 0 && (
             <div className="col-span-full card-base p-12 text-center">
               <GraduationCap className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-              <p className="text-gray-500">
-                {professores.length === 0 ? 'Nenhum professor cadastrado ainda.' : 'Nenhum resultado.'}
-              </p>
+              <p className="text-gray-500">{professores.length === 0 ? 'Nenhum professor cadastrado.' : 'Nenhum resultado.'}</p>
             </div>
           )}
         </div>
@@ -279,9 +227,7 @@ export default function ProfessoresPage() {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                {modal.prof ? 'Editar Professor' : 'Novo Professor'}
-              </h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{modal.prof ? 'Editar Professor' : 'Novo Professor'}</h2>
               <button onClick={() => setModal({ type: 'none' })} className="btn-ghost p-1.5">✕</button>
             </div>
             <div className="p-5 space-y-4">
@@ -295,16 +241,14 @@ export default function ProfessoresPage() {
                 <div><label className="label-base">Telefone</label><input type="tel" value={form.telefone} onChange={e => setForm(p => ({ ...p, telefone: e.target.value }))} className="input-base" /></div>
               </div>
               <div><label className="label-base">CREF</label><input type="text" value={form.cref} onChange={e => setForm(p => ({ ...p, cref: e.target.value }))} className="input-base" placeholder="CREF 000000-G/MG" /></div>
-              {!modal.prof && (
-                <div><label className="label-base">Senha inicial</label><input type="text" value={form.senha} onChange={e => setForm(p => ({ ...p, senha: e.target.value }))} className="input-base" /></div>
-              )}
+              {!modal.prof && <div><label className="label-base">Senha inicial</label><input type="text" value={form.senha} onChange={e => setForm(p => ({ ...p, senha: e.target.value }))} className="input-base" /></div>}
               <div>
                 <label className="label-base">Especialidades</label>
                 <div className="flex flex-wrap gap-2 mt-1">
                   {todasEspecialidades.map(esp => (
                     <button key={esp} type="button"
                       onClick={() => setForm(p => ({ ...p, especialidades: p.especialidades.includes(esp) ? p.especialidades.filter(e => e !== esp) : [...p.especialidades, esp] }))}
-                      className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${form.especialidades.includes(esp) ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
+                      className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${form.especialidades.includes(esp) ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
                       {esp}
                     </button>
                   ))}
@@ -314,48 +258,37 @@ export default function ProfessoresPage() {
             </div>
             <div className="p-5 border-t border-gray-100 dark:border-gray-700 flex gap-3">
               <button onClick={() => setModal({ type: 'none' })} className="btn-secondary flex-1">Cancelar</button>
-              <button onClick={salvar} disabled={saving || !form.nome || !form.email} className="btn-primary flex-1">
-                {saving ? 'Salvando...' : modal.prof ? 'Salvar' : 'Cadastrar'}
-              </button>
+              <button onClick={salvar} disabled={saving || !form.nome || !form.email} className="btn-primary flex-1">{saving ? 'Salvando...' : modal.prof ? 'Salvar' : 'Cadastrar'}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal view */}
-      {modal.type === 'view' && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Professor</h2>
-              <button onClick={() => setModal({ type: 'none' })} className="btn-ghost p-1.5">✕</button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-primary-100 dark:bg-primary-900/30 rounded-2xl flex items-center justify-center">
-                  <span className="text-2xl font-bold text-primary-700 dark:text-primary-400">
-                    {modal.prof.nome.split(' ').map(n => n[0]).slice(0, 2).join('')}
-                  </span>
-                </div>
-                <div>
-                  <p className="font-bold text-gray-900 dark:text-gray-100 text-lg">{modal.prof.nome}</p>
-                  <p className="text-sm text-gray-400">{modal.prof.cref ?? 'CREF não informado'}</p>
-                </div>
+      {/* Modal confirmação exclusão */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-6 h-6 text-red-500" />
               </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400"><Mail className="w-4 h-4" />{modal.prof.email}</div>
-                {modal.prof.telefone && <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400"><Phone className="w-4 h-4" />{modal.prof.telefone}</div>}
+              <div>
+                <h3 className="font-bold text-gray-900 dark:text-gray-100">Excluir Professor</h3>
+                <p className="text-sm text-gray-500">Esta ação não pode ser desfeita</p>
               </div>
-              {modal.prof.especialidades && modal.prof.especialidades.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {modal.prof.especialidades.map(esp => <span key={esp} className={`text-xs px-2 py-0.5 rounded-full font-medium ${especialidadeColors[esp] ?? 'badge-gray'}`}>{esp}</span>)}
-                </div>
-              )}
-              {modal.prof.bio && <p className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">{modal.prof.bio}</p>}
             </div>
-            <div className="p-4 border-t border-gray-100 dark:border-gray-700 flex gap-2">
-              <button onClick={() => { setModal({ type: 'none' }); setTimeout(() => abrirEditar(modal.prof), 100) }} className="btn-secondary flex-1">Editar</button>
-              <button onClick={() => setModal({ type: 'none' })} className="btn-primary flex-1">Fechar</button>
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-3">
+              <p className="text-sm text-red-700 dark:text-red-400">
+                Você está prestes a excluir permanentemente o professor <strong>{confirmDelete.nome}</strong>.
+                Os alunos vinculados a ele ficarão sem professor.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDelete(null)} className="btn-secondary flex-1" disabled={deleting}>Cancelar</button>
+              <button onClick={excluirProfessor} disabled={deleting}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 rounded-xl transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                {deleting ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Excluindo...</> : <><Trash2 className="w-4 h-4" />Excluir</>}
+              </button>
             </div>
           </div>
         </div>
