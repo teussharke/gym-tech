@@ -3,15 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Dumbbell, Eye, EyeOff, Loader2 } from 'lucide-react'
+import Image from 'next/image'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
-
-const DEMO_ACCOUNTS = [
-  { label: 'Admin',     email: 'admin@gymflow.com',  color: 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300' },
-  { label: 'Professor', email: 'prof@gymflow.com',   color: 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-300' },
-  { label: 'Aluno',     email: 'aluno@gymflow.com',  color: 'bg-green-500/20 hover:bg-green-500/30 text-green-300' },
-]
 
 export default function LoginPage() {
   const router = useRouter()
@@ -54,8 +49,6 @@ export default function LoginPage() {
       }
 
       if (data.session) {
-        toast.success('Login realizado!')
-        // Aguarda um tick para o auth state propagar
         await new Promise(r => setTimeout(r, 300))
         router.replace('/dashboard')
       }
@@ -65,34 +58,82 @@ export default function LoginPage() {
     }
   }
 
-  const fillDemo = (demoEmail: string) => {
-    setEmail(demoEmail)
-    setPassword('123456')
-    setErrors({})
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary-700/10 rounded-full blur-3xl" />
-      </div>
+    <div className="min-h-screen flex">
+      {/* Lado esquerdo — imagem/marca (apenas desktop) */}
+      <div className="hidden lg:flex flex-col justify-between w-1/2 bg-black p-12 relative overflow-hidden">
+        {/* Círculos decorativos */}
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
 
-      <div className="relative w-full max-w-md">
-        <div className="text-center mb-8 animate-fade-in">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4 shadow-lg shadow-primary-500/30">
-            <Dumbbell className="w-8 h-8 text-white" />
+        {/* Logo */}
+        <div className="relative z-10 flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl overflow-hidden shadow-lg">
+            <Image src="/icons/icon-192x192.png" alt="i9 Fitness" width={56} height={56} />
           </div>
-          <h1 className="text-3xl font-bold text-white">GymFlow</h1>
-          <p className="text-gray-400 mt-1">Sistema de Gestão de Academia</p>
+          <div>
+            <h1 className="text-2xl font-black text-white tracking-tight">i9 Fitness</h1>
+            <p className="text-orange-400 text-sm font-medium">Sistema de Gestão</p>
+          </div>
         </div>
 
-        <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-2xl animate-slide-in">
-          <h2 className="text-xl font-semibold text-white mb-6">Entrar na sua conta</h2>
+        {/* Slogan */}
+        <div className="relative z-10 space-y-6">
+          <div className="space-y-4">
+            <h2 className="text-4xl font-black text-white leading-tight">
+              Gerencie sua<br />
+              <span className="text-orange-500">academia</span><br />
+              com eficiência
+            </h2>
+            <p className="text-gray-400 text-lg leading-relaxed">
+              Alunos, treinos, avaliações e financeiro<br />em um único lugar.
+            </p>
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Features */}
+          <div className="space-y-3">
+            {[
+              '✓ Gestão completa de alunos',
+              '✓ Fichas de treino personalizadas',
+              '✓ Check-in e frequência',
+              '✓ Relatórios financeiros',
+            ].map(f => (
+              <p key={f} className="text-gray-300 text-sm font-medium">{f}</p>
+            ))}
+          </div>
+        </div>
+
+        <p className="relative z-10 text-gray-600 text-xs">
+          © {new Date().getFullYear()} i9 Fitness. Todos os direitos reservados.
+        </p>
+      </div>
+
+      {/* Lado direito — formulário */}
+      <div className="flex-1 flex items-center justify-center p-6 bg-gray-950 lg:bg-white lg:dark:bg-gray-950">
+        <div className="w-full max-w-md space-y-8">
+          {/* Logo mobile */}
+          <div className="lg:hidden flex flex-col items-center gap-4">
+            <div className="w-20 h-20 rounded-3xl overflow-hidden shadow-xl shadow-orange-500/30">
+              <Image src="/icons/icon-192x192.png" alt="i9 Fitness" width={80} height={80} />
+            </div>
+            <div className="text-center">
+              <h1 className="text-2xl font-black text-white tracking-tight">i9 Fitness</h1>
+              <p className="text-orange-400 text-sm">Sistema de Gestão</p>
+            </div>
+          </div>
+
+          {/* Header */}
+          <div className="hidden lg:block">
+            <h2 className="text-3xl font-black text-gray-900 dark:text-white">Bem-vindo!</h2>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">Faça login para acessar o sistema</p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
+              <label className="block text-sm font-semibold text-gray-300 lg:text-gray-700 dark:text-gray-300 mb-2">
+                Email
+              </label>
               <input
                 type="email"
                 value={email}
@@ -100,15 +141,18 @@ export default function LoginPage() {
                 placeholder="seu@email.com"
                 autoComplete="email"
                 disabled={isLoading}
-                className="w-full bg-white/10 border border-white/20 text-white placeholder-gray-500
-                           rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2
-                           focus:ring-primary-500 focus:border-transparent transition-all disabled:opacity-50"
+                className="w-full bg-gray-900 lg:bg-white lg:dark:bg-gray-800 border border-gray-700 lg:border-gray-200 lg:dark:border-gray-700
+                           text-white lg:text-gray-900 lg:dark:text-white placeholder-gray-600
+                           rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500
+                           transition-all disabled:opacity-50"
               />
-              {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
+              {errors.email && <p className="text-red-400 text-xs mt-1.5">{errors.email}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">Senha</label>
+              <label className="block text-sm font-semibold text-gray-300 lg:text-gray-700 dark:text-gray-300 mb-2">
+                Senha
+              </label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -117,23 +161,21 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   autoComplete="current-password"
                   disabled={isLoading}
-                  className="w-full bg-white/10 border border-white/20 text-white placeholder-gray-500
-                             rounded-lg px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2
-                             focus:ring-primary-500 focus:border-transparent transition-all disabled:opacity-50"
+                  className="w-full bg-gray-900 lg:bg-white lg:dark:bg-gray-800 border border-gray-700 lg:border-gray-200 lg:dark:border-gray-700
+                             text-white lg:text-gray-900 lg:dark:text-white placeholder-gray-600
+                             rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500
+                             transition-all disabled:opacity-50"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
-                >
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 lg:hover:text-gray-600 transition-colors">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
+              {errors.password && <p className="text-red-400 text-xs mt-1.5">{errors.password}</p>}
             </div>
 
             <div className="flex justify-end">
-              <Link href="/forgot-password" className="text-sm text-primary-400 hover:text-primary-300 transition-colors">
+              <Link href="/forgot-password" className="text-sm text-orange-500 hover:text-orange-400 font-medium transition-colors">
                 Esqueceu sua senha?
               </Link>
             </div>
@@ -141,40 +183,22 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500
-                         disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold
-                         py-2.5 rounded-lg transition-all duration-200 active:scale-95 mt-2
-                         shadow-lg shadow-primary-500/30"
+              className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600
+                         disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold
+                         py-3.5 rounded-xl transition-all duration-200 active:scale-95
+                         shadow-lg shadow-orange-500/30 text-base"
             >
               {isLoading
-                ? <><Loader2 className="w-4 h-4 animate-spin" />Entrando...</>
+                ? <><Loader2 className="w-5 h-5 animate-spin" />Entrando...</>
                 : 'Entrar'
               }
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-white/10">
-            <p className="text-gray-400 text-xs text-center mb-3">Contas de demonstração</p>
-            <div className="grid grid-cols-3 gap-2">
-              {DEMO_ACCOUNTS.map(({ label, email: demoEmail, color }) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => fillDemo(demoEmail)}
-                  disabled={isLoading}
-                  className={`${color} text-xs font-medium py-1.5 px-2 rounded-lg transition-all disabled:opacity-50`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <p className="text-gray-500 text-xs text-center mt-2">Senha: 123456</p>
-          </div>
+          <p className="text-center text-gray-600 text-xs lg:hidden">
+            © {new Date().getFullYear()} i9 Fitness
+          </p>
         </div>
-
-        <p className="text-center text-gray-500 text-xs mt-6">
-          © 2024 GymFlow. Todos os direitos reservados.
-        </p>
       </div>
     </div>
   )

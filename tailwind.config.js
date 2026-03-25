@@ -10,47 +10,38 @@ module.exports = {
     extend: {
       colors: {
         primary: {
-          50: '#f0fdf4',
-          100: '#dcfce7',
-          200: '#bbf7d0',
-          300: '#86efac',
-          400: '#4ade80',
-          500: '#22c55e',
-          600: '#16a34a',
-          700: '#15803d',
-          800: '#166534',
-          900: '#14532d',
-          950: '#052e16',
+          50:  '#fff7ed',
+          100: '#ffedd5',
+          200: '#fed7aa',
+          300: '#fdba74',
+          400: '#fb923c',
+          500: '#f97316',
+          600: '#ea580c',
+          700: '#c2410c',
+          800: '#9a3412',
+          900: '#7c2d12',
         },
-        brand: {
-          DEFAULT: '#22c55e',
-          dark: '#16a34a',
-          light: '#4ade80',
+        // i9 Fitness brand colors
+        i9: {
+          orange: '#f97316',
+          black:  '#111111',
+          white:  '#ffffff',
         },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
+      borderRadius: {
+        '2xl': '1rem',
+        '3xl': '1.5rem',
+      },
       animation: {
-        'fade-in': 'fadeIn 0.3s ease-in-out',
-        'slide-in': 'slideIn 0.3s ease-in-out',
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'spin-slow': 'spin 3s linear infinite',
+        'fade-in':  'fade-in 0.3s ease-out',
+        'slide-in': 'slide-in 0.4s ease-out',
       },
       keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
-        },
-        slideIn: {
-          '0%': { transform: 'translateY(-10px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
-        },
-      },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-conic':
-          'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
+        'fade-in':  { from: { opacity: '0', transform: 'translateY(8px)'  }, to: { opacity: '1', transform: 'translateY(0)' } },
+        'slide-in': { from: { opacity: '0', transform: 'translateY(16px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
       },
     },
   },
