@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Play, Pause, RotateCcw, CheckCircle2, ChevronDown, ChevronUp, Timer, Dumbbell, Info, X } from 'lucide-react'
+import {
+  Play, Pause, RotateCcw, CheckCircle2, ChevronDown, ChevronUp,
+  Timer, Dumbbell, Info, X
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { grupoColors } from '@/lib/mock/exercicios'
@@ -19,10 +22,10 @@ interface ExercicioTreino {
   exercicio: {
     id: string
     nome: string
-    grupo_muscular: string
+    grupo_muscular: string | null
     gif_url: string | null
     equipamento: string | null
-  }
+  } | null
 }
 
 interface Treino {
@@ -55,7 +58,6 @@ function TimerModal({ seconds, total, active, onToggle, onClose }: {
   const progress = total > 0 ? ((total - seconds) / total) * 100 : 0
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
   const c = 2 * Math.PI * 45
-
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end justify-center p-4 lg:items-center">
       <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl">
@@ -67,11 +69,11 @@ function TimerModal({ seconds, total, active, onToggle, onClose }: {
           <div className="relative w-40 h-40">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="45" fill="none" stroke="#e5e7eb" strokeWidth="8" className="dark:stroke-gray-700" />
-              <circle cx="50" cy="50" r="45" fill="none" stroke={seconds <= 10 ? '#ef4444' : '#22c55e'} strokeWidth="8"
+              <circle cx="50" cy="50" r="45" fill="none" stroke={seconds <= 10 ? '#ef4444' : '#f97316'} strokeWidth="8"
                 strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - progress / 100)} className="transition-all duration-1000" />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className={`font-mono text-4xl font-bold ${seconds <= 10 ? 'text-red-500' : 'text-primary-600 dark:text-primary-400'}`}>
+              <span className={`font-mono text-4xl font-bold ${seconds <= 10 ? 'text-red-500' : 'text-orange-500'}`}>
                 {fmt(seconds)}
               </span>
               <span className="text-xs text-gray-400 mt-0.5">{total}s</span>
@@ -115,7 +117,6 @@ export default function TreinoAlunoPage() {
     if (!alunoId) return
     setLoading(true)
     try {
-      // Pega o treino mais recente ativo
       const { data, error } = await supabase
         .from('treinos')
         .select(`
@@ -135,12 +136,16 @@ export default function TreinoAlunoPage() {
 
       if (data) {
         const t = data as unknown as Treino
-        t.exercicios = t.exercicios.sort((a, b) => a.ordem - b.ordem)
+        // Ordena e filtra exercícios com dados válidos
+        t.exercicios = (t.exercicios ?? [])
+          .sort((a, b) => a.ordem - b.ordem)
+
         setTreino(t)
         setStates(Object.fromEntries(t.exercicios.map(e => [e.id, { concluido: false, carga: '' }])))
         setExpandedId(t.exercicios[0]?.id ?? null)
       }
-    } catch {
+    } catch (err) {
+      console.error('Erro ao carregar treino:', err)
       toast.error('Erro ao carregar treino')
     } finally {
       setLoading(false)
@@ -153,13 +158,18 @@ export default function TreinoAlunoPage() {
   useEffect(() => {
     if (timerActive && timerSecs > 0) {
       intervalRef.current = setInterval(() => {
-        setTimerSecs(s => { if (s <= 1) { setTimerActive(false); clearInterval(intervalRef.current!); return 0 } return s - 1 })
+        setTimerSecs(s => {
+          if (s <= 1) { setTimerActive(false); clearInterval(intervalRef.current!); return 0 }
+          return s - 1
+        })
       }, 1000)
     }
     return () => clearInterval(intervalRef.current!)
   }, [timerActive, timerSecs])
 
-  const startTimer = (secs: number) => { setTimerTotal(secs); setTimerSecs(secs); setTimerActive(true); setShowTimer(true) }
+  const startTimer = (secs: number) => {
+    setTimerTotal(secs); setTimerSecs(secs); setTimerActive(true); setShowTimer(true)
+  }
 
   const toggleConcluido = (id: string, descanso: number) => {
     const nowConcluido = !states[id]?.concluido
@@ -179,8 +189,8 @@ export default function TreinoAlunoPage() {
     setSaving(true)
     try {
       const exerciciosRealizados = treino.exercicios.map(ex => ({
-        exercicio_id: ex.exercicio.id,
-        nome: ex.exercicio.nome,
+        exercicio_id: ex.exercicio?.id ?? null,
+        nome: ex.exercicio?.nome ?? ex.observacoes ?? 'Exercício',
         series: ex.series,
         repeticoes: ex.repeticoes,
         carga: states[ex.id]?.carga || ex.carga_sugerida || 0,
@@ -200,7 +210,6 @@ export default function TreinoAlunoPage() {
       })
       if (!res.ok) throw new Error()
       toast.success('Treino registrado! 🎉')
-      // Reset
       setStates(Object.fromEntries(treino.exercicios.map(e => [e.id, { concluido: false, carga: '' }])))
     } catch {
       toast.error('Erro ao finalizar treino')
@@ -211,7 +220,7 @@ export default function TreinoAlunoPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-64">
-      <div className="w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
     </div>
   )
 
@@ -224,7 +233,9 @@ export default function TreinoAlunoPage() {
   )
 
   const totalConcluidos = Object.values(states).filter(s => s.concluido).length
-  const progress = (totalConcluidos / treino.exercicios.length) * 100
+  const progress = treino.exercicios.length > 0
+    ? (totalConcluidos / treino.exercicios.length) * 100
+    : 0
 
   return (
     <>
@@ -244,11 +255,13 @@ export default function TreinoAlunoPage() {
               {treino.descricao && <p className="text-xs text-gray-400 mt-0.5">{treino.descricao}</p>}
             </div>
             <div className="text-right flex-shrink-0">
-              <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">{totalConcluidos}/{treino.exercicios.length}</p>
+              <p className="text-2xl font-bold text-orange-500">{totalConcluidos}/{treino.exercicios.length}</p>
               <p className="text-xs text-gray-400">feitos</p>
             </div>
           </div>
-          <div className="progress-bar h-2.5"><div className="progress-fill h-2.5" style={{ width: `${progress}%` }} /></div>
+          <div className="progress-bar h-2.5">
+            <div className="progress-fill h-2.5" style={{ width: `${progress}%` }} />
+          </div>
         </div>
 
         {/* Exercícios */}
@@ -256,25 +269,39 @@ export default function TreinoAlunoPage() {
           {treino.exercicios.map((ex, index) => {
             const state = states[ex.id] ?? { concluido: false, carga: '' }
             const isExpanded = expandedId === ex.id
-            const grupoLabel = ex.exercicio.grupo_muscular?.replace(/_/g, ' ')
+
+            // Nome do exercício — fallback para observações se exercicio for null
+            const nomeExercicio = ex.exercicio?.nome ?? ex.observacoes ?? `Exercício ${index + 1}`
+
+            // Grupo muscular com fallback seguro
+            const grupoLabel = ex.exercicio?.grupo_muscular
+              ? ex.exercicio.grupo_muscular.replace(/_/g, ' ')
+              : null
 
             return (
               <div key={ex.id} className={clsx('card-base overflow-hidden', state.concluido && 'opacity-70')}>
                 <div className="flex items-center gap-3 p-4 cursor-pointer active:bg-gray-50 dark:active:bg-gray-700/30"
                   onClick={() => setExpandedId(isExpanded ? null : ex.id)}>
-                  <button onClick={e => { e.stopPropagation(); toggleConcluido(ex.id, ex.tempo_descanso_seg) }}
-                    className={clsx('w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm transition-all',
-                      state.concluido ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/30' : 'bg-gray-100 dark:bg-gray-700 text-gray-500')}>
+                  <button
+                    onClick={e => { e.stopPropagation(); toggleConcluido(ex.id, ex.tempo_descanso_seg) }}
+                    className={clsx(
+                      'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm transition-all',
+                      state.concluido
+                        ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-500'
+                    )}>
                     {state.concluido ? <CheckCircle2 className="w-5 h-5" /> : index + 1}
                   </button>
                   <div className="flex-1 min-w-0">
                     <p className={clsx('font-semibold text-sm', state.concluido ? 'line-through text-gray-400' : 'text-gray-900 dark:text-gray-100')}>
-                      {ex.exercicio.nome}
+                      {nomeExercicio}
                     </p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${grupoColors[grupoLabel] ?? 'badge-gray'}`}>
-                        {grupoLabel}
-                      </span>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      {grupoLabel && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${grupoColors[grupoLabel] ?? 'badge-gray'}`}>
+                          {grupoLabel}
+                        </span>
+                      )}
                       <span className="text-xs text-gray-400">{ex.series}×{ex.repeticoes}</span>
                     </div>
                   </div>
@@ -283,12 +310,13 @@ export default function TreinoAlunoPage() {
 
                 {isExpanded && (
                   <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-4 space-y-4">
-                    <ExercicioImagem gif_url={ex.exercicio.gif_url} nome={ex.exercicio.nome} />
+                    <ExercicioImagem gif_url={ex.exercicio?.gif_url} nome={nomeExercicio} />
+
                     <div className="grid grid-cols-4 gap-2">
                       {[
-                        { label: 'Séries', value: ex.series },
-                        { label: 'Reps', value: ex.repeticoes },
-                        { label: 'Carga', value: ex.carga_sugerida ? `${ex.carga_sugerida}kg` : '—' },
+                        { label: 'Séries',   value: ex.series },
+                        { label: 'Reps',     value: ex.repeticoes },
+                        { label: 'Carga',    value: ex.carga_sugerida ? `${ex.carga_sugerida}kg` : '—' },
                         { label: 'Descanso', value: `${ex.tempo_descanso_seg}s` },
                       ].map(({ label, value }) => (
                         <div key={label} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-2.5 text-center">
@@ -297,29 +325,43 @@ export default function TreinoAlunoPage() {
                         </div>
                       ))}
                     </div>
+
                     {ex.observacoes && (
                       <div className="flex gap-2 bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
                         <Info className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
                         <p className="text-xs text-amber-700 dark:text-amber-400">{ex.observacoes}</p>
                       </div>
                     )}
+
                     <div className="flex gap-2">
                       <div className="flex-1">
                         <label className="label-base text-xs">Carga usada (kg)</label>
-                        <input type="number" inputMode="decimal" value={state.carga}
-                          onChange={e => setStates(prev => ({ ...prev, [ex.id]: { ...prev[ex.id], carga: e.target.value ? Number(e.target.value) : '' } }))}
-                          placeholder={ex.carga_sugerida?.toString() ?? '0'} className="input-base text-center text-lg font-bold" min="0" step="0.5" />
+                        <input
+                          type="number" inputMode="decimal"
+                          value={state.carga}
+                          onChange={e => setStates(prev => ({
+                            ...prev, [ex.id]: { ...prev[ex.id], carga: e.target.value ? Number(e.target.value) : '' }
+                          }))}
+                          placeholder={ex.carga_sugerida?.toString() ?? '0'}
+                          className="input-base text-center text-lg font-bold"
+                          min="0" step="0.5"
+                        />
                       </div>
                       <div>
                         <label className="label-base text-xs opacity-0">-</label>
-                        <button onClick={() => startTimer(ex.tempo_descanso_seg)} className="btn-secondary flex items-center gap-1.5 h-[42px] px-3 text-sm whitespace-nowrap">
-                          <Timer className="w-4 h-4 text-primary-500" />{ex.tempo_descanso_seg}s
+                        <button onClick={() => startTimer(ex.tempo_descanso_seg)}
+                          className="btn-secondary flex items-center gap-1.5 h-[42px] px-3 text-sm whitespace-nowrap">
+                          <Timer className="w-4 h-4 text-orange-500" />{ex.tempo_descanso_seg}s
                         </button>
                       </div>
                     </div>
-                    <button onClick={() => toggleConcluido(ex.id, ex.tempo_descanso_seg)}
-                      className={clsx('w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95',
-                        state.concluido ? 'bg-gray-100 dark:bg-gray-700 text-gray-500' : 'btn-primary text-base')}>
+
+                    <button
+                      onClick={() => toggleConcluido(ex.id, ex.tempo_descanso_seg)}
+                      className={clsx(
+                        'w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95',
+                        state.concluido ? 'bg-gray-100 dark:bg-gray-700 text-gray-500' : 'btn-primary text-base'
+                      )}>
                       <CheckCircle2 className="w-5 h-5" />
                       {state.concluido ? 'Desmarcar' : '✓ Concluído'}
                     </button>
@@ -331,7 +373,7 @@ export default function TreinoAlunoPage() {
         </div>
 
         {totalConcluidos === treino.exercicios.length && treino.exercicios.length > 0 && (
-          <div className="card-base p-6 text-center border-2 border-primary-300 dark:border-primary-600 animate-slide-in">
+          <div className="card-base p-6 text-center border-2 border-orange-300 dark:border-orange-600 animate-slide-in">
             <div className="text-5xl mb-3">🎉</div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-1">Treino Concluído!</h3>
             <p className="text-sm text-gray-500 mb-5">Parabéns! Você completou todos os exercícios.</p>

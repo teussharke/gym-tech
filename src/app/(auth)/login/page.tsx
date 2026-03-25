@@ -104,7 +104,7 @@ export default function LoginPage() {
         </div>
 
         <p className="relative z-10 text-gray-600 text-xs">
-          © {new Date().getFullYear()} i9 Fitness. Todos os direitos reservados.
+          © {new Date().getFullYear()} Desenvolvido por: Mateus Oliveira i9 Fitness. Todos os direitos reservados.
         </p>
       </div>
 
