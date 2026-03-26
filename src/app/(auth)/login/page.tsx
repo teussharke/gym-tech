@@ -196,7 +196,7 @@ export default function LoginPage() {
           </form>
 
           <p className="text-center text-gray-600 text-xs lg:hidden">
-            © {new Date().getFullYear()} i9 Fitness
+            © {new Date().getFullYear()} Mateus Oliveira
           </p>
         </div>
       </div>
