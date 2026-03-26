@@ -36,7 +36,6 @@ interface AlunoSimples {
 }
 
 interface ChatMsg { role: 'user' | 'assistant'; content: string }
-
 type Step = 'info' | 'exercicios'
 type AIMode = 'none' | 'chat' | 'sugestao'
 
@@ -55,10 +54,8 @@ export default function NovoTreinoPage() {
   const [aiLoading, setAiLoading] = useState(false)
   const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([])
   const [chatInput, setChatInput] = useState('')
-  const [sugestaoIA, setSugestaoIA] = useState<any>(null)
-  const [treino, setTreino] = useState({
-    nome: '', aluno_id: '', dia_semana: 'A', objetivo: '', descricao: '',
-  })
+  const [sugestaoIA, setSugestaoIA] = useState<Record<string, unknown> | null>(null)
+  const [treino, setTreino] = useState({ nome: '', aluno_id: '', dia_semana: 'A', objetivo: '', descricao: '' })
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   const fetchAlunos = useCallback(async () => {
@@ -69,7 +66,7 @@ export default function NovoTreinoPage() {
         .from('alunos').select('id, matricula, usuario_id, objetivos')
         .eq('academia_id', usuario.academia_id)
 
-      if (!alunosData?.length) { setAlunos([]); setLoadingAlunos(false); return }
+      if (!alunosData?.length) { setAlunos([]); return }
 
       const usuarioIds = alunosData.map(a => a.usuario_id)
       const { data: usuarios } = await supabase
@@ -87,25 +84,21 @@ export default function NovoTreinoPage() {
         }))
         .sort((a, b) => a.nome.localeCompare(b.nome))
       )
-    } finally {
-      setLoadingAlunos(false)
-    }
+    } finally { setLoadingAlunos(false) }
   }, [usuario?.academia_id])
 
   useEffect(() => { fetchAlunos() }, [fetchAlunos])
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chatMsgs])
 
-  // ── IA: Gerar treino completo ──────────────────────────
+  // ── IA: Gerar treino ──────────────────────────────────
   const gerarTreinoIA = async () => {
     const aluno = alunos.find(a => a.id === treino.aluno_id)
     if (!aluno) { toast.error('Selecione um aluno primeiro'); return }
-
     setAiLoading(true)
     setSugestaoIA(null)
     try {
       const res = await fetch('/api/ia', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tipo: 'sugerir_treino',
           dados: {
@@ -123,113 +116,67 @@ export default function NovoTreinoPage() {
       if (!res.ok) throw new Error(data.error)
       setSugestaoIA(data.data)
       setAiMode('sugestao')
-      toast.success('Sugestão gerada pela IA! 🤖')
+      toast.success('Sugestão gerada! 🤖')
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erro na IA')
-    } finally {
-      setAiLoading(false)
-    }
+    } finally { setAiLoading(false) }
   }
 
-  // ── IA: Aplicar sugestão ───────────────────────────────
-  const aplicarSugestao = (treinoIA: any) => {
-    if (!treinoIA?.exercicios) return
-
-    const novosExercicios: ExercicioForm[] = treinoIA.exercicios.map((ex: any, i: number) => {
-      // Tenta encontrar o exercício no mock pelo nome
+  const aplicarSugestao = (treinoIA: Record<string, unknown>) => {
+    const exerciciosIA = treinoIA.exercicios as Array<Record<string, unknown>> | undefined
+    if (!exerciciosIA) return
+    const novos: ExercicioForm[] = exerciciosIA.map((ex, i) => {
       const found = mockExercicios.find(m =>
-        m.nome.toLowerCase().includes(ex.nome.toLowerCase().split(' ').slice(0, 2).join(' '))
+        m.nome.toLowerCase().includes(String(ex.nome ?? '').toLowerCase().split(' ').slice(0, 2).join(' '))
       )
       return {
         id: `ia-${Date.now()}-${i}`,
         exercicio_id: found?.id ?? `ia-${i}`,
-        nome: ex.nome,
+        nome: String(ex.nome ?? `Exercício ${i + 1}`),
         grupo: found?.grupo ?? 'Outros',
         gif_url: found?.gif_url,
-        youtube_search: found?.youtube_search ?? ex.nome,
-        series: ex.series ?? 3,
-        repeticoes: ex.repeticoes ?? '10-12',
+        youtube_search: found?.youtube_search ?? String(ex.nome ?? ''),
+        series: Number(ex.series ?? 3),
+        repeticoes: String(ex.repeticoes ?? '10-12'),
         carga: ex.carga_sugerida ? String(ex.carga_sugerida) : '',
-        descanso: ex.descanso ?? 60,
-        observacoes: ex.observacoes ?? '',
+        descanso: Number(ex.descanso ?? 60),
+        observacoes: String(ex.observacoes ?? ''),
       }
     })
-
-    setExercicios(prev => [...prev, ...novosExercicios])
-
-    if (!treino.nome && treinoIA.nome) {
-      setTreino(p => ({ ...p, nome: treinoIA.nome }))
-    }
-    if (treinoIA.dia && !treino.dia_semana) {
-      setTreino(p => ({ ...p, dia_semana: treinoIA.dia }))
-    }
-
-    setAiMode('none')
-    setSugestaoIA(null)
+    setExercicios(prev => [...prev, ...novos])
+    if (!treino.nome && treinoIA.nome) setTreino(p => ({ ...p, nome: String(treinoIA.nome) }))
+    setAiMode('none'); setSugestaoIA(null)
     setStep('exercicios')
-    toast.success(`${novosExercicios.length} exercícios adicionados!`)
+    toast.success(`${novos.length} exercícios adicionados!`)
   }
 
-  // ── IA: Chat ───────────────────────────────────────────
+  // ── IA: Chat ──────────────────────────────────────────
   const enviarChat = async () => {
     if (!chatInput.trim() || aiLoading) return
     const msg = chatInput.trim()
     setChatInput('')
     setChatMsgs(prev => [...prev, { role: 'user', content: msg }])
     setAiLoading(true)
-
     try {
       const aluno = alunos.find(a => a.id === treino.aluno_id)
       const res = await fetch('/api/ia', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tipo: 'assistente_treino',
           dados: {
             mensagem: msg,
-            contexto: `
-Treino em criação: ${treino.nome || 'Sem nome'}
-Aluno: ${aluno?.nome ?? 'Não selecionado'}
-Objetivo: ${treino.objetivo || aluno?.objetivo || 'Não definido'}
-Exercícios já adicionados: ${exercicios.map(e => e.nome).join(', ') || 'Nenhum'}
-            `.trim(),
+            contexto: `Treino: ${treino.nome || 'Sem nome'} | Aluno: ${aluno?.nome ?? 'Não selecionado'} | Objetivo: ${treino.objetivo || aluno?.objetivo || 'Não definido'} | Exercícios: ${exercicios.map(e => e.nome).join(', ') || 'Nenhum'}`,
           },
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setChatMsgs(prev => [...prev, { role: 'assistant', content: data.data }])
-    } catch (err: unknown) {
-      setChatMsgs(prev => [...prev, { role: 'assistant', content: '❌ Erro ao consultar a IA. Tente novamente.' }])
-    } finally {
-      setAiLoading(false)
-    }
+      setChatMsgs(prev => [...prev, { role: 'assistant', content: res.ok ? data.data : '❌ Erro ao consultar IA.' }])
+    } catch {
+      setChatMsgs(prev => [...prev, { role: 'assistant', content: '❌ Erro ao consultar IA.' }])
+    } finally { setAiLoading(false) }
   }
 
-  // ── Exercícios ─────────────────────────────────────────
-  const addExercicio = (ex: typeof mockExercicios[0]) => {
-    setExercicios(prev => [...prev, {
-      id: Date.now().toString(),
-      exercicio_id: ex.id,
-      nome: ex.nome,
-      grupo: ex.grupo,
-      gif_url: ex.gif_url,
-      youtube_search: ex.youtube_search,
-      series: 3,
-      repeticoes: '10-12',
-      carga: '',
-      descanso: 60,
-      observacoes: '',
-    }])
-    setShowBusca(false)
-    setBusca('')
-    setGrupoFiltro('Todos')
-  }
-
-  const updateExercicio = (id: string, field: keyof ExercicioForm, value: string | number) => {
-    setExercicios(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e))
-  }
-
+  // ── Salvar treino ─────────────────────────────────────
   const salvar = async () => {
     if (!treino.nome || !treino.aluno_id) { toast.error('Preencha nome e aluno'); return }
     if (exercicios.length === 0) { toast.error('Adicione pelo menos 1 exercício'); return }
@@ -237,42 +184,67 @@ Exercícios já adicionados: ${exercicios.map(e => e.nome).join(', ') || 'Nenhum
     setSaving(true)
 
     try {
-      const { data: prof } = await supabase.from('professores').select('id').eq('usuario_id', usuario.id).single()
+      const { data: prof } = await supabase
+        .from('professores').select('id').eq('usuario_id', usuario.id).single()
       if (!prof) throw new Error('Perfil de professor não encontrado')
 
-      const { data: novoTreino, error } = await supabase.from('treinos').insert({
-        aluno_id: treino.aluno_id, professor_id: prof.id,
-        academia_id: usuario.academia_id, nome: treino.nome,
-        descricao: treino.descricao || null, objetivo: treino.objetivo || null,
-        dia_semana: treino.dia_semana || null, ativo: true,
-      }).select().single()
+      // Inserir treino
+      const { data: novoTreino, error: treinoError } = await supabase
+        .from('treinos')
+        .insert({
+          aluno_id: treino.aluno_id,
+          professor_id: prof.id,
+          academia_id: usuario.academia_id,
+          nome: treino.nome,
+          descricao: treino.descricao || null,
+          objetivo: treino.objetivo || null,
+          dia_semana: treino.dia_semana || null,
+          ativo: true,
+        })
+        .select('id')
+        .single()
 
-      if (error) throw error
+      if (treinoError) throw new Error(`Erro ao criar treino: ${treinoError.message}`)
 
-      await supabase.from('treino_exercicios').insert(
-        exercicios.map((ex, i) => ({
-          treino_id: novoTreino.id, exercicio_id: null, ordem: i,
-          series: ex.series, repeticoes: ex.repeticoes,
-          carga_sugerida: ex.carga ? Number(ex.carga) : null,
-          tempo_descanso_seg: ex.descanso,
-          observacoes: ex.observacoes ? `${ex.nome} | ${ex.observacoes}` : ex.nome,
+      // Inserir exercícios — sem exercicio_id para não violar FK
+      const exerciciosInsert = exercicios.map((ex, i) => ({
+        treino_id: novoTreino.id,
+        ordem: i,
+        series: ex.series,
+        repeticoes: ex.repeticoes,
+        carga_sugerida: ex.carga ? Number(ex.carga) : null,
+        tempo_descanso_seg: ex.descanso,
+        observacoes: [ex.nome, ex.observacoes].filter(Boolean).join(' | '),
+        // exercicio_id omitido — evita constraint NOT NULL se não existir no banco
+      }))
+
+      const { error: exError } = await supabase.from('treino_exercicios').insert(exerciciosInsert)
+
+      // Se der erro nos exercícios, tentar sem alguns campos opcionais
+      if (exError) {
+        console.warn('Tentando inserir exercícios sem campos opcionais:', exError.message)
+        const exerciciosSimples = exercicios.map((ex, i) => ({
+          treino_id: novoTreino.id,
+          ordem: i,
+          series: ex.series,
+          repeticoes: ex.repeticoes,
+          observacoes: [ex.nome, ex.observacoes].filter(Boolean).join(' | '),
         }))
-      )
+        const { error: exError2 } = await supabase.from('treino_exercicios').insert(exerciciosSimples)
+        if (exError2) throw new Error(`Erro ao salvar exercícios: ${exError2.message}`)
+      }
 
-      toast.success('Treino criado!')
+      toast.success('Treino criado com sucesso!')
       router.push('/professor/treinos')
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao salvar')
-    } finally {
-      setSaving(false)
-    }
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar treino')
+    } finally { setSaving(false) }
   }
 
   const grupos = ['Todos', ...Array.from(new Set(mockExercicios.map(e => e.grupo)))]
   const filtrados = mockExercicios.filter(e => {
     const matchBusca = e.nome.toLowerCase().includes(busca.toLowerCase()) || e.grupo.toLowerCase().includes(busca.toLowerCase())
-    const matchGrupo = grupoFiltro === 'Todos' || e.grupo === grupoFiltro
-    return matchBusca && matchGrupo
+    return (grupoFiltro === 'Todos' || e.grupo === grupoFiltro) && matchBusca
   })
   const alunoSelecionado = alunos.find(a => a.id === treino.aluno_id)
 
@@ -280,15 +252,15 @@ Exercícios já adicionados: ${exercicios.map(e => e.nome).join(', ') || 'Nenhum
     <div className="max-w-2xl mx-auto space-y-5 animate-fade-in">
       <div className="flex items-center gap-3">
         <button onClick={() => router.back()} className="btn-ghost p-2"><ArrowLeft className="w-5 h-5" /></button>
-        <div><h1 className="page-title">Criar Treino</h1><p className="page-subtitle">Monte a ficha manualmente ou com IA</p></div>
+        <div><h1 className="page-title">Criar Treino</h1><p className="page-subtitle">Manual ou com IA</p></div>
       </div>
 
       {/* Steps */}
       <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
         {(['info', 'exercicios'] as Step[]).map((s, i) => (
           <button key={s} onClick={() => step === 'exercicios' && s === 'info' && setStep('info')}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${step === s ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}>
-            {i + 1}. {s === 'info' ? 'Informações' : `Exercícios ${exercicios.length > 0 ? `(${exercicios.length})` : ''}`}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${step === s ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'}`}>
+            {i + 1}. {s === 'info' ? 'Informações' : `Exercícios${exercicios.length > 0 ? ` (${exercicios.length})` : ''}`}
           </button>
         ))}
       </div>
@@ -300,9 +272,7 @@ Exercícios já adicionados: ${exercicios.map(e => e.nome).join(', ') || 'Nenhum
             <div>
               <label className="label-base">Aluno *</label>
               {loadingAlunos ? (
-                <div className="input-base flex items-center gap-2 text-gray-400">
-                  <Loader2 className="w-4 h-4 animate-spin" />Carregando alunos...
-                </div>
+                <div className="input-base flex items-center gap-2 text-gray-400"><Loader2 className="w-4 h-4 animate-spin" />Carregando...</div>
               ) : (
                 <select value={treino.aluno_id} onChange={e => setTreino(p => ({ ...p, aluno_id: e.target.value }))} className="input-base">
                   <option value="">Selecionar aluno... ({alunos.length} disponíveis)</option>
@@ -334,113 +304,79 @@ Exercícios já adicionados: ${exercicios.map(e => e.nome).join(', ') || 'Nenhum
             </div>
             <div>
               <label className="label-base">Observações</label>
-              <textarea value={treino.descricao} onChange={e => setTreino(p => ({ ...p, descricao: e.target.value }))} className="input-base resize-none" rows={2} placeholder="Restrições, metas, observações..." />
+              <textarea value={treino.descricao} onChange={e => setTreino(p => ({ ...p, descricao: e.target.value }))} className="input-base resize-none" rows={2} />
             </div>
           </div>
 
-          {/* Botões de ação */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button onClick={() => setStep('exercicios')} disabled={!treino.nome || !treino.aluno_id} className="btn-secondary py-3 flex items-center justify-center gap-2">
               <Dumbbell className="w-5 h-5" />Montar Manualmente
             </button>
-            <button
-              onClick={gerarTreinoIA}
-              disabled={!treino.aluno_id || aiLoading}
-              className="btn-primary py-3 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-purple-600 hover:from-orange-600 hover:to-purple-700"
-            >
-              {aiLoading
-                ? <><Loader2 className="w-5 h-5 animate-spin" />Gerando...</>
-                : <><Sparkles className="w-5 h-5" />Gerar com IA</>
-              }
+            <button onClick={gerarTreinoIA} disabled={!treino.aluno_id || aiLoading}
+              className="btn-primary py-3 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-purple-600">
+              {aiLoading ? <><Loader2 className="w-5 h-5 animate-spin" />Gerando...</> : <><Sparkles className="w-5 h-5" />Gerar com IA</>}
             </button>
           </div>
 
-          {/* Sugestão da IA */}
-          {aiMode === 'sugestao' && sugestaoIA?.treinos && (
+          {/* Sugestão IA */}
+          {aiMode === 'sugestao' && sugestaoIA && (
             <div className="card-base p-5 space-y-4 border-2 border-purple-300 dark:border-purple-600">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-purple-500" />
                 <h3 className="font-bold text-gray-900 dark:text-gray-100">Sugestão da IA</h3>
                 <span className="badge-info ml-auto">Claude AI</span>
               </div>
-
-              {sugestaoIA.observacoes_gerais && (
+              {typeof sugestaoIA.observacoes_gerais === 'string' && (
                 <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3">
                   <p className="text-xs text-purple-700 dark:text-purple-300">{sugestaoIA.observacoes_gerais}</p>
                 </div>
               )}
-
-              <div className="space-y-3">
-                {sugestaoIA.treinos.map((t: any, i: number) => (
-                  <div key={i} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{t.nome}</p>
-                        <p className="text-xs text-gray-400">{t.objetivo}</p>
-                      </div>
-                      <button
-                        onClick={() => { setTreino(p => ({ ...p, nome: t.nome, dia_semana: t.dia ?? p.dia_semana })); aplicarSugestao(t) }}
-                        className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5"
-                      >
-                        <Wand2 className="w-3.5 h-3.5" />Usar este
-                      </button>
+              {Array.isArray(sugestaoIA.treinos) && (sugestaoIA.treinos as Array<Record<string, unknown>>).map((t, i) => (
+                <div key={i} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{String(t.nome ?? '')}</p>
+                      <p className="text-xs text-gray-400">{String(t.objetivo ?? '')}</p>
                     </div>
-                    <div className="space-y-1">
-                      {t.exercicios?.map((ex: any, j: number) => (
-                        <div key={j} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                          <span className="w-5 h-5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-full flex items-center justify-center font-bold flex-shrink-0">{j + 1}</span>
-                          <span className="flex-1">{ex.nome}</span>
-                          <span className="text-gray-400">{ex.series}×{ex.repeticoes}</span>
-                        </div>
-                      ))}
-                    </div>
+                    <button onClick={() => { setTreino(p => ({ ...p, nome: String(t.nome ?? p.nome) })); aplicarSugestao(t) }}
+                      className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5">
+                      <Wand2 className="w-3.5 h-3.5" />Usar este
+                    </button>
                   </div>
-                ))}
-              </div>
-
-              {sugestaoIA.progressao && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3">
-                  <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 mb-1">📈 Progressão sugerida</p>
-                  <p className="text-xs text-blue-600 dark:text-blue-300">{sugestaoIA.progressao}</p>
+                  {Array.isArray(t.exercicios) && (t.exercicios as Array<Record<string, unknown>>).map((ex, j) => (
+                    <div key={j} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                      <span className="w-5 h-5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-full flex items-center justify-center font-bold flex-shrink-0">{j + 1}</span>
+                      <span className="flex-1">{String(ex.nome ?? '')}</span>
+                      <span>{Number(ex.series ?? 3)}×{String(ex.repeticoes ?? '')}</span>
+                    </div>
+                  ))}
                 </div>
-              )}
-
-              <button onClick={() => { setAiMode('none'); setSugestaoIA(null) }} className="btn-secondary w-full text-sm">
-                Fechar sugestão
-              </button>
+              ))}
+              <button onClick={() => { setAiMode('none'); setSugestaoIA(null) }} className="btn-secondary w-full text-sm">Fechar</button>
             </div>
           )}
 
           {/* Chat IA */}
           <div className="card-base overflow-hidden">
-            <button
-              onClick={() => setAiMode(aiMode === 'chat' ? 'none' : 'chat')}
-              className="w-full p-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-            >
+            <button onClick={() => setAiMode(aiMode === 'chat' ? 'none' : 'chat')}
+              className="w-full p-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
               <div className="w-9 h-9 bg-gradient-to-br from-orange-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
                 <Bot className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 text-left">
                 <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">Assistente IA</p>
-                <p className="text-xs text-gray-400">Tire dúvidas e peça sugestões de exercícios</p>
+                <p className="text-xs text-gray-400">Tire dúvidas sobre exercícios e treinos</p>
               </div>
               <span className="text-xs text-gray-400">{aiMode === 'chat' ? '▲' : '▼'}</span>
             </button>
-
             {aiMode === 'chat' && (
               <div className="border-t border-gray-100 dark:border-gray-700">
-                {/* Mensagens */}
-                <div className="h-64 overflow-y-auto p-4 space-y-3">
+                <div className="h-60 overflow-y-auto p-4 space-y-3">
                   {chatMsgs.length === 0 && (
-                    <div className="text-center py-6">
-                      <Bot className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-                      <p className="text-xs text-gray-400">Pergunte sobre exercícios, séries, repetições, progressão...</p>
-                      <div className="flex flex-wrap gap-1.5 justify-center mt-3">
-                        {[
-                          'Sugira exercícios para glúteos',
-                          'Quantas séries para hipertrofia?',
-                          'Substituto para supino',
-                        ].map(s => (
+                    <div className="text-center py-4">
+                      <p className="text-xs text-gray-400 mb-3">Pergunte sobre exercícios, séries, progressão...</p>
+                      <div className="flex flex-wrap gap-1.5 justify-center">
+                        {['Sugira exercícios para glúteos', 'Quantas séries para hipertrofia?', 'Substituto para supino'].map(s => (
                           <button key={s} onClick={() => setChatInput(s)}
                             className="text-xs bg-gray-100 dark:bg-gray-700 px-2.5 py-1 rounded-full text-gray-600 dark:text-gray-400 hover:bg-orange-100 hover:text-orange-600 transition-colors">
                             {s}
@@ -456,11 +392,7 @@ Exercícios já adicionados: ${exercicios.map(e => e.nome).join(', ') || 'Nenhum
                           <Bot className="w-4 h-4 text-white" />
                         </div>
                       )}
-                      <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
-                        msg.role === 'user'
-                          ? 'bg-orange-500 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
-                      }`}>
+                      <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${msg.role === 'user' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}`}>
                         <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                       </div>
                       {msg.role === 'user' && (
@@ -477,29 +409,18 @@ Exercícios já adicionados: ${exercicios.map(e => e.nome).join(', ') || 'Nenhum
                       </div>
                       <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl px-3 py-2.5">
                         <div className="flex gap-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                          {[0, 150, 300].map(d => <div key={d} className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />)}
                         </div>
                       </div>
                     </div>
                   )}
                   <div ref={chatEndRef} />
                 </div>
-
-                {/* Input */}
                 <div className="p-3 border-t border-gray-100 dark:border-gray-700 flex gap-2">
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={e => setChatInput(e.target.value)}
+                  <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviarChat()}
-                    placeholder="Pergunte sobre exercícios, treinos..."
-                    className="input-base text-sm"
-                    disabled={aiLoading}
-                  />
-                  <button onClick={enviarChat} disabled={aiLoading || !chatInput.trim()}
-                    className="btn-primary p-2.5 rounded-xl flex-shrink-0">
+                    placeholder="Pergunte..." className="input-base text-sm" disabled={aiLoading} />
+                  <button onClick={enviarChat} disabled={aiLoading || !chatInput.trim()} className="btn-primary p-2.5 rounded-xl flex-shrink-0">
                     <Send className="w-4 h-4" />
                   </button>
                 </div>
@@ -540,12 +461,12 @@ Exercícios já adicionados: ${exercicios.map(e => e.nome).join(', ') || 'Nenhum
                   <button onClick={() => setExercicios(prev => prev.filter(e => e.id !== ex.id))} className="btn-ghost p-1.5 text-red-500"><X className="w-4 h-4" /></button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div><label className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Repeat className="w-3 h-3" />Séries</label><input type="number" value={ex.series} onChange={e => updateExercicio(ex.id, 'series', Number(e.target.value))} className="input-base text-center" min="1" max="10" /></div>
-                  <div><label className="text-xs text-gray-500 mb-1">Repetições</label><input type="text" value={ex.repeticoes} onChange={e => updateExercicio(ex.id, 'repeticoes', e.target.value)} className="input-base text-center" /></div>
-                  <div><label className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Weight className="w-3 h-3" />Carga (kg)</label><input type="text" value={ex.carga} onChange={e => updateExercicio(ex.id, 'carga', e.target.value)} className="input-base text-center" placeholder="—" /></div>
-                  <div><label className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Clock className="w-3 h-3" />Descanso (s)</label><input type="number" value={ex.descanso} onChange={e => updateExercicio(ex.id, 'descanso', Number(e.target.value))} className="input-base text-center" min="0" step="15" /></div>
+                  <div><label className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Repeat className="w-3 h-3" />Séries</label><input type="number" value={ex.series} onChange={e => setExercicios(prev => prev.map(e2 => e2.id === ex.id ? { ...e2, series: Number(e.target.value) } : e2))} className="input-base text-center" min="1" max="10" /></div>
+                  <div><label className="text-xs text-gray-500 mb-1">Repetições</label><input type="text" value={ex.repeticoes} onChange={e => setExercicios(prev => prev.map(e2 => e2.id === ex.id ? { ...e2, repeticoes: e.target.value } : e2))} className="input-base text-center" /></div>
+                  <div><label className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Weight className="w-3 h-3" />Carga (kg)</label><input type="text" value={ex.carga} onChange={e => setExercicios(prev => prev.map(e2 => e2.id === ex.id ? { ...e2, carga: e.target.value } : e2))} className="input-base text-center" placeholder="—" /></div>
+                  <div><label className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Clock className="w-3 h-3" />Descanso (s)</label><input type="number" value={ex.descanso} onChange={e => setExercicios(prev => prev.map(e2 => e2.id === ex.id ? { ...e2, descanso: Number(e.target.value) } : e2))} className="input-base text-center" min="0" step="15" /></div>
                 </div>
-                <input type="text" value={ex.observacoes} onChange={e => updateExercicio(ex.id, 'observacoes', e.target.value)} className="input-base text-sm" placeholder="Observações de execução..." />
+                <input type="text" value={ex.observacoes} onChange={e => setExercicios(prev => prev.map(e2 => e2.id === ex.id ? { ...e2, observacoes: e.target.value } : e2))} className="input-base text-sm" placeholder="Observações de execução..." />
               </div>
             ))}
           </div>
@@ -591,18 +512,34 @@ Exercícios já adicionados: ${exercicios.map(e => e.nome).join(', ') || 'Nenhum
                 <div key={ex.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                   <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden flex-shrink-0">
                     {ex.gif_url
-                      ? <img src={ex.gif_url} alt={ex.nome} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                      ? <img src={ex.gif_url} alt={ex.nome} className="w-full h-full object-cover" loading="eager" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
                       : <div className="w-full h-full flex items-center justify-center"><Dumbbell className="w-5 h-5 text-gray-400" /></div>
                     }
                   </div>
-                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => addExercicio(ex)}>
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => {
+                    setExercicios(prev => [...prev, {
+                      id: Date.now().toString(), exercicio_id: ex.id,
+                      nome: ex.nome, grupo: ex.grupo, gif_url: ex.gif_url,
+                      youtube_search: ex.youtube_search, series: 3, repeticoes: '10-12',
+                      carga: '', descanso: 60, observacoes: '',
+                    }])
+                    setShowBusca(false); setBusca(''); setGrupoFiltro('Todos')
+                  }}>
                     <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">{ex.nome}</p>
                     <p className="text-xs text-gray-400">{ex.grupo} · {ex.equipamento}</p>
                   </div>
                   <a href={getYouTubeSearchUrl(ex.youtube_search)} target="_blank" rel="noopener noreferrer" className="btn-ghost p-1.5 text-red-500 flex-shrink-0" onClick={e => e.stopPropagation()}>
                     <Youtube className="w-4 h-4" />
                   </a>
-                  <button onClick={() => addExercicio(ex)} className="btn-ghost p-1.5 text-orange-500 flex-shrink-0">
+                  <button onClick={() => {
+                    setExercicios(prev => [...prev, {
+                      id: Date.now().toString(), exercicio_id: ex.id,
+                      nome: ex.nome, grupo: ex.grupo, gif_url: ex.gif_url,
+                      youtube_search: ex.youtube_search, series: 3, repeticoes: '10-12',
+                      carga: '', descanso: 60, observacoes: '',
+                    }])
+                    setShowBusca(false); setBusca(''); setGrupoFiltro('Todos')
+                  }} className="btn-ghost p-1.5 text-orange-500 flex-shrink-0">
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
