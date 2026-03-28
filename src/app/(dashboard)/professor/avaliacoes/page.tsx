@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, memo } from 'react'
 import { Activity, TrendingDown, TrendingUp, Save, Calendar, Loader2 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { supabase } from '@/lib/supabase/client'
@@ -31,6 +31,41 @@ interface AlunoSimples {
 }
 
 type Tab = 'nova' | 'historico'
+
+interface SeletorAlunoProps {
+  loadingAlunos: boolean
+  alunos: AlunoSimples[]
+  alunoSelecionado: string
+  onChange: (id: string) => void
+}
+
+const SeletorAluno = memo(function SeletorAluno({ loadingAlunos, alunos, alunoSelecionado, onChange }: SeletorAlunoProps) {
+  return (
+    <div className="card-base p-4">
+      <label className="label-base">Selecionar aluno *</label>
+      {loadingAlunos ? (
+        <div className="input-base flex items-center gap-2 text-gray-400">
+          <Loader2 className="w-4 h-4 animate-spin" />Carregando alunos...
+        </div>
+      ) : alunos.length === 0 ? (
+        <p className="text-sm text-amber-500 p-2">Nenhum aluno ativo encontrado.</p>
+      ) : (
+        <select
+          value={alunoSelecionado}
+          onChange={e => onChange(e.target.value)}
+          className="input-base"
+        >
+          <option value="">Selecionar... ({alunos.length} alunos)</option>
+          {alunos.map(a => (
+            <option key={a.id} value={a.id}>
+              {a.nome}{a.objetivo ? ` — ${a.objetivo}` : ''}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  )
+})
 
 export default function AvaliacoesPage() {
   const { usuario } = useAuth()
@@ -101,16 +136,21 @@ export default function AvaliacoesPage() {
   const fetchAvaliacoes = useCallback(async () => {
     if (!alunoSelecionado) return
     setLoading(true)
-    const { data } = await supabase
-      .from('avaliacoes_fisicas')
-      .select(`
-        id, data_avaliacao, peso_kg, altura_cm, imc, percentual_gordura, observacoes,
-        medidas:medidas_corporais (cintura, braco_direito, coxa_direita, quadril, abdomen)
-      `)
-      .eq('aluno_id', alunoSelecionado)
-      .order('data_avaliacao', { ascending: false })
-    setAvaliacoes((data as unknown as Avaliacao[]) ?? [])
-    setLoading(false)
+    try {
+      const { data } = await supabase
+        .from('avaliacoes_fisicas')
+        .select(`
+          id, data_avaliacao, peso_kg, altura_cm, imc, percentual_gordura, observacoes,
+          medidas:medidas_corporais (cintura, braco_direito, coxa_direita, quadril, abdomen)
+        `)
+        .eq('aluno_id', alunoSelecionado)
+        .order('data_avaliacao', { ascending: false })
+      setAvaliacoes((data as unknown as Avaliacao[]) ?? [])
+    } catch {
+      setAvaliacoes([])
+    } finally {
+      setLoading(false)
+    }
   }, [alunoSelecionado])
 
   useEffect(() => { fetchAlunos() }, [fetchAlunos])
@@ -185,33 +225,6 @@ export default function AvaliacoesPage() {
     gordura: a.percentual_gordura,
   }))
 
-  // Seletor de aluno no topo
-  const SeletorAluno = () => (
-    <div className="card-base p-4">
-      <label className="label-base">Selecionar aluno *</label>
-      {loadingAlunos ? (
-        <div className="input-base flex items-center gap-2 text-gray-400">
-          <Loader2 className="w-4 h-4 animate-spin" />Carregando alunos...
-        </div>
-      ) : alunos.length === 0 ? (
-        <p className="text-sm text-amber-500 p-2">Nenhum aluno ativo encontrado.</p>
-      ) : (
-        <select
-          value={alunoSelecionado}
-          onChange={e => setAlunoSelecionado(e.target.value)}
-          className="input-base"
-        >
-          <option value="">Selecionar... ({alunos.length} alunos)</option>
-          {alunos.map(a => (
-            <option key={a.id} value={a.id}>
-              {a.nome}{a.objetivo ? ` — ${a.objetivo}` : ''}
-            </option>
-          ))}
-        </select>
-      )}
-    </div>
-  )
-
   return (
     <div className="space-y-5 animate-fade-in">
       <div><h1 className="page-title">Avaliações Físicas</h1><p className="page-subtitle">Registre e acompanhe a evolução</p></div>
@@ -228,7 +241,7 @@ export default function AvaliacoesPage() {
       {/* NOVA AVALIAÇÃO */}
       {activeTab === 'nova' && (
         <div className="max-w-2xl space-y-4">
-          <SeletorAluno />
+          <SeletorAluno loadingAlunos={loadingAlunos} alunos={alunos} alunoSelecionado={alunoSelecionado} onChange={setAlunoSelecionado} />
 
           <div className="card-base p-5 space-y-4">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100">Informações Gerais</h3>
@@ -300,7 +313,7 @@ export default function AvaliacoesPage() {
       {/* HISTÓRICO */}
       {activeTab === 'historico' && (
         <div className="space-y-4">
-          <SeletorAluno />
+          <SeletorAluno loadingAlunos={loadingAlunos} alunos={alunos} alunoSelecionado={alunoSelecionado} onChange={setAlunoSelecionado} />
 
           {loading && (
             <div className="card-base p-8 text-center">
