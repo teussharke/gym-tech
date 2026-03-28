@@ -94,11 +94,10 @@ export default function EditarTreinoPage() {
         .order('ordem', { ascending: true })
 
       if (treinoExercicios?.length) {
-        const exIds = treinoExercicios.map(te => te.exercicio_id)
-        const { data: exData } = await supabase
-          .from('exercicios')
-          .select('id, nome, grupo_muscular')
-          .in('id', exIds)
+        const exIds = treinoExercicios.map(te => te.exercicio_id).filter((id): id is string => !!id)
+        const exData = exIds.length > 0
+          ? (await supabase.from('exercicios').select('id, nome, grupo_muscular').in('id', exIds)).data
+          : []
 
         const exMap = Object.fromEntries((exData ?? []).map(e => [e.id, e]))
 

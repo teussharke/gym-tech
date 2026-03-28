@@ -10,7 +10,7 @@ export interface Exercicio {
   youtube_search: string
 }
 
-const BASE = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises'
+const BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises'
 
 // Abre busca do YouTube com o termo do exercício
 export function getYouTubeSearchUrl(termo: string): string {
