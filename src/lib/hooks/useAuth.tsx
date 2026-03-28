@@ -43,40 +43,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id, fetchUsuario])
 
   useEffect(() => {
-    // Verifica sessão inicial
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchUsuario(session.user.id).finally(() => setIsLoading(false))
-      } else {
-        setIsLoading(false)
-      }
-    })
+    let mounted = true
 
-    // Escuta mudanças de auth
+    // Timeout de segurança: garante que isLoading sempre vira false
+    // mesmo se a rede falhar completamente
+    const safetyTimeout = setTimeout(() => {
+      if (mounted) setIsLoading(false)
+    }, 8000)
+
+    // onAuthStateChange dispara INITIAL_SESSION imediatamente com a sessão
+    // atual do storage — mais confiável que getSession() isolado
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        setSession(session)
-        setUser(session?.user ?? null)
+        if (!mounted) return
 
-        if (session?.user) {
-          await fetchUsuario(session.user.id)
-          // Atualiza último login
-          if (event === 'SIGNED_IN') {
-            await supabase
-              .from('usuarios')
-              .update({ ultimo_login: new Date().toISOString() })
-              .eq('id', session.user.id)
+        try {
+          setSession(session)
+          setUser(session?.user ?? null)
+
+          if (session?.user) {
+            await fetchUsuario(session.user.id)
+
+            // Atualiza último login em background — ignora falha
+            if (event === 'SIGNED_IN') {
+              void supabase
+                .from('usuarios')
+                .update({ ultimo_login: new Date().toISOString() })
+                .eq('id', session.user.id)
+            }
+          } else {
+            setUsuario(null)
           }
-        } else {
-          setUsuario(null)
+        } catch {
+          // Garante que o loading sempre finaliza mesmo com erro inesperado
+          if (mounted) setUsuario(null)
+        } finally {
+          if (mounted) {
+            clearTimeout(safetyTimeout)
+            setIsLoading(false)
+          }
         }
-        setIsLoading(false)
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      clearTimeout(safetyTimeout)
+      subscription.unsubscribe()
+    }
   }, [fetchUsuario])
 
   const signIn = async (email: string, password: string) => {

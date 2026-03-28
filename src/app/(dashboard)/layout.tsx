@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, memo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/hooks/useAuth'
@@ -56,6 +56,82 @@ const mobileNavByRole: Record<string, NavItem[]> = {
   ],
 }
 
+// ── Sidebar (memo = só re-renderiza se props mudarem) ────
+interface SidebarProps {
+  filteredNav: NavItem[]
+  pathname: string
+  usuario: { nome: string }
+  role: string | null
+  onClose: () => void
+  onSignOut: () => void
+}
+
+const SidebarContent = memo(function SidebarContent({
+  filteredNav, pathname, usuario, role, onClose, onSignOut,
+}: SidebarProps) {
+  return (
+    <div className="flex flex-col h-full">
+      {/* Logo */}
+      <div className="flex items-center gap-3 px-4 py-5"
+        style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'var(--neon)', boxShadow: '0 0 16px var(--neon-glow)' }}>
+          <Dumbbell className="w-5 h-5 text-black" />
+        </div>
+        <div>
+          <h1 className="font-black text-sm tracking-tight" style={{ color: 'var(--text-1)' }}>i9 Fitness</h1>
+          <p className="text-xs" style={{ color: 'var(--text-3)' }}>Sistema de Gestão</p>
+        </div>
+        <button onClick={onClose} className="lg:hidden ml-auto btn-ghost p-1.5">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto scrollbar-hide">
+        {filteredNav.map(item => {
+          const Icon     = item.icon
+          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+          return (
+            <Link key={item.href} href={item.href} onClick={onClose}
+              className={clsx('sidebar-link', isActive && 'sidebar-link-active')}>
+              <Icon className="w-4 h-4 flex-shrink-0" />
+              <span className="flex-1 text-sm">{item.label}</span>
+              {isActive && <ChevronRight className="w-3.5 h-3.5" style={{ color: 'var(--neon)' }} />}
+            </Link>
+          )
+        })}
+      </nav>
+
+      {/* Links extras */}
+      <div className="p-3 space-y-0.5" style={{ borderTop: '1px solid var(--border)' }}>
+        <Link href="/perfil" className="sidebar-link" onClick={onClose}>
+          <UserCircle className="w-4 h-4" /><span className="text-sm">Meu Perfil</span>
+        </Link>
+        <button onClick={onSignOut} className="sidebar-link w-full" style={{ color: '#f87171' }}>
+          <LogOut className="w-4 h-4" /><span className="text-sm">Sair</span>
+        </button>
+      </div>
+
+      {/* User info */}
+      <div className="p-3" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-3 p-2 rounded-xl" style={{ background: 'var(--bg-chip)' }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: 'var(--neon)', boxShadow: '0 0 10px var(--neon-glow)' }}>
+            <span className="text-black font-bold text-xs">
+              {usuario.nome.charAt(0).toUpperCase()}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold truncate" style={{ color: 'var(--text-1)' }}>{usuario.nome}</p>
+            <p className="text-xs capitalize" style={{ color: 'var(--text-3)' }}>{role}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+})
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter()
   const pathname = usePathname()
@@ -85,78 +161,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     try { await signOut() } catch { /* ignore */ } finally { router.replace('/login') }
   }
 
-  // ── Sidebar Content ─────────────────────────────────────
-  const SidebarContent = () => (
-    <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-4 py-5"
-        style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: 'var(--neon)', boxShadow: '0 0 16px var(--neon-glow)' }}>
-          <Dumbbell className="w-5 h-5 text-black" />
-        </div>
-        <div>
-          <h1 className="font-black text-sm tracking-tight" style={{ color: 'var(--text-1)' }}>i9 Fitness</h1>
-          <p className="text-xs" style={{ color: 'var(--text-3)' }}>Sistema de Gestão</p>
-        </div>
-        <button onClick={() => setSidebarOpen(false)} className="lg:hidden ml-auto btn-ghost p-1.5">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto scrollbar-hide">
-        {filteredNav.map(item => {
-          const Icon     = item.icon
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-          return (
-            <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}
-              className={clsx('sidebar-link', isActive && 'sidebar-link-active')}>
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              <span className="flex-1 text-sm">{item.label}</span>
-              {isActive && <ChevronRight className="w-3.5 h-3.5" style={{ color: 'var(--neon)' }} />}
-            </Link>
-          )
-        })}
-      </nav>
-
-      {/* Links extras */}
-      <div className="p-3 space-y-0.5" style={{ borderTop: '1px solid var(--border)' }}>
-        <Link href="/perfil" className="sidebar-link" onClick={() => setSidebarOpen(false)}>
-          <UserCircle className="w-4 h-4" /><span className="text-sm">Meu Perfil</span>
-        </Link>
-        <button onClick={handleSignOut}
-          className="sidebar-link w-full"
-          style={{ color: '#f87171' }}>
-          <LogOut className="w-4 h-4" /><span className="text-sm">Sair</span>
-        </button>
-      </div>
-
-      {/* User info */}
-      <div className="p-3" style={{ borderTop: '1px solid var(--border)' }}>
-        <div className="flex items-center gap-3 p-2 rounded-xl" style={{ background: 'var(--bg-chip)' }}>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: 'var(--neon)', boxShadow: '0 0 10px var(--neon-glow)' }}>
-            <span className="text-black font-bold text-xs">
-              {usuario.nome.charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold truncate" style={{ color: 'var(--text-1)' }}>{usuario.nome}</p>
-            <p className="text-xs capitalize" style={{ color: 'var(--text-3)' }}>{role}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
 
       {/* ── Desktop Sidebar ── */}
       <aside className="hidden lg:flex flex-col w-60 flex-shrink-0"
         style={{ background: 'var(--bg-surface)', borderRight: '1px solid var(--border)' }}>
-        <SidebarContent />
+        <SidebarContent
+          filteredNav={filteredNav}
+          pathname={pathname}
+          usuario={usuario}
+          role={role}
+          onClose={() => setSidebarOpen(false)}
+          onSignOut={handleSignOut}
+        />
       </aside>
 
       {/* ── Mobile Overlay ── */}
@@ -171,7 +189,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         'transform transition-transform duration-300 ease-in-out',
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       )} style={{ background: 'var(--bg-surface)', borderRight: '1px solid var(--border)' }}>
-        <SidebarContent />
+        <SidebarContent
+          filteredNav={filteredNav}
+          pathname={pathname}
+          usuario={usuario}
+          role={role}
+          onClose={() => setSidebarOpen(false)}
+          onSignOut={handleSignOut}
+        />
       </aside>
 
       {/* ── Main Content ── */}
