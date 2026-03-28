@@ -1,10 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Activity, TrendingDown, TrendingUp, ChevronDown, ChevronUp, Sparkles, Loader2, Star } from 'lucide-react'
+import { Activity, TrendingDown, TrendingUp, ChevronDown, ChevronUp, Sparkles, Loader2, Star, Plus, Calendar } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
+import toast from 'react-hot-toast'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 interface MedidasCorporais {
   cintura: number | null
@@ -59,9 +62,25 @@ function getIMCLabel(imc: number) {
 
 type Tab = 'resumo' | 'graficos' | 'historico' | 'ia'
 
+interface HorarioDisponivel {
+  id: string
+  data_hora: string
+  duracao_min: number
+}
+
+interface SolicitacaoAvaliacao {
+  id: string
+  status: string
+  horario_id: string | null
+  observacoes_aluno: string | null
+  created_at: string
+  horarios_disponiveis?: { data_hora: string; duracao_min: number }
+}
+
 export default function AvaliacoesAlunoPage() {
   const { usuario } = useAuth()
   const [alunoId, setAlunoId] = useState<string | null>(null)
+  const [academiaId, setAcademiaId] = useState<string | null>(null)
   const [avaliacoes, setAvaliacoes] = useState<Avaliacao[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('resumo')
@@ -69,12 +88,23 @@ export default function AvaliacoesAlunoPage() {
   const [analiseIA, setAnaliseIA] = useState<AnaliseIA | null>(null)
   const [loadingIA, setLoadingIA] = useState(false)
   const [objetivoAluno, setObjetivoAluno] = useState('')
+  const [showModalSolicitacao, setShowModalSolicitacao] = useState(false)
+  const [horarios, setHorarios] = useState<HorarioDisponivel[]>([])
+  const [solicitacoes, setSolicitacoes] = useState<SolicitacaoAvaliacao[]>([])
+  const [loadingSolicitacoes, setLoadingSolicitacoes] = useState(false)
+  const [ultimaAvaliacaoDias, setUltimaAvaliacaoDias] = useState<number | null>(null)
+  const [selectedHorario, setSelectedHorario] = useState<string | null>(null)
+  const [observacoes, setObservacoes] = useState('')
 
   const fetchAlunoId = useCallback(async () => {
     if (!usuario?.id) return
     const { data } = await supabase
-      .from('alunos').select('id, objetivos').eq('usuario_id', usuario.id).single()
-    if (data) { setAlunoId(data.id); setObjetivoAluno(data.objetivos ?? '') }
+      .from('alunos').select('id, objetivos, academia_id').eq('usuario_id', usuario.id).single()
+    if (data) {
+      setAlunoId(data.id)
+      setAcademiaId(data.academia_id)
+      setObjetivoAluno(data.objetivos ?? '')
+    }
   }, [usuario?.id])
 
   const fetchAvaliacoes = useCallback(async () => {
@@ -94,7 +124,16 @@ export default function AvaliacoesAlunoPage() {
         .order('data_avaliacao', { ascending: false })
 
       if (error) throw error
-      setAvaliacoes((data as unknown as Avaliacao[]) ?? [])
+      const avs = (data as unknown as Avaliacao[]) ?? []
+      setAvaliacoes(avs)
+
+      // Verificar dias desde última avaliação
+      if (avs.length > 0) {
+        const ultimaData = new Date(avs[0].data_avaliacao)
+        const agora = new Date()
+        const dias = Math.floor((agora.getTime() - ultimaData.getTime()) / (1000 * 60 * 60 * 24))
+        setUltimaAvaliacaoDias(dias)
+      }
     } catch (err) {
       console.error('Erro ao buscar avaliações:', err)
     } finally {
@@ -102,8 +141,51 @@ export default function AvaliacoesAlunoPage() {
     }
   }, [alunoId])
 
+  const fetchHorarios = useCallback(async () => {
+    if (!academiaId) return
+    try {
+      const { data, error } = await supabase
+        .from('horarios_disponiveis')
+        .select('id, data_hora, duracao_min')
+        .eq('academia_id', academiaId)
+        .eq('disponivel', true)
+        .gt('data_hora', new Date().toISOString())
+        .order('data_hora', { ascending: true })
+
+      if (error) throw error
+      setHorarios((data as HorarioDisponivel[]) ?? [])
+    } catch (err) {
+      console.error('Erro ao buscar horários:', err)
+    }
+  }, [academiaId])
+
+  const fetchSolicitacoes = useCallback(async () => {
+    if (!alunoId) return
+    try {
+      const { data, error } = await supabase
+        .from('solicitacoes_avaliacao')
+        .select(`
+          id, status, horario_id, observacoes_aluno, created_at,
+          horarios_disponiveis (data_hora, duracao_min)
+        `)
+        .eq('aluno_id', alunoId)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setSolicitacoes((data as unknown as SolicitacaoAvaliacao[]) ?? [])
+    } catch (err) {
+      console.error('Erro ao buscar solicitações:', err)
+    }
+  }, [alunoId])
+
   useEffect(() => { fetchAlunoId() }, [fetchAlunoId])
-  useEffect(() => { if (alunoId) fetchAvaliacoes() }, [alunoId, fetchAvaliacoes])
+  useEffect(() => {
+    if (alunoId) {
+      fetchAvaliacoes()
+      fetchSolicitacoes()
+    }
+  }, [alunoId, fetchAvaliacoes, fetchSolicitacoes])
+  useEffect(() => { if (showModalSolicitacao) fetchHorarios() }, [showModalSolicitacao, fetchHorarios])
 
   const analisarComIA = async () => {
     if (avaliacoes.length === 0) return
@@ -150,19 +232,194 @@ export default function AvaliacoesAlunoPage() {
     }
   }
 
+  const handleSolicitarAvaliacao = async () => {
+    if (!selectedHorario || !alunoId || !academiaId) {
+      toast.error('Selecione um horário')
+      return
+    }
+
+    // Buscar professor_id de um professor da academia
+    try {
+      const { data: prof, error: profError } = await supabase
+        .from('professores')
+        .select('id')
+        .eq('academia_id', academiaId)
+        .limit(1)
+        .single()
+
+      if (profError || !prof) {
+        toast.error('Nenhum professor disponível')
+        return
+      }
+
+      const { error } = await supabase.from('solicitacoes_avaliacao').insert({
+        aluno_id: alunoId,
+        professor_id: prof.id,
+        academia_id: academiaId,
+        horario_id: selectedHorario,
+        status: 'pendente',
+        observacoes_aluno: observacoes || null,
+      })
+
+      if (error) throw error
+      toast.success('Solicitação enviada!')
+      setShowModalSolicitacao(false)
+      setSelectedHorario(null)
+      setObservacoes('')
+      fetchSolicitacoes()
+    } catch (err) {
+      console.error('Erro ao solicitar avaliação:', err)
+      toast.error('Erro ao solicitar avaliação')
+    }
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-64">
       <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
     </div>
   )
 
-  if (avaliacoes.length === 0) return (
-    <div className="max-w-2xl mx-auto card-base p-12 text-center">
-      <Activity className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-      <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Nenhuma avaliação</h2>
-      <p className="text-gray-500">Seu professor ainda não registrou uma avaliação física.</p>
-    </div>
-  )
+  // Se não tiver avaliações, mostrar section de solicitar
+  if (avaliacoes.length === 0) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-5">
+        {/* Card de solicitar avaliação */}
+        <div className="card-base p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Sua Primeira Avaliação</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Solicite uma avaliação física ao seu professor
+              </p>
+            </div>
+            <Calendar className="w-8 h-8 text-orange-500" />
+          </div>
+          <button
+            onClick={() => setShowModalSolicitacao(true)}
+            className="btn-primary w-full flex items-center justify-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Solicitar Avaliação
+          </button>
+        </div>
+
+        {/* Solicitações em andamento */}
+        {solicitacoes.length > 0 && (
+          <div className="card-base p-6">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">Solicitações em Andamento</h3>
+            <div className="space-y-3">
+              {solicitacoes.map((s) => {
+                const statusColor =
+                  s.status === 'pendente'
+                    ? 'text-yellow-600 dark:text-yellow-400'
+                    : s.status === 'aprovado'
+                      ? 'text-green-600 dark:text-green-400'
+                      : s.status === 'recusado'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-gray-600 dark:text-gray-400'
+
+                return (
+                  <div key={s.id} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          Status: <span className={`font-bold ${statusColor}`}>
+                            {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
+                          </span>
+                        </p>
+                        {s.horarios_disponiveis && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {format(new Date(s.horarios_disponiveis.data_hora), "dd 'de' MMMM 'às' HH:mm", {
+                              locale: ptBR,
+                            })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Modal de solicitação */}
+        {showModalSolicitacao && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+            onClick={() => setShowModalSolicitacao(false)}
+          >
+            <div
+              className="card-base p-6 w-full max-w-md rounded-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">Solicitar Avaliação</h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="label-base">Selecione um horário</label>
+                  {horarios.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Nenhum horário disponível</p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {horarios.map((h) => (
+                        <button
+                          key={h.id}
+                          onClick={() => setSelectedHorario(h.id)}
+                          className={`w-full p-3 rounded-lg text-left text-sm transition-all ${
+                            selectedHorario === h.id
+                              ? 'bg-orange-500 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          <p className="font-medium">
+                            {format(new Date(h.data_hora), "EEEE, d 'de' MMMM 'às' HH:mm", {
+                              locale: ptBR,
+                            })}
+                          </p>
+                          <p className="text-xs opacity-75">Duração: {h.duracao_min}min</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="label-base">Observações (opcional)</label>
+                  <textarea
+                    value={observacoes}
+                    onChange={(e) => setObservacoes(e.target.value)}
+                    placeholder="Deixe alguma informação relevante..."
+                    className="input-base w-full min-h-20 resize-none"
+                    style={{
+                      background: 'var(--bg-input)',
+                      borderColor: 'var(--border-c)',
+                      color: 'var(--text-1)',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-6">
+                <button
+                  onClick={() => setShowModalSolicitacao(false)}
+                  className="btn-secondary flex-1"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSolicitarAvaliacao}
+                  className="btn-primary flex-1"
+                >
+                  Solicitar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const ultima = avaliacoes[0]
   const penultima = avaliacoes[1]
@@ -222,6 +479,107 @@ export default function AvaliacoesAlunoPage() {
           {loadingIA ? <><Loader2 className="w-4 h-4 animate-spin" />Analisando...</> : <><Sparkles className="w-4 h-4" />Analisar com IA</>}
         </button>
       </div>
+
+      {/* Card de solicitar nova avaliação */}
+      {ultimaAvaliacaoDias !== null && ultimaAvaliacaoDias < 30 ? (
+        <div className="card-base p-4 bg-blue-50 dark:bg-blue-900/20">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            Próxima avaliação disponível em {30 - ultimaAvaliacaoDias} dias
+            {ultimaAvaliacaoDias === 0 && ' (hoje você pode solicitar!)'}
+          </p>
+        </div>
+      ) : (
+        <div className="card-base p-4 flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">Solicitar Nova Avaliação</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              {ultimaAvaliacaoDias ? `Última avaliação há ${ultimaAvaliacaoDias} dias atrás` : 'Nenhuma avaliação anterior'}
+            </p>
+          </div>
+          <button
+            onClick={() => setShowModalSolicitacao(true)}
+            className="btn-primary text-sm flex items-center gap-1"
+          >
+            <Plus className="w-4 h-4" />
+            Solicitar
+          </button>
+        </div>
+      )}
+
+      {/* Modal de solicitação */}
+      {showModalSolicitacao && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+          onClick={() => setShowModalSolicitacao(false)}
+        >
+          <div
+            className="card-base p-6 w-full max-w-md rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">Solicitar Avaliação</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="label-base">Selecione um horário</label>
+                {horarios.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Nenhum horário disponível</p>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {horarios.map((h) => (
+                      <button
+                        key={h.id}
+                        onClick={() => setSelectedHorario(h.id)}
+                        className={`w-full p-3 rounded-lg text-left text-sm transition-all ${
+                          selectedHorario === h.id
+                            ? 'bg-orange-500 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        <p className="font-medium">
+                          {format(new Date(h.data_hora), "EEEE, d 'de' MMMM 'às' HH:mm", {
+                            locale: ptBR,
+                          })}
+                        </p>
+                        <p className="text-xs opacity-75">Duração: {h.duracao_min}min</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="label-base">Observações (opcional)</label>
+                <textarea
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)}
+                  placeholder="Deixe alguma informação relevante..."
+                  className="input-base w-full min-h-20 resize-none"
+                  style={{
+                    background: 'var(--bg-input)',
+                    borderColor: 'var(--border-c)',
+                    color: 'var(--text-1)',
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => setShowModalSolicitacao(false)}
+                className="btn-secondary flex-1"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSolicitarAvaliacao}
+                className="btn-primary flex-1"
+              >
+                Solicitar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">

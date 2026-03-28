@@ -29,6 +29,15 @@ interface AlunoStats {
   proximoTreino: string | null
   ultimoCheckin: string | null
   sequencia: number
+  statusAvaliacao: 'pendente' | 'aprovado' | null
+  proximaAvaliacao: string | null
+}
+
+// ── Professor Stats ─────────────────────────────────────────
+interface ProfessorStats {
+  totalAlunos: number
+  solicitacoesPendentes: number
+  proximosHorarios: Array<{ data_hora: string; duracao_min: number }>
 }
 
 function GradientStatCard({
@@ -65,6 +74,7 @@ export default function DashboardPage() {
   const { usuario, role } = useAuth()
   const [adminStats, setAdminStats] = useState<AdminStats | null>(null)
   const [alunoStats, setAlunoStats] = useState<AlunoStats | null>(null)
+  const [professorStats, setProfessorStats] = useState<ProfessorStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [alunosInadimplentes, setAlunosInadimplentes] = useState<{ nome: string; vencimento: string }[]>([])
 
@@ -126,11 +136,13 @@ export default function DashboardPage() {
       { count: totalTreinos },
       { data: proximoTreino },
       { data: ultimaPresenca },
+      { data: solicitacoes },
     ] = await Promise.all([
       supabase.from('presencas').select('data_checkin').eq('aluno_id', aluno.id).gte('data_checkin', inicioMes),
       supabase.from('historico_treinos').select('*', { count: 'exact', head: true }).eq('aluno_id', aluno.id),
       supabase.from('treinos').select('nome, dia_semana').eq('aluno_id', aluno.id).eq('ativo', true).order('created_at', { ascending: false }).limit(1),
       supabase.from('presencas').select('data_checkin').eq('aluno_id', aluno.id).order('data_checkin', { ascending: false }).limit(1),
+      supabase.from('solicitacoes_avaliacao').select('status, horarios_disponiveis(data_hora)').eq('aluno_id', aluno.id).in('status', ['pendente', 'aprovado']).order('created_at', { ascending: false }).limit(1),
     ])
 
     // Calcular sequência de dias consecutivos
@@ -145,12 +157,48 @@ export default function DashboardPage() {
       else if (i > 0) break
     }
 
+    const solicitacao = solicitacoes?.[0] as any
+    let statusAvaliacao: 'pendente' | 'aprovado' | null = null
+    let proximaAvaliacao: string | null = null
+
+    if (solicitacao) {
+      statusAvaliacao = solicitacao.status as 'pendente' | 'aprovado'
+      if (solicitacao.horarios_disponiveis?.data_hora) {
+        proximaAvaliacao = solicitacao.horarios_disponiveis.data_hora
+      }
+    }
+
     setAlunoStats({
       checkinsMes: diasComPresenca.size,
       totalTreinos: totalTreinos ?? 0,
       proximoTreino: proximoTreino?.[0]?.nome ?? null,
       ultimoCheckin: ultimaPresenca?.[0]?.data_checkin ?? null,
       sequencia,
+      statusAvaliacao,
+      proximaAvaliacao,
+    })
+  }, [usuario?.id])
+
+  const fetchProfessorStats = useCallback(async () => {
+    if (!usuario?.id) return
+
+    const { data: prof } = await supabase.from('professores').select('id, academia_id').eq('usuario_id', usuario.id).single()
+    if (!prof) return
+
+    const [
+      { count: totalAlunos },
+      { count: solicitacoesPendentes },
+      { data: proximosHorarios },
+    ] = await Promise.all([
+      supabase.from('treinos').select('aluno_id', { count: 'exact', head: true }).eq('professor_id', prof.id),
+      supabase.from('solicitacoes_avaliacao').select('*', { count: 'exact', head: true }).eq('professor_id', prof.id).eq('status', 'pendente'),
+      supabase.from('horarios_disponiveis').select('data_hora, duracao_min').eq('professor_id', prof.id).eq('disponivel', true).gt('data_hora', new Date().toISOString()).order('data_hora', { ascending: true }).limit(3),
+    ])
+
+    setProfessorStats({
+      totalAlunos: totalAlunos ?? 0,
+      solicitacoesPendentes: solicitacoesPendentes ?? 0,
+      proximosHorarios: (proximosHorarios as any) ?? [],
     })
   }, [usuario?.id])
 
@@ -159,10 +207,11 @@ export default function DashboardPage() {
       setLoading(true)
       if (role === 'admin') await fetchAdminStats()
       else if (role === 'aluno') await fetchAlunoStats()
+      else if (role === 'professor') await fetchProfessorStats()
       setLoading(false)
     }
     if (role) load()
-  }, [role, fetchAdminStats, fetchAlunoStats])
+  }, [role, fetchAdminStats, fetchAlunoStats, fetchProfessorStats])
 
   const greeting = () => {
     const h = new Date().getHours()
@@ -269,9 +318,31 @@ export default function DashboardPage() {
             />
           </div>
 
+          {/* Próxima avaliação */}
+          {alunoStats.proximaAvaliacao && (
+            <div className="card-base p-4 border-l-4 border-l-purple-500 animate-slide-right stagger-2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Activity className="w-5 h-5 text-purple-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Próxima Avaliação</p>
+                  <p className="font-bold text-gray-900 dark:text-gray-100">
+                    {format(new Date(alunoStats.proximaAvaliacao), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Status: <span className={alunoStats.statusAvaliacao === 'aprovado' ? 'text-green-500 font-bold' : 'text-yellow-500 font-bold'}>
+                      {alunoStats.statusAvaliacao === 'aprovado' ? 'Aprovada' : 'Pendente'}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Sequência */}
           {alunoStats.sequencia > 0 && (
-            <div className="card-base p-4 bg-gradient-to-r from-orange-500/10 to-transparent border-l-4 border-l-orange-500 animate-slide-right stagger-2">
+            <div className="card-base p-4 bg-gradient-to-r from-orange-500/10 to-transparent border-l-4 border-l-orange-500 animate-slide-right stagger-3">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 gradient-orange rounded-2xl flex items-center justify-center flex-shrink-0 animate-float">
                   <Flame className="w-6 h-6 text-white" />
@@ -288,7 +359,7 @@ export default function DashboardPage() {
 
           {/* Próximo treino */}
           {alunoStats.proximoTreino && (
-            <Link href="/aluno/treino" className="block animate-fade-in stagger-3">
+            <Link href="/aluno/treino" className="block animate-fade-in stagger-4">
               <div className="card-base p-4 hover:shadow-md transition-all hover-glow-orange group">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 gradient-orange rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
@@ -305,7 +376,7 @@ export default function DashboardPage() {
           )}
 
           {/* Meta do mês */}
-          <div className="card-base p-5 animate-fade-in stagger-4">
+          <div className="card-base p-5 animate-fade-in stagger-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 text-sm">
                 <Trophy className="w-4 h-4 text-yellow-500" />Meta do Mês
@@ -325,8 +396,53 @@ export default function DashboardPage() {
         </>
       )}
 
+      {/* ── PROFESSOR STATS ── */}
+      {role === 'professor' && professorStats && (
+        <>
+          <div className="grid grid-cols-2 gap-3 animate-fade-in stagger-1">
+            <GradientStatCard
+              title="Meus Alunos"
+              value={professorStats.totalAlunos}
+              icon={Users}
+              gradient="gradient-blue"
+              link="/professor/alunos"
+            />
+            <GradientStatCard
+              title="Solicitações"
+              value={professorStats.solicitacoesPendentes}
+              icon={AlertCircle}
+              gradient={professorStats.solicitacoesPendentes > 0 ? 'gradient-orange' : 'gradient-gray'}
+              link="/professor/agenda"
+            />
+          </div>
+
+          {/* Próximos horários */}
+          {professorStats.proximosHorarios.length > 0 && (
+            <div className="card-base p-5 animate-slide-right stagger-2">
+              <h3 className="section-title flex items-center gap-2 mb-4">
+                <Calendar className="w-4 h-4 text-orange-500" />Próximos Horários
+              </h3>
+              <div className="space-y-2">
+                {professorStats.proximosHorarios.map((h: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {format(new Date(h.data_hora), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {format(new Date(h.data_hora), 'HH:mm', { locale: ptBR })} · {h.duracao_min}min
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
       {/* ── AÇÕES RÁPIDAS ── */}
-      <div className="card-base p-5 animate-fade-in stagger-3">
+      <div className="card-base p-5 animate-fade-in" style={{ animationDelay: role === 'aluno' ? '500ms' : role === 'professor' ? '400ms' : '300ms' }}>
         <h3 className="section-title flex items-center gap-2">
           <Activity className="w-4 h-4 text-orange-500" />Ações Rápidas
         </h3>
