@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { UserPlus, Search, Ban, CheckCircle, Trash2, Phone, Mail, Calendar, RefreshCw, AlertTriangle } from 'lucide-react'
+import { UserPlus, Search, Ban, CheckCircle, Trash2, Phone, Mail, Calendar, RefreshCw, AlertTriangle, Edit3, X, Save, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { format } from 'date-fns'
@@ -19,6 +19,17 @@ interface Aluno {
   telefone: string | null
   status_usuario: string
   plano_nome: string | null
+  objetivos: string | null
+}
+
+interface EditAdminForm {
+  nome: string
+  email: string
+  telefone: string
+  status_usuario: string
+  status_pagamento: string
+  data_vencimento: string
+  objetivos: string
 }
 
 const pagamentoConfig: Record<string, { label: string; class: string }> = {
@@ -42,6 +53,9 @@ export default function AlunosPage() {
   const [filtro, setFiltro] = useState('todos')
   const [confirmDelete, setConfirmDelete] = useState<Aluno | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [editAluno, setEditAluno] = useState<Aluno | null>(null)
+  const [editForm, setEditForm] = useState<EditAdminForm>({ nome: '', email: '', telefone: '', status_usuario: 'ativo', status_pagamento: 'pendente', data_vencimento: '', objetivos: '' })
+  const [editSaving, setEditSaving] = useState(false)
 
   const fetchAlunos = useCallback(async () => {
     if (!usuario?.academia_id) return
@@ -49,7 +63,7 @@ export default function AlunosPage() {
     try {
       const { data: alunosData } = await supabase
         .from('alunos')
-        .select('id, usuario_id, matricula, data_vencimento, status_pagamento, plano_id')
+        .select('id, usuario_id, matricula, data_vencimento, status_pagamento, plano_id, objetivos')
         .eq('academia_id', usuario.academia_id)
         .order('created_at', { ascending: false })
 
@@ -79,6 +93,7 @@ export default function AlunosPage() {
         telefone: usuariosMap[a.usuario_id]?.telefone ?? null,
         status_usuario: usuariosMap[a.usuario_id]?.status ?? 'ativo',
         plano_nome: planosMap[a.plano_id]?.nome ?? null,
+        objetivos: (a as any).objetivos ?? null,
       })))
     } catch (err) {
       toast.error('Erro ao carregar alunos')
@@ -116,6 +131,48 @@ export default function AlunosPage() {
       toast.error(err instanceof Error ? err.message : 'Erro ao excluir')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const abrirEdicao = (aluno: Aluno) => {
+    setEditAluno(aluno)
+    setEditForm({
+      nome: aluno.nome,
+      email: aluno.email,
+      telefone: aluno.telefone ?? '',
+      status_usuario: aluno.status_usuario,
+      status_pagamento: aluno.status_pagamento,
+      data_vencimento: aluno.data_vencimento ? aluno.data_vencimento.split('T')[0] : '',
+      objetivos: aluno.objetivos ?? '',
+    })
+  }
+
+  const salvarEdicao = async () => {
+    if (!editAluno) return
+    setEditSaving(true)
+    try {
+      const [resUsuario, resAluno] = await Promise.all([
+        supabase.from('usuarios').update({
+          nome: editForm.nome,
+          email: editForm.email,
+          telefone: editForm.telefone || null,
+          status: editForm.status_usuario,
+        }).eq('id', editAluno.usuario_id),
+        supabase.from('alunos').update({
+          status_pagamento: editForm.status_pagamento,
+          data_vencimento: editForm.data_vencimento || null,
+          objetivos: editForm.objetivos || null,
+        }).eq('id', editAluno.id),
+      ])
+      if (resUsuario.error) throw resUsuario.error
+      if (resAluno.error) throw resAluno.error
+      toast.success('Dados atualizados!')
+      setEditAluno(null)
+      fetchAlunos()
+    } catch (err) {
+      toast.error('Erro ao salvar')
+    } finally {
+      setEditSaving(false)
     }
   }
 
@@ -212,6 +269,9 @@ export default function AlunosPage() {
                       <td className="table-td"><span className={pagamentoConfig[aluno.status_pagamento]?.class ?? 'badge-gray'}>{pagamentoConfig[aluno.status_pagamento]?.label}</span></td>
                       <td className="table-td">
                         <div className="flex items-center gap-1">
+                          <button onClick={() => abrirEdicao(aluno)} className="btn-ghost p-1.5" title="Editar" style={{ color: 'var(--neon)' }}>
+                            <Edit3 className="w-4 h-4" />
+                          </button>
                           <button onClick={() => toggleStatus(aluno.usuario_id, aluno.status_usuario)}
                             className={`btn-ghost p-1.5 ${aluno.status_usuario === 'ativo' ? 'text-amber-500' : 'text-green-500'}`}
                             title={aluno.status_usuario === 'ativo' ? 'Desativar' : 'Ativar'}>
@@ -256,6 +316,9 @@ export default function AlunosPage() {
                 <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
                   <span className={pagamentoConfig[aluno.status_pagamento]?.class ?? 'badge-gray'}>{pagamentoConfig[aluno.status_pagamento]?.label}</span>
                   <div className="flex gap-1">
+                    <button onClick={() => abrirEdicao(aluno)} className="btn-ghost p-1.5" title="Editar" style={{ color: 'var(--neon)' }}>
+                      <Edit3 className="w-4 h-4" />
+                    </button>
                     <button onClick={() => toggleStatus(aluno.usuario_id, aluno.status_usuario)}
                       className={`btn-ghost p-1.5 ${aluno.status_usuario === 'ativo' ? 'text-amber-500' : 'text-green-500'}`}>
                       {aluno.status_usuario === 'ativo' ? <Ban className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
@@ -269,6 +332,100 @@ export default function AlunosPage() {
             ))}
           </div>
         </>
+      )}
+
+      {/* Modal Editar Aluno */}
+      {editAluno && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
+          <div className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl overflow-hidden"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-c)', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+              <div>
+                <h2 className="font-bold text-base" style={{ color: 'var(--text-1)' }}>Editar Aluno</h2>
+                <p className="text-xs" style={{ color: 'var(--text-3)' }}>{editAluno.matricula ?? 'Sem matrícula'}</p>
+              </div>
+              <button onClick={() => setEditAluno(null)} className="btn-ghost p-2 rounded-xl">
+                <X className="w-5 h-5" style={{ color: 'var(--text-2)' }} />
+              </button>
+            </div>
+
+            {/* Corpo */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              {/* Dados pessoais */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-3)' }}>Dados Pessoais</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-2)' }}>Nome completo</label>
+                    <input className="input-base" value={editForm.nome} onChange={e => setEditForm(f => ({ ...f, nome: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-2)' }}>E-mail</label>
+                    <input type="email" className="input-base" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-2)' }}>Telefone</label>
+                    <input className="input-base" value={editForm.telefone} onChange={e => setEditForm(f => ({ ...f, telefone: e.target.value }))} placeholder="(11) 99999-9999" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Status e Pagamento */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-3)' }}>Status</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-2)' }}>Status do usuário</label>
+                    <select className="input-base" value={editForm.status_usuario} onChange={e => setEditForm(f => ({ ...f, status_usuario: e.target.value }))}>
+                      <option value="ativo">Ativo</option>
+                      <option value="inativo">Inativo</option>
+                      <option value="suspenso">Suspenso</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-2)' }}>Status do pagamento</label>
+                    <select className="input-base" value={editForm.status_pagamento} onChange={e => setEditForm(f => ({ ...f, status_pagamento: e.target.value }))}>
+                      <option value="pago">Em dia</option>
+                      <option value="pendente">Pendente</option>
+                      <option value="vencido">Vencido</option>
+                      <option value="cancelado">Cancelado</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-2)' }}>Vencimento do plano</label>
+                    <input type="date" className="input-base" value={editForm.data_vencimento} onChange={e => setEditForm(f => ({ ...f, data_vencimento: e.target.value }))} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Objetivos */}
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider mb-2 block" style={{ color: 'var(--text-3)' }}>Objetivos</label>
+                <textarea className="input-base resize-none" rows={3} value={editForm.objetivos}
+                  onChange={e => setEditForm(f => ({ ...f, objetivos: e.target.value }))}
+                  placeholder="Ex: Perda de peso, hipertrofia..." />
+              </div>
+
+              {/* Link para treinos */}
+              <Link href="/admin/alunos"
+                className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all"
+                style={{ background: 'var(--bg-input)', color: 'var(--neon)', border: '1px solid var(--border-neon)' }}>
+                Ver treinos deste aluno
+              </Link>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 flex gap-3" style={{ borderTop: '1px solid var(--border)' }}>
+              <button onClick={() => setEditAluno(null)} className="btn-secondary flex-1" disabled={editSaving}>Cancelar</button>
+              <button onClick={salvarEdicao} disabled={editSaving}
+                className="btn-primary flex-1 flex items-center justify-center gap-2">
+                {editSaving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : <><Save className="w-4 h-4" />Salvar</>}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal confirmação exclusão */}

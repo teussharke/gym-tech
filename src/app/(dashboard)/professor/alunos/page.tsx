@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Eye, ClipboardList, Activity, TrendingUp, Users, Dumbbell, RefreshCw, Filter } from 'lucide-react'
+import { Search, Eye, ClipboardList, Activity, TrendingUp, Users, Dumbbell, RefreshCw, Filter, Edit3, X, Save, Loader2 } from 'lucide-react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { format, startOfMonth } from 'date-fns'
 import clsx from 'clsx'
+import toast from 'react-hot-toast'
 
 interface AlunoProf {
   id: string
@@ -29,13 +31,23 @@ const pagamentoConfig: Record<string, { label: string; class: string }> = {
   cancelado: { label: 'Cancelado', class: 'badge-gray'    },
 }
 
+interface EditForm {
+  objetivos: string
+  status_pagamento: string
+  data_vencimento: string
+  observacoes: string
+}
+
 export default function ProfessorAlunosPage() {
   const { usuario } = useAuth()
   const [alunos, setAlunos] = useState<AlunoProf[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [detalhe, setDetalhe] = useState<AlunoProf | null>(null)
-  const [filtroMeus, setFiltroMeus] = useState(false) // false = todos, true = somente meus
+  const [filtroMeus, setFiltroMeus] = useState(false)
+  const [editAluno, setEditAluno] = useState<AlunoProf | null>(null)
+  const [editForm, setEditForm] = useState<EditForm>({ objetivos: '', status_pagamento: 'pago', data_vencimento: '', observacoes: '' })
+  const [editSaving, setEditSaving] = useState(false)
 
   const fetchAlunos = useCallback(async () => {
     if (!usuario?.academia_id || !usuario?.id) return
@@ -125,6 +137,38 @@ export default function ProfessorAlunosPage() {
   }, [usuario?.academia_id, usuario?.id])
 
   useEffect(() => { fetchAlunos() }, [fetchAlunos])
+
+  const abrirEdicao = (aluno: AlunoProf) => {
+    setEditAluno(aluno)
+    setEditForm({
+      objetivos: aluno.objetivos ?? '',
+      status_pagamento: aluno.status_pagamento ?? 'pago',
+      data_vencimento: aluno.data_vencimento ? aluno.data_vencimento.split('T')[0] : '',
+      observacoes: '',
+    })
+  }
+
+  const salvarEdicao = async () => {
+    if (!editAluno) return
+    setEditSaving(true)
+    try {
+      const { error } = await supabase.from('alunos').update({
+        objetivos: editForm.objetivos || null,
+        status_pagamento: editForm.status_pagamento,
+        data_vencimento: editForm.data_vencimento || null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', editAluno.id)
+
+      if (error) throw error
+      toast.success('Dados do aluno atualizados!')
+      setEditAluno(null)
+      fetchAlunos()
+    } catch {
+      toast.error('Erro ao salvar alterações')
+    } finally {
+      setEditSaving(false)
+    }
+  }
 
   const filtered = alunos.filter(a => {
     const matchSearch =
@@ -250,13 +294,17 @@ export default function ProfessorAlunosPage() {
                 </span>
               </div>
 
-              <div className="flex gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
+              <div className="flex gap-2 pt-1" style={{ borderTop: '1px solid var(--border)' }}>
                 <button onClick={() => setDetalhe(aluno)} className="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1.5">
-                  <Eye className="w-3.5 h-3.5" />Ver perfil
+                  <Eye className="w-3.5 h-3.5" />Perfil
                 </button>
-                <a href="/professor/avaliacoes" className="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1.5">
+                <button onClick={() => abrirEdicao(aluno)} className="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1.5"
+                  style={{ color: 'var(--neon)', borderColor: 'var(--border-neon)' }}>
+                  <Edit3 className="w-3.5 h-3.5" />Editar
+                </button>
+                <Link href="/professor/avaliacoes" className="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1.5">
                   <Activity className="w-3.5 h-3.5" />Avaliação
-                </a>
+                </Link>
               </div>
             </div>
           ))}
@@ -272,47 +320,127 @@ export default function ProfessorAlunosPage() {
         </div>
       )}
 
-      {/* Modal detalhe */}
+      {/* ── Modal: Perfil do Aluno ── */}
       {detalhe && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md shadow-2xl animate-scale-in">
-            <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Perfil do Aluno</h2>
-              <button onClick={() => setDetalhe(null)} className="btn-ghost p-1.5">✕</button>
+        <div className="fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4">
+          <div className="modal-card w-full max-w-md shadow-2xl animate-scale-in">
+            <div className="p-5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
+              <h2 className="text-lg font-bold" style={{ color: 'var(--text-1)' }}>Perfil do Aluno</h2>
+              <button onClick={() => setDetalhe(null)} className="btn-ghost p-1.5"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-5 space-y-4">
               <div className="flex items-center gap-4">
-                <div className={clsx('w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0', detalhe.isMeu ? 'gradient-orange' : 'bg-gray-100 dark:bg-gray-700')}>
-                  <span className={clsx('text-xl font-bold', detalhe.isMeu ? 'text-white' : 'text-gray-600')}>
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: detalhe.isMeu ? 'var(--neon)' : 'var(--bg-chip)', boxShadow: detalhe.isMeu ? '0 0 16px var(--neon-glow)' : 'none' }}>
+                  <span className="text-xl font-bold" style={{ color: detalhe.isMeu ? '#000' : 'var(--text-2)' }}>
                     {detalhe.nome.split(' ').map(n => n[0]).slice(0, 2).join('')}
                   </span>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="font-bold text-gray-900 dark:text-gray-100">{detalhe.nome}</p>
+                    <p className="font-bold" style={{ color: 'var(--text-1)' }}>{detalhe.nome}</p>
                     {detalhe.isMeu && <span className="badge-info text-xs">Meu aluno</span>}
                   </div>
-                  <p className="text-sm text-gray-400">{detalhe.email}</p>
+                  <p className="text-sm" style={{ color: 'var(--text-3)' }}>{detalhe.email}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: 'Plano',         value: detalhe.plano_nome ?? '—' },
                   { label: 'Objetivo',      value: detalhe.objetivos ?? '—' },
                   { label: 'Check-ins/mês', value: `${detalhe.checkins} dias` },
-                  { label: 'Fichas ativas', value: `${detalhe.treinos} treinos` },
+                  { label: 'Fichas ativas', value: `${detalhe.treinos} treino(s)` },
                   { label: 'Vencimento',    value: detalhe.data_vencimento ? format(new Date(detalhe.data_vencimento), 'dd/MM/yyyy') : '—' },
                   { label: 'Pagamento',     value: pagamentoConfig[detalhe.status_pagamento]?.label ?? '—' },
+                  { label: 'Último treino', value: detalhe.ultimoTreino ? format(new Date(detalhe.ultimoTreino), 'dd/MM') : 'Sem histórico' },
                 ].map(item => (
-                  <div key={item.label} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
-                    <p className="text-xs text-gray-400">{item.label}</p>
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-0.5">{item.value}</p>
+                  <div key={item.label} className="rounded-xl p-3" style={{ background: 'var(--bg-chip)' }}>
+                    <p className="text-xs" style={{ color: 'var(--text-3)' }}>{item.label}</p>
+                    <p className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text-1)' }}>{item.value}</p>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="p-4 border-t border-gray-100 dark:border-gray-700">
-              <button onClick={() => setDetalhe(null)} className="btn-secondary w-full">Fechar</button>
+            <div className="p-4 flex gap-3" style={{ borderTop: '1px solid var(--border)' }}>
+              <button onClick={() => { setDetalhe(null); abrirEdicao(detalhe) }}
+                className="flex-1 btn-primary flex items-center justify-center gap-2 text-sm py-2.5">
+                <Edit3 className="w-4 h-4" />Editar Dados
+              </button>
+              <button onClick={() => setDetalhe(null)} className="btn-secondary px-4">Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Editar Aluno ── */}
+      {editAluno && (
+        <div className="fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4">
+          <div className="modal-card w-full max-w-md shadow-2xl animate-scale-in">
+            <div className="p-5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
+              <div>
+                <h2 className="text-lg font-bold" style={{ color: 'var(--text-1)' }}>Editar Aluno</h2>
+                <p className="text-sm" style={{ color: 'var(--text-2)' }}>{editAluno.nome}</p>
+              </div>
+              <button onClick={() => setEditAluno(null)} className="btn-ghost p-1.5"><X className="w-4 h-4" /></button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="label-base">Objetivo / Modalidade</label>
+                <input value={editForm.objetivos}
+                  onChange={e => setEditForm(p => ({ ...p, objetivos: e.target.value }))}
+                  placeholder="Ex: Hipertrofia, Emagrecimento..."
+                  className="input-base" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label-base">Status Pagamento</label>
+                  <select value={editForm.status_pagamento}
+                    onChange={e => setEditForm(p => ({ ...p, status_pagamento: e.target.value }))}
+                    className="input-base" style={{ background: 'var(--bg-input)' }}>
+                    <option value="pago">Em dia</option>
+                    <option value="pendente">Pendente</option>
+                    <option value="vencido">Vencido</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label-base">Vencimento</label>
+                  <input type="date" value={editForm.data_vencimento}
+                    onChange={e => setEditForm(p => ({ ...p, data_vencimento: e.target.value }))}
+                    className="input-base"
+                    style={{ colorScheme: 'dark' }} />
+                </div>
+              </div>
+
+              {/* Link rápido para treinos */}
+              <div className="rounded-xl p-3 flex items-center justify-between"
+                style={{ background: 'var(--bg-chip)', border: '1px solid var(--border)' }}>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text-1)' }}>Fichas de Treino</p>
+                  <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+                    {editAluno.treinos} ficha(s) ativa(s) · {editAluno.checkins} check-ins/mês
+                  </p>
+                </div>
+                <Link href="/professor/treinos"
+                  onClick={() => setEditAluno(null)}
+                  className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
+                  <Dumbbell className="w-3.5 h-3.5" />Ver Treinos
+                </Link>
+              </div>
+            </div>
+
+            <div className="p-4 flex gap-3" style={{ borderTop: '1px solid var(--border)' }}>
+              <button onClick={salvarEdicao} disabled={editSaving}
+                className="flex-1 btn-primary flex items-center justify-center gap-2 py-2.5">
+                {editSaving
+                  ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</>
+                  : <><Save className="w-4 h-4" />Salvar</>
+                }
+              </button>
+              <button onClick={() => setEditAluno(null)} className="btn-secondary px-4" disabled={editSaving}>
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

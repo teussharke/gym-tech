@@ -44,7 +44,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" className="dark" suppressHydrationWarning>
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -54,8 +54,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icons/icon-152x152.png" />
         <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
       </head>
-      <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+      <body className={inter.className} style={{ background: '#09090E' }}>
+        <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
           <AuthProvider>
             {children}
             <Toaster
@@ -63,12 +63,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               toastOptions={{
                 duration: 3000,
                 style: {
-                  background: '#1f2937',
-                  color: '#f9fafb',
-                  borderRadius: '12px',
-                  border: '1px solid #374151',
+                  background: '#14141C',
+                  color: '#F0F0F8',
+                  borderRadius: '14px',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
                 },
-                success: { iconTheme: { primary: '#f97316', secondary: '#fff' } },
+                success: { iconTheme: { primary: '#FF6B00', secondary: '#000' } },
                 error:   { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
               }}
             />

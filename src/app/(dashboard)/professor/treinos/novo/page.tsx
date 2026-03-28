@@ -206,33 +206,24 @@ export default function NovoTreinoPage() {
 
       if (treinoError) throw new Error(`Erro ao criar treino: ${treinoError.message}`)
 
-      // Inserir exercícios — sem exercicio_id para não violar FK
+      // Inserir exercícios
+      // exercicio_id é omitido — os IDs do mock não são UUIDs válidos.
+      // O nome é armazenado nas observacoes no formato "Nome | Observações"
+      // para poder ser recuperado ao editar o treino depois.
       const exerciciosInsert = exercicios.map((ex, i) => ({
         treino_id: novoTreino.id,
-        ordem: i,
+        ordem: i + 1,
         series: ex.series,
         repeticoes: ex.repeticoes,
         carga_sugerida: ex.carga ? Number(ex.carga) : null,
         tempo_descanso_seg: ex.descanso,
-        observacoes: [ex.nome, ex.observacoes].filter(Boolean).join(' | '),
-        // exercicio_id omitido — evita constraint NOT NULL se não existir no banco
+        observacoes: ex.observacoes
+          ? `${ex.nome} | ${ex.observacoes}`
+          : ex.nome,
       }))
 
       const { error: exError } = await supabase.from('treino_exercicios').insert(exerciciosInsert)
-
-      // Se der erro nos exercícios, tentar sem alguns campos opcionais
-      if (exError) {
-        console.warn('Tentando inserir exercícios sem campos opcionais:', exError.message)
-        const exerciciosSimples = exercicios.map((ex, i) => ({
-          treino_id: novoTreino.id,
-          ordem: i,
-          series: ex.series,
-          repeticoes: ex.repeticoes,
-          observacoes: [ex.nome, ex.observacoes].filter(Boolean).join(' | '),
-        }))
-        const { error: exError2 } = await supabase.from('treino_exercicios').insert(exerciciosSimples)
-        if (exError2) throw new Error(`Erro ao salvar exercícios: ${exError2.message}`)
-      }
+      if (exError) throw new Error(`Erro ao salvar exercícios: ${exError.message}`)
 
       toast.success('Treino criado com sucesso!')
       router.push('/professor/treinos')

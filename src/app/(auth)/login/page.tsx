@@ -109,29 +109,30 @@ export default function LoginPage() {
       </div>
 
       {/* Lado direito — formulário */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-gray-950 lg:bg-white lg:dark:bg-gray-950">
+      <div className="flex-1 flex items-center justify-center p-6" style={{ background: 'var(--bg-surface)' }}>
         <div className="w-full max-w-md space-y-8">
           {/* Logo mobile */}
           <div className="lg:hidden flex flex-col items-center gap-4">
-            <div className="w-20 h-20 rounded-3xl overflow-hidden shadow-xl shadow-orange-500/30">
+            <div className="w-20 h-20 rounded-3xl overflow-hidden"
+              style={{ boxShadow: '0 0 30px rgba(255,107,0,0.4)' }}>
               <Image src="/icons/icon-192x192.png" alt="i9 Fitness" width={80} height={80} />
             </div>
             <div className="text-center">
-              <h1 className="text-2xl font-black text-white tracking-tight">i9 Fitness</h1>
-              <p className="text-orange-400 text-sm">Sistema de Gestão</p>
+              <h1 className="text-2xl font-black tracking-tight" style={{ color: 'var(--text-1)' }}>i9 Fitness</h1>
+              <p className="text-sm" style={{ color: 'var(--neon)' }}>Sistema de Gestão</p>
             </div>
           </div>
 
           {/* Header */}
           <div className="hidden lg:block">
-            <h2 className="text-3xl font-black text-gray-900 dark:text-white">Bem-vindo!</h2>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">Faça login para acessar o sistema</p>
+            <h2 className="text-3xl font-black" style={{ color: 'var(--text-1)' }}>Bem-vindo!</h2>
+            <p className="mt-1" style={{ color: 'var(--text-2)' }}>Faça login para acessar o sistema</p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-semibold text-gray-300 lg:text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-2)' }}>
                 Email
               </label>
               <input
@@ -141,16 +142,13 @@ export default function LoginPage() {
                 placeholder="seu@email.com"
                 autoComplete="email"
                 disabled={isLoading}
-                className="w-full bg-gray-900 lg:bg-white lg:dark:bg-gray-800 border border-gray-700 lg:border-gray-200 lg:dark:border-gray-700
-                           text-white lg:text-gray-900 lg:dark:text-white placeholder-gray-600
-                           rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500
-                           transition-all disabled:opacity-50"
+                className="input-base"
               />
               {errors.email && <p className="text-red-400 text-xs mt-1.5">{errors.email}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-300 lg:text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-2)' }}>
                 Senha
               </label>
               <div className="relative">
@@ -161,13 +159,11 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   autoComplete="current-password"
                   disabled={isLoading}
-                  className="w-full bg-gray-900 lg:bg-white lg:dark:bg-gray-800 border border-gray-700 lg:border-gray-200 lg:dark:border-gray-700
-                             text-white lg:text-gray-900 lg:dark:text-white placeholder-gray-600
-                             rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500
-                             transition-all disabled:opacity-50"
+                  className="input-base pr-11"
                 />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 lg:hover:text-gray-600 transition-colors">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                  style={{ color: 'var(--text-3)' }}>
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
@@ -175,7 +171,9 @@ export default function LoginPage() {
             </div>
 
             <div className="flex justify-end">
-              <Link href="/forgot-password" className="text-sm text-orange-500 hover:text-orange-400 font-medium transition-colors">
+              <Link href="/forgot-password"
+                className="text-sm font-medium transition-colors"
+                style={{ color: 'var(--neon)' }}>
                 Esqueceu sua senha?
               </Link>
             </div>
@@ -183,10 +181,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600
-                         disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold
-                         py-3.5 rounded-xl transition-all duration-200 active:scale-95
-                         shadow-lg shadow-orange-500/30 text-base"
+              className="btn-primary w-full flex items-center justify-center gap-2 py-3.5 text-base"
             >
               {isLoading
                 ? <><Loader2 className="w-5 h-5 animate-spin" />Entrando...</>
@@ -195,7 +190,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-gray-600 text-xs lg:hidden">
+          <p className="text-center text-xs lg:hidden" style={{ color: 'var(--text-3)' }}>
             © {new Date().getFullYear()} Mateus Oliveira
           </p>
         </div>

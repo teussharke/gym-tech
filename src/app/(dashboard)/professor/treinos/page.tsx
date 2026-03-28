@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Copy, Trash2, ChevronDown, ChevronUp, Dumbbell, Clock, Users, RefreshCw, Edit, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plus, Search, Copy, Trash2, ChevronDown, ChevronUp, Dumbbell, Clock, Users, RefreshCw, Edit3, ToggleLeft, ToggleRight } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
@@ -243,6 +243,11 @@ export default function ProfessorTreinosPage() {
 
                         {/* Ações */}
                         <div className="flex items-center gap-0.5 flex-shrink-0">
+                          <Link href={`/professor/treinos/${treino.id}`}
+                            className="btn-ghost p-1.5" title="Editar treino"
+                            style={{ color: 'var(--neon)' }}>
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </Link>
                           <button onClick={() => duplicar(treino)} className="btn-ghost p-1.5" title="Duplicar">
                             <Copy className="w-3.5 h-3.5" />
                           </button>
