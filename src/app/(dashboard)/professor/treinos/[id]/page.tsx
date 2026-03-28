@@ -54,7 +54,10 @@ export default function EditarTreinoPage() {
 
   // ── Carregar treino ──────────────────────────────────────
   const carregarTreino = useCallback(async () => {
-    if (!treinoId) return
+    if (!treinoId) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       // Busca treino

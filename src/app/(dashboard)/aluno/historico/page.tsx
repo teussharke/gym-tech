@@ -41,26 +41,42 @@ export default function HistoricoPage() {
   const [filtro, setFiltro] = useState<'todos' | 'A' | 'B' | 'C'>('todos')
 
   const fetchAlunoId = useCallback(async () => {
-    if (!usuario?.id) return
-    const { data } = await supabase.from('alunos').select('id').eq('usuario_id', usuario.id).single()
-    if (data) setAlunoId(data.id)
+    if (!usuario?.id) {
+      setLoading(false)   // sem usuário, não há o que carregar
+      return
+    }
+    try {
+      const { data } = await supabase.from('alunos').select('id').eq('usuario_id', usuario.id).single()
+      if (data) setAlunoId(data.id)
+      else setLoading(false)  // aluno não encontrado → encerra loading
+    } catch {
+      setLoading(false)
+    }
   }, [usuario?.id])
 
   const fetchHistorico = useCallback(async () => {
-    if (!alunoId) return
+    if (!alunoId) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
-    const { data } = await supabase
-      .from('historico_treinos')
-      .select(`
-        id, data_treino, duracao_min, status, exercicios_realizados,
-        treino:treinos (nome, dia_semana)
-      `)
-      .eq('aluno_id', alunoId)
-      .order('data_treino', { ascending: false })
-      .limit(30)
+    try {
+      const { data } = await supabase
+        .from('historico_treinos')
+        .select(`
+          id, data_treino, duracao_min, status, exercicios_realizados,
+          treino:treinos (nome, dia_semana)
+        `)
+        .eq('aluno_id', alunoId)
+        .order('data_treino', { ascending: false })
+        .limit(30)
 
-    setHistorico((data as unknown as Historico[]) ?? [])
-    setLoading(false)
+      setHistorico((data as unknown as Historico[]) ?? [])
+    } catch {
+      setHistorico([])
+    } finally {
+      setLoading(false)
+    }
   }, [alunoId])
 
   useEffect(() => { fetchAlunoId() }, [fetchAlunoId])

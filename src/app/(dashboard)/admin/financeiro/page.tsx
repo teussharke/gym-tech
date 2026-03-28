@@ -61,7 +61,10 @@ export default function FinanceiroPage() {
   })
 
   const fetchPagamentos = useCallback(async () => {
-    if (!usuario?.academia_id) return
+    if (!usuario?.academia_id) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const { data, error } = await supabase
@@ -86,7 +89,9 @@ export default function FinanceiroPage() {
   }, [usuario?.academia_id])
 
   const fetchAlunosPlanos = useCallback(async () => {
-    if (!usuario?.academia_id) return
+    if (!usuario?.academia_id) {
+      return
+    }
     const [{ data: a }, { data: p }] = await Promise.all([
       supabase.from('alunos').select('id, usuario:usuarios!alunos_usuario_id_fkey (nome)').eq('academia_id', usuario.academia_id),
       supabase.from('planos').select('id, nome, valor').eq('academia_id', usuario.academia_id).eq('ativo', true),

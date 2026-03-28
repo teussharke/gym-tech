@@ -45,7 +45,10 @@ export default function ProfessoresPage() {
   })
 
   const fetchProfessores = useCallback(async () => {
-    if (!usuario?.academia_id) return
+    if (!usuario?.academia_id) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const { data: profs } = await supabase

@@ -35,7 +35,10 @@ export default function ProfessorTreinosPage() {
   const [filtro, setFiltro] = useState<'todos' | 'ativos' | 'inativos'>('todos')
 
   const fetchTreinos = useCallback(async () => {
-    if (!usuario?.academia_id) return
+    if (!usuario?.academia_id) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       // Busca TODOS os treinos da academia (não só do professor logado)

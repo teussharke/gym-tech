@@ -50,7 +50,10 @@ export default function ProfessorAlunosPage() {
   const [editSaving, setEditSaving] = useState(false)
 
   const fetchAlunos = useCallback(async () => {
-    if (!usuario?.academia_id || !usuario?.id) return
+    if (!usuario?.academia_id || !usuario?.id) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       // Busca o professor logado

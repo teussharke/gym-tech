@@ -39,7 +39,10 @@ export default function RelatoriosPage() {
   }
 
   const fetchTudo = useCallback(async () => {
-    if (!usuario?.academia_id) return
+    if (!usuario?.academia_id) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const id = usuario.academia_id
 

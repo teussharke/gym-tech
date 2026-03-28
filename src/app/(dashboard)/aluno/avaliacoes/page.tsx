@@ -108,7 +108,10 @@ export default function AvaliacoesAlunoPage() {
   }, [usuario?.id])
 
   const fetchAvaliacoes = useCallback(async () => {
-    if (!alunoId) return
+    if (!alunoId) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const { data, error } = await supabase

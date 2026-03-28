@@ -59,7 +59,10 @@ export default function AvaliacoesPage() {
 
   // Busca TODOS os alunos ativos da academia
   const fetchAlunos = useCallback(async () => {
-    if (!usuario?.academia_id) return
+    if (!usuario?.academia_id) {
+      setLoadingAlunos(false)
+      return
+    }
     setLoadingAlunos(true)
     try {
       const { data: alunosData } = await supabase

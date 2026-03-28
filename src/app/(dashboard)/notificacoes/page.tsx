@@ -34,16 +34,24 @@ export default function NotificacoesPage() {
   const [filtro, setFiltro] = useState<'todas' | 'nao_lidas'>('todas')
 
   const fetchNotifs = useCallback(async () => {
-    if (!usuario?.id) return
+    if (!usuario?.id) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
-    const { data } = await supabase
-      .from('notificacoes')
-      .select('*')
-      .eq('usuario_id', usuario.id)
-      .order('created_at', { ascending: false })
-      .limit(50)
-    setNotifs(data ?? [])
-    setLoading(false)
+    try {
+      const { data } = await supabase
+        .from('notificacoes')
+        .select('*')
+        .eq('usuario_id', usuario.id)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      setNotifs(data ?? [])
+    } catch {
+      setNotifs([])
+    } finally {
+      setLoading(false)
+    }
   }, [usuario?.id])
 
   useEffect(() => { fetchNotifs() }, [fetchNotifs])

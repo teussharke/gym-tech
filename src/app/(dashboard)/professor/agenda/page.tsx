@@ -48,7 +48,11 @@ export default function AgendaPage() {
 
   // Fetch professor_id
   const fetchProfessorId = useCallback(async () => {
-    if (!usuario?.id) return
+    if (!usuario?.id) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
     try {
       const { data, error } = await supabase
         .from('professores')

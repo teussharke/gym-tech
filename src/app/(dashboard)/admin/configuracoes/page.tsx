@@ -40,7 +40,10 @@ export default function ConfiguracoesPage() {
   const [planoForm, setPlanoForm] = useState({ nome: '', descricao: '', valor: '', duracao_dias: '30' })
 
   const fetchDados = useCallback(async () => {
-    if (!usuario?.academia_id) return
+    if (!usuario?.academia_id) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const [{ data: acad }, { data: pl }] = await Promise.all([

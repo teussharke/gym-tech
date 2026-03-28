@@ -21,7 +21,10 @@ export default function FrequenciaPage() {
   const meta = 20
 
   const fetchTudo = useCallback(async () => {
-    if (!usuario?.id || !usuario?.academia_id) return
+    if (!usuario?.id || !usuario?.academia_id) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
 
     try {

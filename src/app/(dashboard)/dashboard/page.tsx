@@ -205,10 +205,15 @@ export default function DashboardPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      if (role === 'admin') await fetchAdminStats()
-      else if (role === 'aluno') await fetchAlunoStats()
-      else if (role === 'professor') await fetchProfessorStats()
-      setLoading(false)
+      try {
+        if (role === 'admin') await fetchAdminStats()
+        else if (role === 'aluno') await fetchAlunoStats()
+        else if (role === 'professor') await fetchProfessorStats()
+      } catch {
+        // erro silencioso — cada fetchX já tem seu próprio tratamento
+      } finally {
+        setLoading(false)
+      }
     }
     if (role) load()
   }, [role, fetchAdminStats, fetchAlunoStats, fetchProfessorStats])

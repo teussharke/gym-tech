@@ -58,7 +58,10 @@ export default function AlunosPage() {
   const [editSaving, setEditSaving] = useState(false)
 
   const fetchAlunos = useCallback(async () => {
-    if (!usuario?.academia_id) return
+    if (!usuario?.academia_id) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const { data: alunosData } = await supabase
