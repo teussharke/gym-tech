@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/api/auth'
+import { checkRateLimit } from '@/lib/api/rateLimit'
 
 export async function POST(request: NextRequest) {
+  const [auth, authErr] = await requireAuth(request)
+  if (authErr) return authErr
+
+  // Rate limit: 30 req/hora por usuário
+  const rl = checkRateLimit(`ia:${auth.userId}`, 30, 60 * 60 * 1000)
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: `Limite de requisições atingido. Tente novamente em ${Math.ceil(rl.resetIn / 60000)} minutos.` },
+      { status: 429 }
+    )
+  }
+
   try {
     const body = await request.json()
     const { tipo, dados } = body
@@ -121,23 +135,36 @@ Máximo 300 palavras.`
     }
 
     // Chamar API da Anthropic
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001', // Rápido e barato para uso frequente
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
+    let response: Response
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 2000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      })
+    } catch (fetchErr) {
+      console.error('Fetch error:', fetchErr)
+      return NextResponse.json({ error: 'Erro de conexão com a Anthropic.' }, { status: 500 })
+    }
 
     if (!response.ok) {
-      const err = await response.json()
-      return NextResponse.json({ error: err.error?.message ?? 'Erro na API' }, { status: 500 })
+      const err = await response.json().catch(() => ({}))
+      const status = response.status
+      console.error(`Anthropic API ${status}:`, JSON.stringify(err))
+      const msg =
+        status === 401 ? 'ANTHROPIC_API_KEY inválida ou expirada.' :
+        status === 403 ? 'Sem permissão para usar este modelo.' :
+        status === 429 ? 'Limite de requisições atingido. Tente novamente em instantes.' :
+        err.error?.message ?? `Erro ${status} na API.`
+      return NextResponse.json({ error: msg }, { status: 500 })
     }
 
     const data = await response.json()

@@ -131,7 +131,7 @@ function TypingIndicator() {
 
 // ── Página principal ──────────────────────────────────────────
 export default function NutricaoPage() {
-  const { usuario } = useAuth()
+  const { usuario, session } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -225,7 +225,7 @@ export default function NutricaoPage() {
 
       const res = await fetch('/api/nutricao', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({ messages: history, contexto }),
       })
 

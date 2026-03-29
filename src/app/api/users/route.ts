@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireRole } from '@/lib/api/auth'
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -10,6 +11,9 @@ function getAdminClient() {
 }
 
 export async function POST(request: NextRequest) {
+  const [, authErr] = await requireRole(request, 'admin')
+  if (authErr) return authErr
+
   try {
     const supabase = getAdminClient()
     const body = await request.json()
@@ -73,6 +77,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const [, authErr] = await requireRole(request, 'admin')
+  if (authErr) return authErr
+
   try {
     const supabase = getAdminClient()
     const { usuario_id } = await request.json()
@@ -92,6 +99,9 @@ export async function DELETE(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const [, authErr] = await requireRole(request, 'admin')
+  if (authErr) return authErr
+
   try {
     const supabase = getAdminClient()
     const { searchParams } = new URL(request.url)

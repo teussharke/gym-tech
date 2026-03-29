@@ -48,7 +48,7 @@ type AIMode = 'none' | 'chat' | 'sugestao'
 
 export default function NovoTreinoPage() {
   const router = useRouter()
-  const { usuario } = useAuth()
+  const { usuario, session } = useAuth()
   const [step, setStep] = useState<Step>('info')
   const [alunos, setAlunos] = useState<AlunoSimples[]>([])
   const [saving, setSaving] = useState(false)
@@ -105,7 +105,7 @@ export default function NovoTreinoPage() {
     setSugestaoIA(null)
     try {
       const res = await fetch('/api/ia', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({
           tipo: 'sugerir_treino',
           dados: {
@@ -167,7 +167,7 @@ export default function NovoTreinoPage() {
     try {
       const aluno = alunos.find(a => a.id === treino.aluno_id)
       const res = await fetch('/api/ia', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({
           tipo: 'assistente_treino',
           dados: {

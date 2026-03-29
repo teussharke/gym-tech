@@ -278,7 +278,7 @@ function StartScreen({ treino, onStart }: { treino: Treino; onStart: () => void 
 }
 
 export default function TreinoAlunoPage() {
-  const { usuario } = useAuth()
+  const { usuario, session } = useAuth()
   const [treino, setTreino] = useState<Treino | null>(null)
   const [alunoId, setAlunoId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -429,7 +429,7 @@ export default function TreinoAlunoPage() {
     setSaving(true)
     try {
       const res = await fetch('/api/workouts/history', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({
           aluno_id: alunoId, treino_id: treino.id, academia_id: usuario.academia_id,
           exercicios_realizados: treino.exercicios.map(ex => {

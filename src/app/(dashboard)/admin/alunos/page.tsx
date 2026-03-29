@@ -46,7 +46,7 @@ const statusConfig: Record<string, { label: string; class: string }> = {
 }
 
 export default function AlunosPage() {
-  const { usuario } = useAuth()
+  const { usuario, session } = useAuth()
   const [alunos, setAlunos] = useState<Aluno[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -116,7 +116,7 @@ export default function AlunosPage() {
       // Exclui o usuário do Auth (cascade exclui tudo mais via RLS)
       const res = await fetch('/api/users', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({ usuario_id: confirmDelete.usuario_id }),
       })
       const data = await res.json()

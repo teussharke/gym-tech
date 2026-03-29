@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/api/auth'
+import { checkRateLimit } from '@/lib/api/rateLimit'
 
 export const runtime = 'nodejs'
 
@@ -27,6 +29,18 @@ interface AlunoContexto {
 }
 
 export async function POST(request: NextRequest) {
+  const [auth, authErr] = await requireAuth(request)
+  if (authErr) return authErr
+
+  // Rate limit: 60 req/hora por usuário
+  const rl = checkRateLimit(`nutricao:${auth.userId}`, 60, 60 * 60 * 1000)
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: `Limite de requisições atingido. Tente novamente em ${Math.ceil(rl.resetIn / 60000)} minutos.` },
+      { status: 429 }
+    )
+  }
+
   try {
     const body = await request.json()
     const { messages, contexto }: { messages: Message[]; contexto: AlunoContexto } = body
@@ -89,28 +103,41 @@ EXEMPLOS DE PERGUNTAS QUE VOCÊ RESPONDE:
 - Como perder gordura e ganhar músculo`
 
     // Chamar API da Anthropic
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
-      }),
-    })
+    let response: Response
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
+        }),
+      })
+    } catch (fetchErr) {
+      console.error('Fetch error (rede):', fetchErr)
+      return NextResponse.json(
+        { error: 'Não foi possível conectar à Anthropic. Verifique a conexão do servidor.' },
+        { status: 500 }
+      )
+    }
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}))
-      console.error('Anthropic API error:', err)
-      return NextResponse.json(
-        { error: err.error?.message ?? 'Erro ao chamar a IA. Verifique a ANTHROPIC_API_KEY.' },
-        { status: 500 }
-      )
+      const status = response.status
+      console.error(`Anthropic API ${status}:`, JSON.stringify(err))
+      // Mensagem amigável por código HTTP
+      const msg =
+        status === 401 ? 'ANTHROPIC_API_KEY inválida ou expirada. Gere uma nova chave em console.anthropic.com.' :
+        status === 403 ? 'Sem permissão para usar este modelo. Verifique o plano da sua conta Anthropic.' :
+        status === 429 ? 'Limite de requisições atingido. Aguarde alguns segundos e tente novamente.' :
+        err.error?.message ?? `Erro ${status} na API da Anthropic.`
+      return NextResponse.json({ error: msg }, { status: 500 })
     }
 
     const data = await response.json()
@@ -120,6 +147,9 @@ EXEMPLOS DE PERGUNTAS QUE VOCÊ RESPONDE:
 
   } catch (err) {
     console.error('Nutrição API error:', err)
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
+    return NextResponse.json(
+      { error: `Erro interno: ${err instanceof Error ? err.message : 'desconhecido'}` },
+      { status: 500 }
+    )
   }
 }

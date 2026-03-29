@@ -32,7 +32,7 @@ const todasEspecialidades = ['Musculação', 'Crossfit', 'Funcional', 'Pilates',
 type ModalState = { type: 'none' } | { type: 'view'; prof: Professor } | { type: 'form'; prof: Professor | null }
 
 export default function ProfessoresPage() {
-  const { usuario } = useAuth()
+  const { usuario, session } = useAuth()
   const [professores, setProfessores] = useState<Professor[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -89,7 +89,7 @@ export default function ProfessoresPage() {
       if (modal.type === 'form' && !modal.prof) {
         const res = await fetch('/api/users', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
           body: JSON.stringify({
             nome: form.nome, email: form.email, telefone: form.telefone,
             password: form.senha || '123456', role: 'professor',
@@ -137,7 +137,7 @@ export default function ProfessoresPage() {
     try {
       const res = await fetch('/api/users', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({ usuario_id: confirmDelete.usuario_id }),
       })
       const data = await res.json()

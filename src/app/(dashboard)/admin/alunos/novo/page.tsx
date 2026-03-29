@@ -11,7 +11,7 @@ type Step = 'dados' | 'plano' | 'confirmacao'
 
 export default function NovoAlunoPage() {
   const router = useRouter()
-  const { usuario } = useAuth()
+  const { usuario, session } = useAuth()
   const [step, setStep] = useState<Step>('dados')
   const [saving, setSaving] = useState(false)
   const [professores, setProfessores] = useState<{ id: string; nome: string }[]>([])
@@ -53,7 +53,7 @@ export default function NovoAlunoPage() {
     try {
       const res = await fetch('/api/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({
           nome: form.nome,
           email: form.email,

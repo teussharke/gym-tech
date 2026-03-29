@@ -15,7 +15,7 @@ interface Presenca {
 }
 
 export default function CheckinPage() {
-  const { usuario } = useAuth()
+  const { usuario, session } = useAuth()
   const [checkinHoje, setCheckinHoje] = useState(false)
   const [loading, setLoading] = useState(false)
   const [presencas, setPresencas] = useState<Presenca[]>([])
@@ -54,7 +54,7 @@ export default function CheckinPage() {
     try {
       const res = await fetch('/api/checkin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({ aluno_id: alunoId, academia_id: usuario.academia_id }),
       })
       const data = await res.json()

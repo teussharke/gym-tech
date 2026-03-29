@@ -78,7 +78,7 @@ interface SolicitacaoAvaliacao {
 }
 
 export default function AvaliacoesAlunoPage() {
-  const { usuario } = useAuth()
+  const { usuario, session } = useAuth()
   const [alunoId, setAlunoId] = useState<string | null>(null)
   const [academiaId, setAcademiaId] = useState<string | null>(null)
   const [avaliacoes, setAvaliacoes] = useState<Avaliacao[]>([])
@@ -215,7 +215,7 @@ export default function AvaliacoesAlunoPage() {
 
       const res = await fetch('/api/ia', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({
           tipo: 'analisar_evolucao',
           dados: {

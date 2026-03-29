@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/client'
+import { requireRole } from '@/lib/api/auth'
 
 export async function GET(request: NextRequest) {
+  const [, authErr] = await requireRole(request, 'admin', 'professor')
+  if (authErr) return authErr
+
   try {
     const supabase = createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
