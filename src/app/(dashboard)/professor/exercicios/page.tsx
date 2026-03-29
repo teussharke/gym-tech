@@ -41,44 +41,59 @@ function ExercicioCard({ exercicio, onPlay }: {
 }) {
   const [imgError, setImgError] = useState(false)
   const hasVideo = !!exercicio.youtube_url && !!extractYouTubeId(exercicio.youtube_url)
-  const thumbId = exercicio.youtube_url ? extractYouTubeId(exercicio.youtube_url) : null
-  const thumbUrl = thumbId ? `https://img.youtube.com/vi/${thumbId}/mqdefault.jpg` : null
+  const hasGif = !!exercicio.gif_url && !imgError
+  const searchUrl = getYouTubeSearchUrl(exercicio.youtube_search)
 
   return (
     <div className="card-hover overflow-hidden group">
-      {/* Thumbnail / Imagem */}
-      <div className="bg-gray-100 dark:bg-gray-700 h-36 flex items-center justify-center relative overflow-hidden">
-        {hasVideo && thumbUrl ? (
-          <>
-            <img src={thumbUrl} alt={exercicio.nome} className="w-full h-full object-cover" />
-            {/* Overlay play */}
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-              <button
-                onClick={() => onPlay(exercicio)}
-                className="w-12 h-12 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110 active:scale-95"
-                title="Assistir vídeo"
-              >
-                <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
-              </button>
-            </div>
-            <div className="absolute top-2 right-2">
-              <span className="bg-red-600 text-white text-xs px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
-                <Youtube className="w-3 h-3" /> Vídeo
-              </span>
-            </div>
-          </>
-        ) : exercicio.gif_url && !imgError ? (
+      {/* Foto sempre visível + overlay de vídeo/busca */}
+      <div className="bg-gray-100 dark:bg-gray-700 h-36 relative overflow-hidden">
+        {/* Camada de foto — gif/jpg do exercício */}
+        {hasGif ? (
           <img
-            src={exercicio.gif_url}
+            src={exercicio.gif_url!}
             alt={exercicio.nome}
             className="w-full h-full object-cover"
             onError={() => setImgError(true)}
           />
         ) : (
-          <div className="text-center">
-            <Dumbbell className="w-10 h-10 text-gray-300 dark:text-gray-500 mx-auto" />
-            <p className="text-xs text-gray-400 mt-1">Sem mídia</p>
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1">
+            <Dumbbell className="w-10 h-10 text-gray-300 dark:text-gray-500" />
+            <p className="text-xs text-gray-400">Sem foto</p>
           </div>
+        )}
+
+        {/* Gradient bottom */}
+        {hasGif && <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />}
+
+        {/* Badge vídeo e botão play quando tem YouTube URL */}
+        {hasVideo && (
+          <>
+            <div className="absolute top-2 right-2">
+              <span className="bg-red-600 text-white text-xs px-1.5 py-0.5 rounded font-bold flex items-center gap-1 shadow">
+                <Youtube className="w-3 h-3" /> Vídeo
+              </span>
+            </div>
+            <button
+              onClick={() => onPlay(exercicio)}
+              className="absolute bottom-2 left-1/2 -translate-x-1/2 w-10 h-10 bg-red-600/90 hover:bg-red-500 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110 active:scale-95 opacity-0 group-hover:opacity-100"
+              title="Assistir vídeo"
+            >
+              <Play className="w-4 h-4 text-white ml-0.5" fill="white" />
+            </button>
+          </>
+        )}
+
+        {/* Botão busca YouTube quando NÃO tem vídeo cadastrado */}
+        {!hasVideo && (
+          <a
+            href={searchUrl}
+            target="_blank" rel="noopener noreferrer"
+            className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/50 hover:bg-red-600 text-white text-xs px-2 py-1 rounded-md transition-colors opacity-0 group-hover:opacity-100 shadow"
+            title="Buscar no YouTube"
+          >
+            <Youtube className="w-3.5 h-3.5" />
+          </a>
         )}
 
         {/* Hover overlay com ações */}

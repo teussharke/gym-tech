@@ -601,54 +601,64 @@ export default function TreinoAlunoPage() {
               {nome}
             </h2>
 
-            {/* Vídeo / Imagem */}
-            {ex.exercicio?.youtube_url ? (
-              <button
-                onClick={() => setYoutubeModal({ url: ex.exercicio!.youtube_url!, nome })}
-                className="w-full rounded-2xl overflow-hidden relative group focus:outline-none"
-              >
-                {/* Thumbnail YouTube */}
-                {(() => {
-                  const vid = ex.exercicio.youtube_url?.match(/[?&]v=([^&]+)/)?.[1] ||
-                    ex.exercicio.youtube_url?.match(/youtu\.be\/([^?]+)/)?.[1] || null
-                  return vid ? (
-                    <img src={`https://img.youtube.com/vi/${vid}/mqdefault.jpg`} alt={nome}
-                      className="w-full h-44 object-cover" />
+            {/* Foto do exercício — sempre visível, com overlay de vídeo/busca */}
+            {(() => {
+              const youtubeUrl = ex.exercicio?.youtube_url ?? null
+              const gifUrl = ex.exercicio?.gif_url ?? null
+              const hasGif = !!gifUrl && !imgErr
+              const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`como fazer ${nome} academia execução correta`)}`
+
+              return (
+                <div className="rounded-2xl overflow-hidden relative h-44 bg-gray-100 dark:bg-gray-700 group">
+                  {/* Camada de foto — gif do exercício */}
+                  {hasGif ? (
+                    <img src={gifUrl!} alt={nome} className="w-full h-full object-cover"
+                      onError={() => setImgErr(true)} />
                   ) : (
-                    <div className="w-full h-44 bg-gray-900 flex items-center justify-center">
-                      <Youtube className="w-10 h-10 text-red-500" />
+                    /* Placeholder com gradiente quando não tem foto */
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900">
+                      <Dumbbell className="w-12 h-12 text-gray-300 dark:text-gray-600" />
+                      <p className="text-xs text-gray-400">{nome}</p>
                     </div>
-                  )
-                })()}
-                {/* Play overlay */}
-                <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors flex items-center justify-center">
-                  <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
-                    <Play className="w-7 h-7 text-white ml-1" fill="white" />
-                  </div>
+                  )}
+
+                  {/* Overlay escuro suave sempre presente */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+
+                  {/* Botão de play YouTube — quando há URL de vídeo */}
+                  {youtubeUrl && (
+                    <button
+                      onClick={() => setYoutubeModal({ url: youtubeUrl, nome })}
+                      className="absolute inset-0 flex items-center justify-center focus:outline-none"
+                      aria-label="Assistir vídeo"
+                    >
+                      <div className="w-16 h-16 bg-red-600/90 hover:bg-red-500 rounded-full flex items-center justify-center shadow-xl transition-transform group-hover:scale-110 active:scale-95">
+                        <Play className="w-7 h-7 text-white ml-1" fill="white" />
+                      </div>
+                    </button>
+                  )}
+
+                  {/* Badge YouTube no canto quando tem vídeo */}
+                  {youtubeUrl && (
+                    <div className="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded-md font-bold flex items-center gap-1 shadow">
+                      <Youtube className="w-3 h-3" /> Vídeo
+                    </div>
+                  )}
+
+                  {/* Botão de busca YouTube no canto — quando NÃO tem vídeo cadastrado */}
+                  {!youtubeUrl && (
+                    <a
+                      href={searchUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute bottom-2 right-2 flex items-center gap-1.5 bg-black/60 hover:bg-red-600 text-white text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors shadow"
+                    >
+                      <Youtube className="w-3.5 h-3.5" /> Ver no YouTube
+                    </a>
+                  )}
                 </div>
-                <div className="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded font-bold flex items-center gap-1">
-                  <Youtube className="w-3 h-3" /> Vídeo
-                </div>
-              </button>
-            ) : ex.exercicio?.gif_url && !imgErr ? (
-              <div className="rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-700 h-44">
-                <img src={ex.exercicio.gif_url} alt={nome} className="w-full h-full object-cover"
-                  onError={() => setImgErr(true)} />
-              </div>
-            ) : (
-              <div className="rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 h-32 flex flex-col items-center justify-center gap-2">
-                <Dumbbell className="w-10 h-10 text-gray-300 dark:text-gray-600" />
-                <button
-                  onClick={() => {
-                    const q = encodeURIComponent(`como fazer ${nome} academia execução correta`)
-                    window.open(`https://www.youtube.com/results?search_query=${q}`, '_blank')
-                  }}
-                  className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-400 font-medium"
-                >
-                  <Youtube className="w-4 h-4" /> Ver no YouTube
-                </button>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Info rápida */}
             <div className="grid grid-cols-3 gap-2">
