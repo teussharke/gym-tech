@@ -145,38 +145,46 @@ export default function NutricaoPage() {
   const fetchContexto = useCallback(async () => {
     if (!usuario?.id) return
     try {
-      const [alunoRes, anamnesesRes] = await Promise.all([
-        supabase.from('alunos').select(`
-          objetivos,
-          usuario:usuarios (nome),
-          plano:planos (nome)
-        `).eq('usuario_id', usuario.id).maybeSingle(),
-        supabase.from('anamneses').select(`
-          objetivo, nivel_atividade, tem_lesoes, lesoes_descricao,
-          doencas_preexistentes, medicamentos, horas_sono, nivel_estresse,
-          consome_alcool, intolerancia_alimentar, historico_dieta, refeicoes_por_dia
-        `).eq('usuario_id', usuario.id).eq('status', 'respondida').order('respondida_em', { ascending: false }).limit(1).maybeSingle(),
-      ])
+      // Busca dados do aluno
+      const { data: alunoData } = await supabase
+        .from('alunos')
+        .select('id, objetivos, usuario:usuarios (nome)')
+        .eq('usuario_id', usuario.id)
+        .maybeSingle()
 
-      const aluno = alunoRes.data as { objetivos: string | null; usuario: { nome: string } | null; plano: { nome: string } | null } | null
-      const anam = anamnesesRes.data
+      const aluno = alunoData as { id: string; objetivos: string | null; usuario: { nome: string } | null } | null
+
+      // Busca anamnese mais recente pelo aluno_id (não usuario_id)
+      // Colunas corretas conforme a migration: descricao_lesoes, nivel_stress, restricoes_alimentares
+      const { data: anam } = aluno?.id
+        ? await supabase
+            .from('anamneses')
+            .select(`
+              objetivo, nivel_atividade, tem_lesoes, descricao_lesoes,
+              doencas_preexistentes, medicamentos, horas_sono, nivel_stress,
+              consome_alcool, restricoes_alimentares
+            `)
+            .eq('aluno_id', aluno.id)
+            .eq('status', 'respondida')
+            .order('respondida_em', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : { data: null }
 
       setContexto({
         nome: (aluno?.usuario as unknown as { nome: string } | null)?.nome ?? usuario.nome,
-        objetivo: aluno?.objetivos ?? anam?.objetivo ?? undefined,
-        nivel: anam?.nivel_atividade ?? undefined,
-        tem_lesoes: anam?.tem_lesoes ?? undefined,
-        lesoes_descricao: anam?.lesoes_descricao ?? undefined,
-        doencas_preexistentes: anam?.doencas_preexistentes ?? undefined,
-        medicamentos: anam?.medicamentos ?? undefined,
-        horas_sono: anam?.horas_sono ?? undefined,
-        nivel_estresse: anam?.nivel_estresse ?? undefined,
-        consome_alcool: anam?.consome_alcool ?? undefined,
-        intolerancia_alimentar: anam?.intolerancia_alimentar ?? undefined,
-        historico_dieta: anam?.historico_dieta ?? undefined,
-        refeicoes_por_dia: anam?.refeicoes_por_dia ?? undefined,
+        objetivo: aluno?.objetivos ?? (anam as { objetivo?: string } | null)?.objetivo ?? undefined,
+        nivel: (anam as { nivel_atividade?: string } | null)?.nivel_atividade ?? undefined,
+        tem_lesoes: (anam as { tem_lesoes?: boolean } | null)?.tem_lesoes ?? undefined,
+        lesoes_descricao: (anam as { descricao_lesoes?: string } | null)?.descricao_lesoes ?? undefined,
+        doencas_preexistentes: (anam as { doencas_preexistentes?: string } | null)?.doencas_preexistentes ?? undefined,
+        medicamentos: (anam as { medicamentos?: string } | null)?.medicamentos ?? undefined,
+        horas_sono: (anam as { horas_sono?: number } | null)?.horas_sono ?? undefined,
+        nivel_estresse: String((anam as { nivel_stress?: number } | null)?.nivel_stress ?? '') || undefined,
+        consome_alcool: (anam as { consome_alcool?: boolean } | null)?.consome_alcool ?? undefined,
+        intolerancia_alimentar: (anam as { restricoes_alimentares?: string } | null)?.restricoes_alimentares ?? undefined,
       })
-    } catch { /* silencioso */ }
+    } catch { /* silencioso — contexto é opcional */ }
   }, [usuario?.id, usuario?.nome])
 
   useEffect(() => { fetchContexto() }, [fetchContexto])

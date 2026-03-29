@@ -14,6 +14,13 @@ import clsx from 'clsx'
 
 const workoutDays = ['A', 'B', 'C', 'D', 'E', 'F', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
 
+// Mapeia label de exibição → valor do enum workout_day no Postgres
+const DIA_TO_ENUM: Record<string, string> = {
+  'Segunda': 'segunda', 'Terça': 'terca', 'Quarta': 'quarta',
+  'Quinta': 'quinta', 'Sexta': 'sexta', 'Sábado': 'sabado', 'Domingo': 'domingo',
+}
+const toDbDia = (dia: string) => DIA_TO_ENUM[dia] ?? dia  // A-F passam direto
+
 interface ExercicioForm {
   id: string
   exercicio_id: string
@@ -198,7 +205,7 @@ export default function NovoTreinoPage() {
           nome: treino.nome,
           descricao: treino.descricao || null,
           objetivo: treino.objetivo || null,
-          dia_semana: treino.dia_semana || null,
+          dia_semana: treino.dia_semana ? toDbDia(treino.dia_semana) : null,
           ativo: true,
         })
         .select('id')

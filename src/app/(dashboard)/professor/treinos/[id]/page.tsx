@@ -14,6 +14,19 @@ import clsx from 'clsx'
 
 const workoutDays = ['A', 'B', 'C', 'D', 'E', 'F', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
 
+// Mapeia label de exibição → valor do enum workout_day no Postgres
+const DIA_TO_ENUM: Record<string, string> = {
+  'Segunda': 'segunda', 'Terça': 'terca', 'Quarta': 'quarta',
+  'Quinta': 'quinta', 'Sexta': 'sexta', 'Sábado': 'sabado', 'Domingo': 'domingo',
+}
+// Mapeia enum do banco → label de exibição (para carregar treino existente)
+const ENUM_TO_DIA: Record<string, string> = {
+  'segunda': 'Segunda', 'terca': 'Terça', 'quarta': 'Quarta',
+  'quinta': 'Quinta', 'sexta': 'Sexta', 'sabado': 'Sábado', 'domingo': 'Domingo',
+}
+const toDbDia = (dia: string) => DIA_TO_ENUM[dia] ?? dia
+const fromDbDia = (dia: string) => ENUM_TO_DIA[dia] ?? dia
+
 interface ExercicioForm {
   id: string            // UUID local para controle de UI
   db_id?: string        // ID real no banco (treino_exercicios.id)
@@ -83,7 +96,7 @@ export default function EditarTreinoPage() {
       setTreino({
         nome: tTyped.nome ?? '',
         aluno_id: tTyped.aluno_id ?? '',
-        dia_semana: tTyped.dia_semana ?? 'A',
+        dia_semana: fromDbDia(tTyped.dia_semana ?? 'A'),
         objetivo: tTyped.objetivo ?? '',
         descricao: tTyped.descricao ?? '',
       })
@@ -191,7 +204,7 @@ export default function EditarTreinoPage() {
         .from('treinos')
         .update({
           nome: treino.nome,
-          dia_semana: treino.dia_semana || null,
+          dia_semana: treino.dia_semana ? toDbDia(treino.dia_semana) : null,
           objetivo: treino.objetivo || null,
           descricao: treino.descricao || null,
           updated_at: new Date().toISOString(),

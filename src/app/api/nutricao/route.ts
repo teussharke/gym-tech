@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'Nutricionista IA não configurada. Adicione ANTHROPIC_API_KEY ao .env.local' },
+        { error: 'ANTHROPIC_API_KEY não configurada na Vercel. Vá em Settings → Environment Variables, adicione a chave e faça Redeploy.' },
         { status: 503 }
       )
     }
