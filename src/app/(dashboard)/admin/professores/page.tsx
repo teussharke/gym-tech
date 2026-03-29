@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { UserPlus, Search, Edit, Ban, CheckCircle2, Eye, Phone, Mail, GraduationCap, RefreshCw, Trash2, AlertTriangle } from 'lucide-react'
+import { UserPlus, Search, Edit, Ban, CheckCircle2, Eye, Phone, Mail, GraduationCap, RefreshCw, Trash2, AlertTriangle, ShieldCheck, ShieldOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import toast from 'react-hot-toast'
@@ -16,6 +16,7 @@ interface Professor {
   email: string
   telefone: string | null
   status: string
+  role: string
 }
 
 const especialidadeColors: Record<string, string> = {
@@ -61,7 +62,7 @@ export default function ProfessoresPage() {
 
       const usuarioIds = profs.map(p => p.usuario_id).filter(Boolean)
       const { data: usuarios } = await supabase
-        .from('usuarios').select('id, nome, email, telefone, status').in('id', usuarioIds)
+        .from('usuarios').select('id, nome, email, telefone, status, role').in('id', usuarioIds)
 
       const usuariosMap = Object.fromEntries((usuarios ?? []).map(u => [u.id, u]))
 
@@ -72,6 +73,7 @@ export default function ProfessoresPage() {
         email: usuariosMap[p.usuario_id]?.email ?? '',
         telefone: usuariosMap[p.usuario_id]?.telefone ?? null,
         status: usuariosMap[p.usuario_id]?.status ?? 'ativo',
+        role: usuariosMap[p.usuario_id]?.role ?? 'professor',
       })))
     } catch { toast.error('Erro ao carregar professores') }
     finally { setLoading(false) }
@@ -116,6 +118,16 @@ export default function ProfessoresPage() {
     const novo = prof.status === 'ativo' ? 'inativo' : 'ativo'
     await supabase.from('usuarios').update({ status: novo }).eq('id', prof.usuario_id)
     toast.success(`Professor ${novo === 'ativo' ? 'ativado' : 'desativado'}`)
+    fetchProfessores()
+  }
+
+  const alterarRole = async (prof: Professor) => {
+    const novoRole = prof.role === 'admin' ? 'professor' : 'admin'
+    const { error } = await supabase.from('usuarios').update({ role: novoRole }).eq('id', prof.usuario_id)
+    if (error) { toast.error('Erro ao alterar permissão'); return }
+    toast.success(novoRole === 'admin'
+      ? `${prof.nome} agora é Admin!`
+      : `${prof.nome} voltou a ser Professor`)
     fetchProfessores()
   }
 
@@ -184,9 +196,16 @@ export default function ProfessoresPage() {
                     <p className="text-xs text-gray-400">{prof.cref ?? 'CREF não informado'}</p>
                   </div>
                 </div>
-                <span className={prof.status === 'ativo' ? 'badge-success' : 'badge-gray'}>
-                  {prof.status === 'ativo' ? 'Ativo' : 'Inativo'}
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className={prof.status === 'ativo' ? 'badge-success' : 'badge-gray'}>
+                    {prof.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                  </span>
+                  {prof.role === 'admin' && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3" />Admin
+                    </span>
+                  )}
+                </div>
               </div>
 
               {prof.especialidades && prof.especialidades.length > 0 && (
@@ -206,6 +225,12 @@ export default function ProfessoresPage() {
                 <button onClick={() => setModal({ type: 'view', prof })} className="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1"><Eye className="w-3.5 h-3.5" />Ver</button>
                 <button onClick={() => { setForm({ nome: prof.nome, email: prof.email, telefone: prof.telefone ?? '', cref: prof.cref ?? '', especialidades: prof.especialidades ?? [], bio: prof.bio ?? '', senha: '' }); setModal({ type: 'form', prof }) }}
                   className="flex-1 btn-secondary text-xs py-1.5 flex items-center justify-center gap-1"><Edit className="w-3.5 h-3.5" />Editar</button>
+                <button
+                  onClick={() => alterarRole(prof)}
+                  title={prof.role === 'admin' ? 'Remover Admin' : 'Tornar Admin'}
+                  className={`btn-secondary text-xs py-1.5 px-2.5 ${prof.role === 'admin' ? 'text-purple-500' : 'text-gray-400 hover:text-purple-500'}`}>
+                  {prof.role === 'admin' ? <ShieldOff className="w-3.5 h-3.5" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                </button>
                 <button onClick={() => toggleStatus(prof)} className={`btn-secondary text-xs py-1.5 px-2.5 ${prof.status === 'ativo' ? 'text-amber-500' : 'text-green-500'}`}>
                   {prof.status === 'ativo' ? <Ban className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                 </button>

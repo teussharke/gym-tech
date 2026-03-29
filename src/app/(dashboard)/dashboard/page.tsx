@@ -6,12 +6,14 @@ import { supabase } from '@/lib/supabase/client'
 import {
   Users, UserCheck, AlertCircle, DollarSign, CheckSquare,
   TrendingUp, Dumbbell, Calendar, Trophy, ArrowRight,
-  Flame, Target, Clock, Activity,
+  Flame, Target, Clock, Activity, Bell, RefreshCw,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import { SkeletonDashboard } from '@/components/UIComponents'
+import { gerarNotificacoesVencimento } from '@/lib/notifications'
+import toast from 'react-hot-toast'
 
 // ── Admin Stats ─────────────────────────────────────────
 interface AdminStats {
@@ -76,6 +78,7 @@ export default function DashboardPage() {
   const [alunoStats, setAlunoStats] = useState<AlunoStats | null>(null)
   const [professorStats, setProfessorStats] = useState<ProfessorStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [checkingNotifs, setCheckingNotifs] = useState(false)
   const [alunosInadimplentes, setAlunosInadimplentes] = useState<{ nome: string; vencimento: string }[]>([])
 
   const fetchAdminStats = useCallback(async () => {
@@ -202,11 +205,31 @@ export default function DashboardPage() {
     })
   }, [usuario?.id])
 
+  const verificarPagamentos = async (silencioso = false) => {
+    if (!usuario?.academia_id || !usuario?.id) return
+    if (!silencioso) setCheckingNotifs(true)
+    try {
+      const { criadas } = await gerarNotificacoesVencimento(usuario.academia_id, usuario.id)
+      if (!silencioso) {
+        if (criadas > 0) toast.success(`${criadas} notificação${criadas > 1 ? 'ões' : ''} criada${criadas > 1 ? 's' : ''} sobre vencimentos`)
+        else toast('Nenhum vencimento próximo encontrado.', { icon: '✅' })
+      }
+    } catch {
+      if (!silencioso) toast.error('Erro ao verificar pagamentos')
+    } finally {
+      if (!silencioso) setCheckingNotifs(false)
+    }
+  }
+
   useEffect(() => {
     const load = async () => {
       setLoading(true)
       try {
-        if (role === 'admin') await fetchAdminStats()
+        if (role === 'admin') {
+          await fetchAdminStats()
+          // Verificação automática silenciosa ao abrir o dashboard
+          verificarPagamentos(true)
+        }
         else if (role === 'aluno') await fetchAlunoStats()
         else if (role === 'professor') await fetchProfessorStats()
       } catch {
@@ -216,6 +239,7 @@ export default function DashboardPage() {
       }
     }
     if (role) load()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, fetchAdminStats, fetchAlunoStats, fetchProfessorStats])
 
   const greeting = () => {
@@ -251,13 +275,27 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 page-enter">
       {/* Saudação */}
-      <div className="animate-fade-in">
-        <h1 className="page-title">
-          {greeting()}, {usuario?.nome.split(' ')[0]}! {role === 'aluno' ? '💪' : '👋'}
-        </h1>
-        <p className="page-subtitle capitalize">
-          {format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })}
-        </p>
+      <div className="animate-fade-in flex items-start justify-between gap-4">
+        <div>
+          <h1 className="page-title">
+            {greeting()}, {usuario?.nome.split(' ')[0]}! {role === 'aluno' ? '💪' : '👋'}
+          </h1>
+          <p className="page-subtitle capitalize">
+            {format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })}
+          </p>
+        </div>
+        {role === 'admin' && (
+          <button
+            onClick={() => verificarPagamentos(false)}
+            disabled={checkingNotifs}
+            title="Verificar vencimentos e gerar notificações"
+            className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/30 active:scale-95 transition-all disabled:opacity-50">
+            {checkingNotifs
+              ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              : <Bell className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">Verificar Pagamentos</span>
+          </button>
+        )}
       </div>
 
       {/* ── ADMIN STATS ── */}

@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, GraduationCap, Dumbbell, ClipboardList,
   BarChart3, CreditCard, CheckSquare, Settings, LogOut,
   ChevronRight, Activity, UserCircle, TrendingUp, Calendar,
-  Trophy, Bell, Menu, X, CalendarDays,
+  Trophy, Bell, Menu, X, CalendarDays, Smile, BarChart2, ClipboardCheck,
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -26,9 +26,14 @@ const navItems: NavItem[] = [
   { href: '/professor/exercicios',  label: 'Exercícios',  icon: Dumbbell,        roles: ['professor'] },
   { href: '/professor/treinos',     label: 'Treinos',     icon: ClipboardList,   roles: ['professor'] },
   { href: '/professor/avaliacoes',  label: 'Avaliações',  icon: Activity,        roles: ['professor'] },
+  { href: '/professor/feedbacks',   label: 'Feedbacks',   icon: Smile,           roles: ['professor'] },
+  { href: '/professor/anamneses',   label: 'Anamneses',   icon: ClipboardCheck,  roles: ['professor'] },
+  { href: '/admin/ocupacao',        label: 'Ocupação',    icon: BarChart2,       roles: ['admin'] },
   { href: '/aluno/treino',          label: 'Treino',      icon: Dumbbell,        roles: ['aluno'] },
   { href: '/aluno/historico',       label: 'Histórico',   icon: Calendar,        roles: ['aluno'] },
   { href: '/aluno/avaliacoes',      label: 'Avaliações',  icon: TrendingUp,      roles: ['aluno'] },
+  { href: '/aluno/ocupacao',        label: 'Ocupação',    icon: BarChart2,       roles: ['aluno'] },
+  { href: '/aluno/anamnese',        label: 'Anamnese',    icon: ClipboardCheck,  roles: ['aluno'] },
   { href: '/aluno/checkin',         label: 'Check-in',    icon: CheckSquare,     roles: ['aluno'] },
   { href: '/aluno/frequencia',      label: 'Frequência',  icon: Trophy,          roles: ['aluno'] },
 ]
