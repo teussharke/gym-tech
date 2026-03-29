@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState, memo } from 'react'
+import { useEffect, useState, memo, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/hooks/useAuth'
+import { supabase } from '@/lib/supabase/client'
 import {
   LayoutDashboard, Users, GraduationCap, Dumbbell, ClipboardList,
   BarChart3, CreditCard, CheckSquare, Settings, LogOut,
@@ -144,6 +145,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const { usuario, role, signOut, isLoading } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  const fetchUnread = useCallback(async () => {
+    if (!usuario?.id) return
+    const { count } = await supabase
+      .from('notificacoes')
+      .select('id', { count: 'exact', head: true })
+      .eq('usuario_id', usuario.id)
+      .eq('lida', false)
+    setUnreadCount(count ?? 0)
+  }, [usuario?.id])
+
+  // Busca notificações não lidas ao montar e escuta em tempo real
+  useEffect(() => {
+    fetchUnread()
+    const channel = supabase
+      .channel('notif-badge')
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'notificacoes',
+        filter: `usuario_id=eq.${usuario?.id}`,
+      }, () => fetchUnread())
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [fetchUnread, usuario?.id])
+
+  // Zera o badge quando o usuário visita a página de notificações
+  useEffect(() => {
+    if (pathname === '/notificacoes') fetchUnread()
+  }, [pathname, fetchUnread])
 
   useEffect(() => {
     if (!isLoading && !usuario) router.replace('/login')
@@ -234,8 +264,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-1">
             <Link href="/notificacoes" className="relative btn-ghost p-2 rounded-lg">
               <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
-                style={{ background: '#ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.6)' }} />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
+                  style={{ background: '#ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.6)' }} />
+              )}
             </Link>
             <button onClick={handleSignOut} className="btn-ghost p-2 rounded-lg lg:hidden"
               style={{ color: '#f87171' }} title="Sair">

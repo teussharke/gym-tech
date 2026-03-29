@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Activity, TrendingDown, TrendingUp, ChevronDown, ChevronUp, Sparkles, Loader2, Star, Plus, Calendar } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Activity, TrendingDown, TrendingUp, ChevronDown, ChevronUp, Sparkles, Loader2, Star, Plus, Calendar, Camera, Trash2, ImageOff } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
@@ -60,7 +60,15 @@ function getIMCLabel(imc: number) {
   return              { label: 'Obesidade',          color: 'text-red-500' }
 }
 
-type Tab = 'resumo' | 'graficos' | 'historico' | 'ia'
+type Tab = 'resumo' | 'graficos' | 'historico' | 'ia' | 'fotos'
+
+interface FotoProgresso {
+  id: string
+  url: string
+  tipo: string | null
+  data_foto: string
+  observacoes: string | null
+}
 
 interface HorarioDisponivel {
   id: string
@@ -95,6 +103,11 @@ export default function AvaliacoesAlunoPage() {
   const [ultimaAvaliacaoDias, setUltimaAvaliacaoDias] = useState<number | null>(null)
   const [selectedHorario, setSelectedHorario] = useState<string | null>(null)
   const [observacoes, setObservacoes] = useState('')
+  const [fotos, setFotos] = useState<FotoProgresso[]>([])
+  const [uploadingFoto, setUploadingFoto] = useState(false)
+  const [fotoTipo, setFotoTipo] = useState<string>('frente')
+  const [fotoViewer, setFotoViewer] = useState<FotoProgresso | null>(null)
+  const fotoInputRef = useRef<HTMLInputElement>(null)
 
   const fetchAlunoId = useCallback(async () => {
     if (!usuario?.id) return
@@ -144,6 +157,62 @@ export default function AvaliacoesAlunoPage() {
     }
   }, [alunoId])
 
+  const fetchFotos = useCallback(async () => {
+    if (!alunoId) return
+    const { data } = await supabase
+      .from('fotos_progresso')
+      .select('id, url, tipo, data_foto, observacoes')
+      .eq('aluno_id', alunoId)
+      .order('data_foto', { ascending: false })
+    setFotos((data as FotoProgresso[]) ?? [])
+  }, [alunoId])
+
+  const uploadFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !alunoId) return
+    if (file.size > 10 * 1024 * 1024) { toast.error('Foto deve ter no máximo 10MB'); return }
+    setUploadingFoto(true)
+    try {
+      const ext = file.name.split('.').pop() ?? 'jpg'
+      const path = `${alunoId}/${Date.now()}_${fotoTipo}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('fotos-progresso')
+        .upload(path, file, { upsert: false })
+      if (upErr) throw upErr
+      const { data: urlData } = supabase.storage.from('fotos-progresso').getPublicUrl(path)
+      const { error: dbErr } = await supabase.from('fotos_progresso').insert({
+        aluno_id: alunoId,
+        url: urlData.publicUrl,
+        tipo: fotoTipo,
+        data_foto: new Date().toISOString().split('T')[0],
+      })
+      if (dbErr) throw dbErr
+      toast.success('Foto enviada!')
+      fetchFotos()
+    } catch (err) {
+      toast.error('Erro ao enviar foto')
+      console.error(err)
+    } finally {
+      setUploadingFoto(false)
+      if (fotoInputRef.current) fotoInputRef.current.value = ''
+    }
+  }
+
+  const excluirFoto = async (foto: FotoProgresso) => {
+    try {
+      // Extrair path do storage a partir da URL pública
+      const url = new URL(foto.url)
+      const parts = url.pathname.split('/fotos-progresso/')
+      if (parts[1]) {
+        await supabase.storage.from('fotos-progresso').remove([parts[1]])
+      }
+      await supabase.from('fotos_progresso').delete().eq('id', foto.id)
+      setFotos(prev => prev.filter(f => f.id !== foto.id))
+      if (fotoViewer?.id === foto.id) setFotoViewer(null)
+      toast.success('Foto excluída')
+    } catch { toast.error('Erro ao excluir foto') }
+  }
+
   const fetchHorarios = useCallback(async () => {
     if (!academiaId) return
     try {
@@ -186,8 +255,9 @@ export default function AvaliacoesAlunoPage() {
     if (alunoId) {
       fetchAvaliacoes()
       fetchSolicitacoes()
+      fetchFotos()
     }
-  }, [alunoId, fetchAvaliacoes, fetchSolicitacoes])
+  }, [alunoId, fetchAvaliacoes, fetchSolicitacoes, fetchFotos])
   useEffect(() => { if (showModalSolicitacao) fetchHorarios() }, [showModalSolicitacao, fetchHorarios])
 
   const analisarComIA = async () => {
@@ -454,7 +524,16 @@ export default function AvaliacoesAlunoPage() {
     { key: 'resumo',    label: 'Resumo'    },
     { key: 'graficos',  label: 'Evolução'  },
     { key: 'historico', label: 'Histórico' },
+    { key: 'fotos',     label: '📸 Fotos'  },
     { key: 'ia',        label: '🤖 IA'     },
+  ]
+
+  const TIPOS_FOTO = [
+    { value: 'frente',           label: 'Frente'       },
+    { value: 'costas',           label: 'Costas'       },
+    { value: 'lateral_esquerda', label: 'Lateral E.'   },
+    { value: 'lateral_direita',  label: 'Lateral D.'   },
+    { value: 'outro',            label: 'Outro'        },
   ]
 
   const medidasLabels: { key: keyof MedidasCorporais; label: string }[] = [
@@ -799,6 +878,85 @@ export default function AvaliacoesAlunoPage() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* ── FOTOS DE PROGRESSO ── */}
+      {activeTab === 'fotos' && (
+        <div className="space-y-4">
+          {/* Viewer de foto em tela cheia */}
+          {fotoViewer && (
+            <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4"
+              onClick={() => setFotoViewer(null)}>
+              <img src={fotoViewer.url} alt={fotoViewer.tipo ?? 'Foto'}
+                className="max-h-[80vh] max-w-full rounded-xl object-contain" />
+              <div className="mt-3 flex items-center gap-3">
+                <span className="text-white text-sm capitalize">{fotoViewer.tipo?.replace(/_/g,' ')} — {new Date(fotoViewer.data_foto).toLocaleDateString('pt-BR')}</span>
+                <button onClick={e => { e.stopPropagation(); excluirFoto(fotoViewer) }}
+                  className="flex items-center gap-1 text-red-400 hover:text-red-300 text-sm bg-red-900/30 px-3 py-1.5 rounded-lg">
+                  <Trash2 className="w-3.5 h-3.5" /> Excluir
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Upload */}
+          <div className="card-base p-5 space-y-4">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+              <Camera className="w-4 h-4 text-orange-500" /> Adicionar Foto de Progresso
+            </h3>
+            <div className="flex gap-2 flex-wrap">
+              {TIPOS_FOTO.map(t => (
+                <button key={t.value} onClick={() => setFotoTipo(t.value)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    fotoTipo === t.value
+                      ? 'bg-orange-500 text-white shadow-sm'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <input ref={fotoInputRef} type="file" accept="image/*" capture="environment"
+              className="hidden" onChange={uploadFoto} />
+            <button
+              onClick={() => fotoInputRef.current?.click()}
+              disabled={uploadingFoto}
+              className="w-full btn-primary flex items-center justify-center gap-2 py-3">
+              {uploadingFoto
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
+                : <><Camera className="w-4 h-4" /> Tirar / Escolher Foto ({TIPOS_FOTO.find(t => t.value === fotoTipo)?.label})</>
+              }
+            </button>
+          </div>
+
+          {/* Galeria */}
+          {fotos.length === 0 ? (
+            <div className="card-base p-12 text-center space-y-3">
+              <ImageOff className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto" />
+              <p className="text-gray-400 text-sm">Nenhuma foto de progresso ainda.</p>
+              <p className="text-gray-400 text-xs">Registre fotos para acompanhar sua evolução visual!</p>
+            </div>
+          ) : (
+            <div className="card-base p-5 space-y-3">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                Galeria ({fotos.length} {fotos.length === 1 ? 'foto' : 'fotos'})
+              </h3>
+              <div className="grid grid-cols-3 gap-2">
+                {fotos.map(foto => (
+                  <button key={foto.id} onClick={() => setFotoViewer(foto)}
+                    className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 group">
+                    <img src={foto.url} alt={foto.tipo ?? 'Foto'}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all" />
+                    <span className="absolute bottom-1 left-1 text-white text-xs bg-black/50 px-1.5 py-0.5 rounded capitalize">
+                      {foto.tipo?.replace(/_/g,' ') ?? 'foto'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

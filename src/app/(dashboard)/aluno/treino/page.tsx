@@ -295,6 +295,7 @@ export default function TreinoAlunoPage() {
   const [feedbackSaving, setFeedbackSaving] = useState(false)
   const [historicoId, setHistoricoId] = useState<string | null>(null)
   const [youtubeModal, setYoutubeModal] = useState<{ url: string; nome: string } | null>(null)
+  const [ultimasCargas, setUltimasCargas] = useState<Record<string, number | null>>({})
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const touchStartX = useRef(0)
   const touchStartY = useRef(0)
@@ -346,8 +347,46 @@ export default function TreinoAlunoPage() {
     finally { setLoading(false) }
   }, [alunoId])
 
+  // Busca a última carga registrada para cada exercício
+  const fetchUltimasCargas = useCallback(async (exercicios: ExercicioTreino[]) => {
+    if (!alunoId || exercicios.length === 0) return
+    const ids = exercicios.map(e => e.exercicio?.id).filter(Boolean) as string[]
+    if (ids.length === 0) return
+    const { data } = await supabase
+      .from('registro_cargas')
+      .select('exercicio_id, carga_utilizada, data_registro')
+      .eq('aluno_id', alunoId)
+      .in('exercicio_id', ids)
+      .order('data_registro', { ascending: false })
+    if (!data) return
+    // Pegar a carga mais recente por exercício
+    const map: Record<string, number | null> = {}
+    for (const r of data) {
+      if (!map[r.exercicio_id]) map[r.exercicio_id] = r.carga_utilizada
+    }
+    setUltimasCargas(map)
+  }, [alunoId])
+
+  // Check-in automático silencioso ao iniciar treino
+  const autoCheckin = useCallback(async () => {
+    if (!alunoId || !usuario?.academia_id || !session?.access_token) return
+    try {
+      await fetch('/api/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ aluno_id: alunoId, academia_id: usuario.academia_id }),
+      })
+      // 409 = já fez check-in hoje → silencioso; outros erros também silenciosos (não bloqueia treino)
+    } catch { /* check-in é secundário — nunca bloqueia o treino */ }
+  }, [alunoId, usuario?.academia_id, session?.access_token])
+
   useEffect(() => { fetchAluno() }, [fetchAluno])
-  useEffect(() => { fetchTreino() }, [fetchTreino])
+  useEffect(() => {
+    if (alunoId) fetchTreino()
+  }, [fetchTreino, alunoId])
+  useEffect(() => {
+    if (treino) fetchUltimasCargas(treino.exercicios)
+  }, [treino, fetchUltimasCargas])
 
   // Timer countdown — depende APENAS de timerActive para não recriar interval a cada segundo
   useEffect(() => {
@@ -505,7 +544,15 @@ export default function TreinoAlunoPage() {
     </div>
   )
 
-  if (!started) return <StartScreen treino={treino} onStart={() => setStarted(true)} />
+  if (!started) return (
+    <StartScreen
+      treino={treino}
+      onStart={() => {
+        setStarted(true)
+        autoCheckin() // Check-in automático silencioso
+      }}
+    />
+  )
 
   // Tela de execução
   const totalConcluidos = Object.values(states).filter(s => s.concluido).length
@@ -683,12 +730,25 @@ export default function TreinoAlunoPage() {
             )}
 
             {/* ── SÉRIES INDIVIDUAIS ─────────────────────── */}
+            {(() => {
+              const exercicioId = ex.exercicio?.id
+              const ultimaCarga = exercicioId ? (ultimasCargas[exercicioId] ?? null) : null
+              return (
             <div className="space-y-1">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="w-4 h-4 text-orange-500" />
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Registrar séries — {ex.repeticoes} reps cada
-                </p>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-orange-500" />
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Registrar séries — {ex.repeticoes} reps cada
+                  </p>
+                </div>
+                {/* Badge última carga */}
+                {ultimaCarga !== null && (
+                  <span className="flex items-center gap-1 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-lg font-semibold">
+                    <TrendingUp className="w-3 h-3" />
+                    Última: {ultimaCarga}kg
+                  </span>
+                )}
               </div>
 
               {/* Cabeçalho colunas */}
@@ -729,7 +789,7 @@ export default function TreinoAlunoPage() {
                     type="number" inputMode="decimal"
                     value={serie.carga}
                     onChange={e => handleCarga(ex.id, si, e.target.value)}
-                    placeholder={ex.carga_sugerida?.toString() ?? '0'}
+                    placeholder={ultimaCarga !== null ? ultimaCarga.toString() : (ex.carga_sugerida?.toString() ?? '0')}
                     className={clsx(
                       'w-20 text-center font-black text-sm rounded-lg border px-2 py-2 transition-all',
                       'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600',
@@ -756,6 +816,8 @@ export default function TreinoAlunoPage() {
                 </div>
               ))}
             </div>
+              )
+            })()}
           </div>
         </div>
 
