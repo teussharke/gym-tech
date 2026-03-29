@@ -35,44 +35,36 @@ export default function ProfessorTreinosPage() {
   const [filtro, setFiltro] = useState<'todos' | 'ativos' | 'inativos'>('todos')
 
   const fetchTreinos = useCallback(async () => {
-    if (!usuario?.academia_id) {
-      setLoading(false)
-      return
-    }
+    if (!usuario?.academia_id) { setLoading(false); return }
     setLoading(true)
     try {
-      // Busca TODOS os treinos da academia (não só do professor logado)
-      const { data: treinosData, error } = await supabase
+      // JOIN direto: treinos → alunos → usuarios em uma única query (3→1 round-trip)
+      const { data, error } = await supabase
         .from('treinos')
-        .select('id, nome, dia_semana, duracao_estimada_min, ativo, aluno_id')
+        .select(`
+          id, nome, dia_semana, duracao_estimada_min, ativo, aluno_id,
+          aluno:alunos (
+            usuario:usuarios (nome)
+          )
+        `)
         .eq('academia_id', usuario.academia_id)
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      if (!treinosData?.length) { setTreinos([]); setLoading(false); return }
 
-      // Buscar nomes dos alunos
-      const alunoIds = [...new Set(treinosData.map(t => t.aluno_id))]
-      const { data: alunos } = await supabase
-        .from('alunos')
-        .select('id, usuario_id')
-        .in('id', alunoIds)
+      type TreinoRow = {
+        id: string; nome: string; dia_semana: string | null
+        duracao_estimada_min: number | null; ativo: boolean; aluno_id: string
+        aluno: { usuario: { nome: string } | null } | null
+      }
 
-      const usuarioIds = (alunos ?? []).map(a => a.usuario_id)
-      const { data: usuarios } = await supabase
-        .from('usuarios').select('id, nome').in('id', usuarioIds)
-
-      const alunoIdToNome: Record<string, string> = {}
-      ;(alunos ?? []).forEach(a => {
-        const u = (usuarios ?? []).find(u => u.id === a.usuario_id)
-        if (u) alunoIdToNome[a.id] = u.nome
-      })
-
-      setTreinos(treinosData.map(t => ({
-        ...t,
-        nomeAluno: alunoIdToNome[t.aluno_id] ?? 'Aluno desconhecido',
+      setTreinos(((data ?? []) as unknown as TreinoRow[]).map(t => ({
+        id: t.id, nome: t.nome, dia_semana: t.dia_semana,
+        duracao_estimada_min: t.duracao_estimada_min, ativo: t.ativo,
+        aluno_id: t.aluno_id,
+        nomeAluno: t.aluno?.usuario?.nome ?? 'Aluno desconhecido',
       })))
-    } catch (err) {
+    } catch {
       toast.error('Erro ao carregar treinos')
     } finally {
       setLoading(false)

@@ -54,46 +54,44 @@ export default function EditarTreinoPage() {
 
   // ── Carregar treino ──────────────────────────────────────
   const carregarTreino = useCallback(async () => {
-    if (!treinoId) {
-      setLoading(false)
-      return
-    }
+    if (!treinoId) { setLoading(false); return }
     setLoading(true)
     try {
-      // Busca treino
-      const { data: t, error } = await supabase
-        .from('treinos')
-        .select('id, nome, dia_semana, objetivo, descricao, aluno_id')
-        .eq('id', treinoId)
-        .single()
+      // Tudo em paralelo: treino+aluno+usuario JOIN + exercicios em paralelo
+      const [tResult, exResult] = await Promise.all([
+        supabase
+          .from('treinos')
+          .select(`
+            id, nome, dia_semana, objetivo, descricao, aluno_id,
+            aluno:alunos (usuario:usuarios (nome))
+          `)
+          .eq('id', treinoId)
+          .single(),
+        supabase
+          .from('treino_exercicios')
+          .select('id, exercicio_id, ordem, series, repeticoes, carga_sugerida, tempo_descanso_seg, observacoes')
+          .eq('treino_id', treinoId)
+          .order('ordem', { ascending: true }),
+      ])
 
+      const { data: t, error } = tResult
       if (error || !t) { toast.error('Treino não encontrado'); router.back(); return }
 
+      type TreinoComAluno = typeof t & { aluno: { usuario: { nome: string } | null } | null }
+      const tTyped = t as unknown as TreinoComAluno
+
       setTreino({
-        nome: t.nome ?? '',
-        aluno_id: t.aluno_id ?? '',
-        dia_semana: t.dia_semana ?? 'A',
-        objetivo: t.objetivo ?? '',
-        descricao: t.descricao ?? '',
+        nome: tTyped.nome ?? '',
+        aluno_id: tTyped.aluno_id ?? '',
+        dia_semana: tTyped.dia_semana ?? 'A',
+        objetivo: tTyped.objetivo ?? '',
+        descricao: tTyped.descricao ?? '',
       })
+      if (tTyped.aluno?.usuario?.nome) setNomeAluno(tTyped.aluno.usuario.nome)
 
-      // Busca nome do aluno
-      const { data: aluno } = await supabase
-        .from('alunos').select('usuario_id').eq('id', t.aluno_id).single()
-      if (aluno) {
-        const { data: usu } = await supabase
-          .from('usuarios').select('nome').eq('id', aluno.usuario_id).single()
-        if (usu) setNomeAluno(usu.nome)
-      }
+      const treinoExercicios = exResult.data ?? []
 
-      // Busca exercícios do treino
-      const { data: treinoExercicios } = await supabase
-        .from('treino_exercicios')
-        .select('id, exercicio_id, ordem, series, repeticoes, carga_sugerida, tempo_descanso_seg, observacoes')
-        .eq('treino_id', treinoId)
-        .order('ordem', { ascending: true })
-
-      if (treinoExercicios?.length) {
+      if (treinoExercicios.length) {
         const exIds = treinoExercicios.map(te => te.exercicio_id).filter((id): id is string => !!id)
         const exData = exIds.length > 0
           ? (await supabase.from('exercicios').select('id, nome, grupo_muscular').in('id', exIds)).data

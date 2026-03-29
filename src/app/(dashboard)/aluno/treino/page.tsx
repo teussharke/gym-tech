@@ -274,9 +274,16 @@ export default function TreinoAlunoPage() {
   const fetchAluno = useCallback(async () => {
     if (!usuario?.id) return
     try {
-      const { data } = await supabase.from('alunos').select('id').eq('usuario_id', usuario.id).single()
-      if (data) setAlunoId(data.id)
-      else setLoading(false)
+      // maybeSingle() não lança erro quando não encontra — apenas retorna null
+      const { data, error } = await supabase
+        .from('alunos').select('id').eq('usuario_id', usuario.id).maybeSingle()
+      if (error) throw error
+      if (data) {
+        setAlunoId(data.id)
+        // loading continua true — fetchTreino vai chamar setLoading(false)
+      } else {
+        setLoading(false) // aluno não existe para este usuário
+      }
     } catch { setLoading(false) }
   }, [usuario?.id])
 
@@ -314,18 +321,24 @@ export default function TreinoAlunoPage() {
   useEffect(() => { fetchAluno() }, [fetchAluno])
   useEffect(() => { fetchTreino() }, [fetchTreino])
 
-  // Timer countdown
+  // Timer countdown — depende APENAS de timerActive para não recriar interval a cada segundo
   useEffect(() => {
-    if (timerActive && timerSecs > 0) {
-      intervalRef.current = setInterval(() => {
-        setTimerSecs(s => {
-          if (s <= 1) { setTimerActive(false); clearInterval(intervalRef.current!); return 0 }
-          return s - 1
-        })
-      }, 1000)
+    if (!timerActive) {
+      clearInterval(intervalRef.current!)
+      return
     }
+    intervalRef.current = setInterval(() => {
+      setTimerSecs(s => {
+        if (s <= 1) {
+          setTimerActive(false)
+          clearInterval(intervalRef.current!)
+          return 0
+        }
+        return s - 1
+      })
+    }, 1000)
     return () => clearInterval(intervalRef.current!)
-  }, [timerActive, timerSecs])
+  }, [timerActive]) // ← só timerActive; timerSecs via functional update não precisa estar aqui
 
   const startTimer = (secs: number) => {
     clearInterval(intervalRef.current!)

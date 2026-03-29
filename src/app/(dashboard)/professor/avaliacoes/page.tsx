@@ -92,42 +92,29 @@ export default function AvaliacoesPage() {
     ? (Number(form.peso) / Math.pow(Number(form.altura) / 100, 2)).toFixed(1)
     : null
 
-  // Busca TODOS os alunos ativos da academia
+  // Busca TODOS os alunos ativos da academia — JOIN elimina round-trip extra
   const fetchAlunos = useCallback(async () => {
-    if (!usuario?.academia_id) {
-      setLoadingAlunos(false)
-      return
-    }
+    if (!usuario?.academia_id) { setLoadingAlunos(false); return }
     setLoadingAlunos(true)
     try {
-      const { data: alunosData } = await supabase
+      const { data, error } = await supabase
         .from('alunos')
-        .select('id, usuario_id, objetivos')
+        .select('id, objetivos, usuario:usuarios!inner (id, nome, status)')
         .eq('academia_id', usuario.academia_id)
+        .eq('usuarios.status', 'ativo')
 
-      if (!alunosData?.length) { setAlunos([]); setLoadingAlunos(false); return }
+      if (error) throw error
 
-      const usuarioIds = alunosData.map(a => a.usuario_id)
-      const { data: usuarios } = await supabase
-        .from('usuarios')
-        .select('id, nome, status')
-        .in('id', usuarioIds)
-        .eq('status', 'ativo')
+      type Row = { id: string; objetivos: string | null; usuario: { id: string; nome: string; status: string } }
 
-      const usuariosMap = Object.fromEntries((usuarios ?? []).map(u => [u.id, u]))
-
-      const alunosFull: AlunoSimples[] = alunosData
-        .filter(a => usuariosMap[a.usuario_id])
-        .map(a => ({
-          id: a.id,
-          nome: usuariosMap[a.usuario_id]?.nome ?? 'Sem nome',
-          objetivo: a.objetivos ?? null,
-        }))
+      const alunosFull: AlunoSimples[] = ((data ?? []) as unknown as Row[])
+        .filter(a => a.usuario?.status === 'ativo')
+        .map(a => ({ id: a.id, nome: a.usuario?.nome ?? 'Sem nome', objetivo: a.objetivos ?? null }))
         .sort((a, b) => a.nome.localeCompare(b.nome))
 
       setAlunos(alunosFull)
-    } catch (err) {
-      console.error('Erro ao buscar alunos:', err)
+    } catch {
+      setAlunos([])
     } finally {
       setLoadingAlunos(false)
     }

@@ -58,47 +58,41 @@ export default function AlunosPage() {
   const [editSaving, setEditSaving] = useState(false)
 
   const fetchAlunos = useCallback(async () => {
-    if (!usuario?.academia_id) {
-      setLoading(false)
-      return
-    }
+    if (!usuario?.academia_id) { setLoading(false); return }
     setLoading(true)
     try {
-      const { data: alunosData } = await supabase
+      // Uma única query com JOIN — elimina 2 round-trips sequenciais
+      const { data, error } = await supabase
         .from('alunos')
-        .select('id, usuario_id, matricula, data_vencimento, status_pagamento, plano_id, objetivos')
+        .select(`
+          id, usuario_id, matricula, data_vencimento, status_pagamento, objetivos,
+          usuario:usuarios (id, nome, email, telefone, status),
+          plano:planos (id, nome)
+        `)
         .eq('academia_id', usuario.academia_id)
         .order('created_at', { ascending: false })
 
-      if (!alunosData || alunosData.length === 0) { setAlunos([]); setLoading(false); return }
+      if (error) throw error
 
-      const usuarioIds = alunosData.map(a => a.usuario_id).filter(Boolean)
-      const planoIds = alunosData.map(a => a.plano_id).filter(Boolean)
-
-      const [{ data: usuarios }, { data: planos }] = await Promise.all([
-        supabase.from('usuarios').select('id, nome, email, telefone, status').in('id', usuarioIds),
-        planoIds.length > 0
-          ? supabase.from('planos').select('id, nome').in('id', planoIds)
-          : Promise.resolve({ data: [] }),
-      ])
-
-      const usuariosMap = Object.fromEntries((usuarios ?? []).map(u => [u.id, u]))
-      const planosMap = Object.fromEntries((planos ?? []).map(p => [p.id, p]))
-
-      setAlunos(alunosData.map(a => ({
-        id: a.id,
-        usuario_id: a.usuario_id,
-        matricula: a.matricula,
-        data_vencimento: a.data_vencimento,
-        status_pagamento: a.status_pagamento,
-        nome: usuariosMap[a.usuario_id]?.nome ?? 'Sem nome',
-        email: usuariosMap[a.usuario_id]?.email ?? '',
-        telefone: usuariosMap[a.usuario_id]?.telefone ?? null,
-        status_usuario: usuariosMap[a.usuario_id]?.status ?? 'ativo',
-        plano_nome: planosMap[a.plano_id]?.nome ?? null,
-        objetivos: (a as any).objetivos ?? null,
-      })))
-    } catch (err) {
+      type Row = typeof data extends (infer R)[] | null ? R : never
+      setAlunos((data ?? []).map((a: Row) => {
+        const u = a.usuario as unknown as { id: string; nome: string; email: string; telefone: string | null; status: string } | null
+        const p = a.plano as unknown as { id: string; nome: string } | null
+        return {
+          id: a.id,
+          usuario_id: a.usuario_id,
+          matricula: a.matricula,
+          data_vencimento: a.data_vencimento,
+          status_pagamento: a.status_pagamento,
+          nome: u?.nome ?? 'Sem nome',
+          email: u?.email ?? '',
+          telefone: u?.telefone ?? null,
+          status_usuario: u?.status ?? 'ativo',
+          plano_nome: p?.nome ?? null,
+          objetivos: a.objetivos ?? null,
+        }
+      }))
+    } catch {
       toast.error('Erro ao carregar alunos')
     } finally {
       setLoading(false)

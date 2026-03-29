@@ -50,90 +50,69 @@ export default function ProfessorAlunosPage() {
   const [editSaving, setEditSaving] = useState(false)
 
   const fetchAlunos = useCallback(async () => {
-    if (!usuario?.academia_id || !usuario?.id) {
-      setLoading(false)
-      return
-    }
+    if (!usuario?.academia_id || !usuario?.id) { setLoading(false); return }
     setLoading(true)
     try {
-      // Busca o professor logado
-      const { data: prof } = await supabase
-        .from('professores').select('id').eq('usuario_id', usuario.id).single()
-
       const mesInicio = startOfMonth(new Date()).toISOString()
 
-      // Busca TODOS os alunos da academia
+      // Tudo em paralelo: professor + alunos com joins + stats
       const [
-        { data: alunosData },
+        { data: prof },
+        { data: alunosData, error: alunosErr },
         { data: presencas },
         { data: treinos },
         { data: historico },
       ] = await Promise.all([
+        supabase.from('professores').select('id').eq('usuario_id', usuario.id).maybeSingle(),
+        // JOIN direto: elimina 2 round-trips sequenciais
         supabase.from('alunos')
-          .select('id, usuario_id, status_pagamento, objetivos, data_vencimento, plano_id, professor_id')
+          .select(`
+            id, usuario_id, status_pagamento, objetivos, data_vencimento, professor_id,
+            usuario:usuarios (id, nome, email, status),
+            plano:planos (id, nome)
+          `)
           .eq('academia_id', usuario.academia_id),
-        supabase.from('presencas')
-          .select('aluno_id')
-          .eq('academia_id', usuario.academia_id)
-          .gte('data_checkin', mesInicio),
-        supabase.from('treinos')
-          .select('aluno_id')
-          .eq('academia_id', usuario.academia_id)
-          .eq('ativo', true),
-        supabase.from('historico_treinos')
-          .select('aluno_id, data_treino')
-          .eq('academia_id', usuario.academia_id)
-          .order('data_treino', { ascending: false }),
+        supabase.from('presencas').select('aluno_id').eq('academia_id', usuario.academia_id).gte('data_checkin', mesInicio),
+        supabase.from('treinos').select('aluno_id').eq('academia_id', usuario.academia_id).eq('ativo', true),
+        supabase.from('historico_treinos').select('aluno_id, data_treino').eq('academia_id', usuario.academia_id).order('data_treino', { ascending: false }),
       ])
 
-      if (!alunosData?.length) { setAlunos([]); setLoading(false); return }
+      if (alunosErr) throw alunosErr
 
-      const usuarioIds = alunosData.map(a => a.usuario_id)
-      const planoIds = alunosData.map(a => a.plano_id).filter(Boolean)
-
-      const [{ data: usuarios }, { data: planos }] = await Promise.all([
-        supabase.from('usuarios').select('id, nome, email, status').in('id', usuarioIds),
-        planoIds.length > 0
-          ? supabase.from('planos').select('id, nome').in('id', planoIds)
-          : Promise.resolve({ data: [] }),
-      ])
-
-      const usuariosMap = Object.fromEntries((usuarios ?? []).map(u => [u.id, u]))
-      const planosMap   = Object.fromEntries((planos ?? []).map(p => [p.id, p]))
       const checkinsPorAluno: Record<string, number> = {}
       const treinosPorAluno: Record<string, number> = {}
       const ultimoTreinoPorAluno: Record<string, string> = {}
-
       ;(presencas ?? []).forEach(p => { checkinsPorAluno[p.aluno_id] = (checkinsPorAluno[p.aluno_id] ?? 0) + 1 })
       ;(treinos ?? []).forEach(t => { treinosPorAluno[t.aluno_id] = (treinosPorAluno[t.aluno_id] ?? 0) + 1 })
       ;(historico ?? []).forEach(h => { if (!ultimoTreinoPorAluno[h.aluno_id]) ultimoTreinoPorAluno[h.aluno_id] = h.data_treino })
 
-      const alunosFull: AlunoProf[] = alunosData
-        .filter(a => usuariosMap[a.usuario_id]) // apenas com usuário válido
+      type AlunoRow = { id: string; usuario_id: string; status_pagamento: string; objetivos: string | null; data_vencimento: string | null; professor_id: string | null; usuario: { id: string; nome: string; email: string; status: string } | null; plano: { id: string; nome: string } | null }
+
+      const alunosFull: AlunoProf[] = ((alunosData ?? []) as unknown as AlunoRow[])
+        .filter(a => a.usuario !== null)
         .map(a => ({
           id: a.id,
           usuario_id: a.usuario_id,
           status_pagamento: a.status_pagamento,
           objetivos: a.objetivos,
           data_vencimento: a.data_vencimento,
-          nome: usuariosMap[a.usuario_id]?.nome ?? 'Sem nome',
-          email: usuariosMap[a.usuario_id]?.email ?? '',
-          plano_nome: planosMap[a.plano_id]?.nome ?? null,
+          nome: a.usuario?.nome ?? 'Sem nome',
+          email: a.usuario?.email ?? '',
+          plano_nome: a.plano?.nome ?? null,
           checkins: checkinsPorAluno[a.id] ?? 0,
           treinos: treinosPorAluno[a.id] ?? 0,
           ultimoTreino: ultimoTreinoPorAluno[a.id] ?? null,
           isMeu: prof ? a.professor_id === prof.id : false,
         }))
         .sort((a, b) => {
-          // Meus alunos primeiro
           if (a.isMeu && !b.isMeu) return -1
           if (!a.isMeu && b.isMeu) return 1
           return a.nome.localeCompare(b.nome)
         })
 
       setAlunos(alunosFull)
-    } catch (err) {
-      console.error('Erro ao buscar alunos:', err)
+    } catch {
+      toast.error('Erro ao carregar alunos')
     } finally {
       setLoading(false)
     }

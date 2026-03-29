@@ -84,10 +84,10 @@ export default function DashboardPage() {
   const fetchAdminStats = useCallback(async () => {
     if (!usuario?.academia_id) return
     const id = usuario.academia_id
-
     const hoje = new Date().toISOString().split('T')[0]
     const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
 
+    // Inadimplentes com JOIN direto para nome — elimina round-trip extra
     const [
       { count: total },
       { count: ativos },
@@ -101,38 +101,36 @@ export default function DashboardPage() {
       supabase.from('alunos').select('*', { count: 'exact', head: true }).eq('academia_id', id).eq('status_pagamento', 'vencido'),
       supabase.from('presencas').select('*', { count: 'exact', head: true }).eq('academia_id', id).gte('data_checkin', `${hoje}T00:00:00`).lte('data_checkin', `${hoje}T23:59:59`),
       supabase.from('pagamentos').select('valor, valor_desconto').eq('academia_id', id).eq('status', 'pago').gte('data_pagamento', inicioMes),
-      supabase.from('alunos').select('usuario_id, data_vencimento').eq('academia_id', id).eq('status_pagamento', 'vencido').limit(5),
+      // JOIN: busca nome do aluno sem round-trip extra
+      supabase.from('alunos').select('data_vencimento, usuario:usuarios (nome)').eq('academia_id', id).eq('status_pagamento', 'vencido').limit(5),
     ])
 
     const faturamento = (pagamentos ?? []).reduce((s, p) => s + (p.valor - (p.valor_desconto || 0)), 0)
 
-    // Nomes dos inadimplentes
     if (inadList?.length) {
-      const usuIds = inadList.map(a => a.usuario_id)
-      const { data: usu } = await supabase.from('usuarios').select('id, nome').in('id', usuIds)
-      const map = Object.fromEntries((usu ?? []).map(u => [u.id, u.nome]))
-      setAlunosInadimplentes(inadList.map(a => ({
-        nome: map[a.usuario_id] ?? '—',
+      type InadRow = { data_vencimento: string | null; usuario: { nome: string } | null }
+      setAlunosInadimplentes((inadList as unknown as InadRow[]).map(a => ({
+        nome: a.usuario?.nome ?? '—',
         vencimento: a.data_vencimento ? format(new Date(a.data_vencimento), 'dd/MM') : '—',
       })))
     }
 
     setAdminStats({
-      totalAlunos: total ?? 0,
-      alunosAtivos: ativos ?? 0,
-      inadimplentes: inadimplentes ?? 0,
-      checkinHoje: checkins ?? 0,
+      totalAlunos: total ?? 0, alunosAtivos: ativos ?? 0,
+      inadimplentes: inadimplentes ?? 0, checkinHoje: checkins ?? 0,
       faturamentoMes: faturamento,
     })
   }, [usuario?.academia_id])
 
   const fetchAlunoStats = useCallback(async () => {
-    if (!usuario?.id) return
+    if (!usuario?.id || !usuario?.academia_id) return
 
-    const { data: aluno } = await supabase.from('alunos').select('id').eq('usuario_id', usuario.id).single()
-    if (!aluno) return
-
+    // Busca aluno_id e todas as stats em paralelo usando academia_id + usuario_id
     const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+
+    const { data: alunoRow } = await supabase
+      .from('alunos').select('id').eq('usuario_id', usuario.id).maybeSingle()
+    if (!alunoRow) return
 
     const [
       { data: presencas },
@@ -141,51 +139,39 @@ export default function DashboardPage() {
       { data: ultimaPresenca },
       { data: solicitacoes },
     ] = await Promise.all([
-      supabase.from('presencas').select('data_checkin').eq('aluno_id', aluno.id).gte('data_checkin', inicioMes),
-      supabase.from('historico_treinos').select('*', { count: 'exact', head: true }).eq('aluno_id', aluno.id),
-      supabase.from('treinos').select('nome, dia_semana').eq('aluno_id', aluno.id).eq('ativo', true).order('created_at', { ascending: false }).limit(1),
-      supabase.from('presencas').select('data_checkin').eq('aluno_id', aluno.id).order('data_checkin', { ascending: false }).limit(1),
-      supabase.from('solicitacoes_avaliacao').select('status, horarios_disponiveis(data_hora)').eq('aluno_id', aluno.id).in('status', ['pendente', 'aprovado']).order('created_at', { ascending: false }).limit(1),
+      supabase.from('presencas').select('data_checkin').eq('aluno_id', alunoRow.id).gte('data_checkin', inicioMes),
+      supabase.from('historico_treinos').select('*', { count: 'exact', head: true }).eq('aluno_id', alunoRow.id),
+      supabase.from('treinos').select('nome, dia_semana').eq('aluno_id', alunoRow.id).eq('ativo', true).order('created_at', { ascending: false }).limit(1),
+      supabase.from('presencas').select('data_checkin').eq('aluno_id', alunoRow.id).order('data_checkin', { ascending: false }).limit(1),
+      supabase.from('solicitacoes_avaliacao').select('status, horarios_disponiveis(data_hora)').eq('aluno_id', alunoRow.id).in('status', ['pendente', 'aprovado']).order('created_at', { ascending: false }).limit(1),
     ])
 
-    // Calcular sequência de dias consecutivos
     const diasComPresenca = new Set((presencas ?? []).map(p => p.data_checkin.split('T')[0]))
     let sequencia = 0
     const hoje = new Date()
     for (let i = 0; i < 30; i++) {
-      const d = new Date(hoje)
-      d.setDate(d.getDate() - i)
+      const d = new Date(hoje); d.setDate(d.getDate() - i)
       const ds = d.toISOString().split('T')[0]
       if (diasComPresenca.has(ds)) sequencia++
       else if (i > 0) break
     }
 
-    const solicitacao = solicitacoes?.[0] as any
-    let statusAvaliacao: 'pendente' | 'aprovado' | null = null
-    let proximaAvaliacao: string | null = null
-
-    if (solicitacao) {
-      statusAvaliacao = solicitacao.status as 'pendente' | 'aprovado'
-      if (solicitacao.horarios_disponiveis?.data_hora) {
-        proximaAvaliacao = solicitacao.horarios_disponiveis.data_hora
-      }
-    }
-
+    const solicitacao = solicitacoes?.[0] as { status: string; horarios_disponiveis?: { data_hora: string } | null } | undefined
     setAlunoStats({
-      checkinsMes: diasComPresenca.size,
-      totalTreinos: totalTreinos ?? 0,
+      checkinsMes: diasComPresenca.size, totalTreinos: totalTreinos ?? 0,
       proximoTreino: proximoTreino?.[0]?.nome ?? null,
       ultimoCheckin: ultimaPresenca?.[0]?.data_checkin ?? null,
       sequencia,
-      statusAvaliacao,
-      proximaAvaliacao,
+      statusAvaliacao: (solicitacao?.status as 'pendente' | 'aprovado' | null) ?? null,
+      proximaAvaliacao: solicitacao?.horarios_disponiveis?.data_hora ?? null,
     })
-  }, [usuario?.id])
+  }, [usuario?.id, usuario?.academia_id])
 
   const fetchProfessorStats = useCallback(async () => {
     if (!usuario?.id) return
 
-    const { data: prof } = await supabase.from('professores').select('id, academia_id').eq('usuario_id', usuario.id).single()
+    const { data: prof } = await supabase
+      .from('professores').select('id').eq('usuario_id', usuario.id).maybeSingle()
     if (!prof) return
 
     const [
@@ -199,9 +185,8 @@ export default function DashboardPage() {
     ])
 
     setProfessorStats({
-      totalAlunos: totalAlunos ?? 0,
-      solicitacoesPendentes: solicitacoesPendentes ?? 0,
-      proximosHorarios: (proximosHorarios as any) ?? [],
+      totalAlunos: totalAlunos ?? 0, solicitacoesPendentes: solicitacoesPendentes ?? 0,
+      proximosHorarios: (proximosHorarios as { data_hora: string; duracao_min: number }[]) ?? [],
     })
   }, [usuario?.id])
 
