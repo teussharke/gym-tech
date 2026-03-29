@@ -8,13 +8,35 @@ export interface Exercicio {
   nivel: 'Iniciante' | 'Intermediário' | 'Avançado'
   gif_url?: string
   youtube_search: string
+  youtube_url?: string  // URL direta do YouTube (ex: https://www.youtube.com/watch?v=XXXX)
+}
+
+// Extrai o video ID de uma URL do YouTube (watch, youtu.be ou embed)
+export function extractYouTubeId(url: string): string | null {
+  if (!url) return null
+  const patterns = [
+    /youtube\.com\/watch\?v=([^&\s]+)/,
+    /youtu\.be\/([^?\s]+)/,
+    /youtube\.com\/embed\/([^?\s]+)/,
+    /youtube\.com\/shorts\/([^?\s]+)/,
+  ]
+  for (const p of patterns) {
+    const m = url.match(p)
+    if (m) return m[1]
+  }
+  return null
+}
+
+export function getYouTubeEmbedUrl(url: string): string | null {
+  const id = extractYouTubeId(url)
+  return id ? `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&autoplay=1` : null
 }
 
 const BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises'
 
 // Abre busca do YouTube com o termo do exercício
 export function getYouTubeSearchUrl(termo: string): string {
-  const query = encodeURIComponent(`como fazer ${termo} academia`)
+  const query = encodeURIComponent(`como fazer ${termo} academia execução correta`)
   return `https://www.youtube.com/results?search_query=${query}`
 }
 

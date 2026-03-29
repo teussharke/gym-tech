@@ -1,19 +1,73 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Search, Edit, Trash2, Dumbbell, Video } from 'lucide-react'
-import { mockExercicios, gruposMusculares, grupoColors, nivelColors } from '@/lib/mock/exercicios'
+import { Plus, Search, Edit, Trash2, Dumbbell, Youtube, Play, X, ExternalLink } from 'lucide-react'
+import { mockExercicios, gruposMusculares, grupoColors, nivelColors, getYouTubeSearchUrl, extractYouTubeId, getYouTubeEmbedUrl } from '@/lib/mock/exercicios'
 
 const levels = ['Todos', 'Iniciante', 'Intermediário', 'Avançado']
 
-function ExercicioCard({ exercicio }: { exercicio: typeof mockExercicios[0] }) {
+// ── Player YouTube em modal ──────────────────────────────────
+function YouTubePlayerModal({ url, nome, onClose }: { url: string; nome: string; onClose: () => void }) {
+  const embedUrl = getYouTubeEmbedUrl(url)
+  if (!embedUrl) return null
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-white font-semibold text-lg">{nome}</h3>
+          <button onClick={onClose} className="text-white/70 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="relative w-full rounded-xl overflow-hidden shadow-2xl" style={{ paddingBottom: '56.25%' }}>
+          <iframe
+            src={embedUrl}
+            title={nome}
+            className="absolute inset-0 w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Card do exercício ────────────────────────────────────────
+function ExercicioCard({ exercicio, onPlay }: {
+  exercicio: typeof mockExercicios[0]
+  onPlay: (ex: typeof mockExercicios[0]) => void
+}) {
   const [imgError, setImgError] = useState(false)
+  const hasVideo = !!exercicio.youtube_url && !!extractYouTubeId(exercicio.youtube_url)
+  const thumbId = exercicio.youtube_url ? extractYouTubeId(exercicio.youtube_url) : null
+  const thumbUrl = thumbId ? `https://img.youtube.com/vi/${thumbId}/mqdefault.jpg` : null
 
   return (
     <div className="card-hover overflow-hidden group">
-      {/* Imagem */}
+      {/* Thumbnail / Imagem */}
       <div className="bg-gray-100 dark:bg-gray-700 h-36 flex items-center justify-center relative overflow-hidden">
-        {exercicio.gif_url && !imgError ? (
+        {hasVideo && thumbUrl ? (
+          <>
+            <img src={thumbUrl} alt={exercicio.nome} className="w-full h-full object-cover" />
+            {/* Overlay play */}
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+              <button
+                onClick={() => onPlay(exercicio)}
+                className="w-12 h-12 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110 active:scale-95"
+                title="Assistir vídeo"
+              >
+                <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
+              </button>
+            </div>
+            <div className="absolute top-2 right-2">
+              <span className="bg-red-600 text-white text-xs px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
+                <Youtube className="w-3 h-3" /> Vídeo
+              </span>
+            </div>
+          </>
+        ) : exercicio.gif_url && !imgError ? (
           <img
             src={exercicio.gif_url}
             alt={exercicio.nome}
@@ -23,16 +77,31 @@ function ExercicioCard({ exercicio }: { exercicio: typeof mockExercicios[0] }) {
         ) : (
           <div className="text-center">
             <Dumbbell className="w-10 h-10 text-gray-300 dark:text-gray-500 mx-auto" />
-            <p className="text-xs text-gray-400 mt-1">Sem imagem</p>
+            <p className="text-xs text-gray-400 mt-1">Sem mídia</p>
           </div>
         )}
-        {/* Overlay */}
+
+        {/* Hover overlay com ações */}
         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+          {hasVideo && (
+            <button
+              onClick={() => onPlay(exercicio)}
+              className="bg-red-600/90 hover:bg-red-500 text-white rounded-lg px-3 py-1.5 text-xs font-medium flex items-center gap-1.5"
+            >
+              <Play className="w-3.5 h-3.5" fill="white" /> Ver vídeo
+            </button>
+          )}
+          {!hasVideo && (
+            <a
+              href={getYouTubeSearchUrl(exercicio.youtube_search)}
+              target="_blank" rel="noopener noreferrer"
+              className="bg-red-600/90 hover:bg-red-500 text-white rounded-lg px-3 py-1.5 text-xs font-medium flex items-center gap-1.5"
+            >
+              <Youtube className="w-3.5 h-3.5" /> YouTube
+            </a>
+          )}
           <button className="bg-white/20 hover:bg-white/30 text-white rounded-lg px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 backdrop-blur-sm">
             <Edit className="w-3.5 h-3.5" /> Editar
-          </button>
-          <button className="bg-red-500/80 hover:bg-red-500 text-white rounded-lg px-3 py-1.5 text-xs font-medium flex items-center gap-1.5">
-            <Trash2 className="w-3.5 h-3.5" /> Excluir
           </button>
         </div>
       </div>
@@ -50,20 +119,129 @@ function ExercicioCard({ exercicio }: { exercicio: typeof mockExercicios[0] }) {
             {exercicio.nivel}
           </span>
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-          <Dumbbell className="w-3 h-3" />
-          {exercicio.equipamento}
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+            <Dumbbell className="w-3 h-3" />
+            {exercicio.equipamento}
+          </p>
+          {!hasVideo && (
+            <a
+              href={getYouTubeSearchUrl(exercicio.youtube_search)}
+              target="_blank" rel="noopener noreferrer"
+              className="text-xs text-red-500 hover:text-red-400 flex items-center gap-1 font-medium"
+              title="Buscar vídeo no YouTube"
+            >
+              <Youtube className="w-3.5 h-3.5" />
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
+// ── Formulário Novo Exercício ─────────────────────────────────
+function NovoExercicioModal({ onClose }: { onClose: () => void }) {
+  const [youtubeInput, setYoutubeInput] = useState('')
+  const previewId = youtubeInput ? extractYouTubeId(youtubeInput) : null
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Novo Exercício</h2>
+          <button onClick={onClose} className="btn-ghost p-1.5"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="label-base">Nome do exercício *</label>
+            <input type="text" className="input-base" placeholder="Ex: Supino Reto com Barra" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label-base">Grupo muscular *</label>
+              <select className="input-base">
+                {gruposMusculares.filter(g => g !== 'Todos').map(g => <option key={g}>{g}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label-base">Nível *</label>
+              <select className="input-base">
+                <option>Iniciante</option>
+                <option>Intermediário</option>
+                <option>Avançado</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="label-base">Equipamento</label>
+            <input type="text" className="input-base" placeholder="Ex: Barra, Halteres, Máquina" />
+          </div>
+
+          <div>
+            <label className="label-base">Descrição</label>
+            <textarea className="input-base resize-none" rows={3} placeholder="Descrição do exercício e dicas de execução..." />
+          </div>
+
+          {/* Campo YouTube URL */}
+          <div>
+            <label className="label-base flex items-center gap-2">
+              <Youtube className="w-4 h-4 text-red-500" />
+              URL do Vídeo no YouTube
+            </label>
+            <input
+              type="url"
+              className="input-base"
+              placeholder="https://www.youtube.com/watch?v=..."
+              value={youtubeInput}
+              onChange={e => setYoutubeInput(e.target.value)}
+            />
+            <p className="text-xs text-gray-400 mt-1">Cole a URL do vídeo que demonstra a execução correta.</p>
+          </div>
+
+          {/* Preview do vídeo */}
+          {previewId && (
+            <div>
+              <p className="label-base mb-2">Preview do vídeo</p>
+              <div className="relative w-full rounded-xl overflow-hidden bg-black" style={{ paddingBottom: '56.25%' }}>
+                <iframe
+                  src={`https://www.youtube-nocookie.com/embed/${previewId}?rel=0&modestbranding=1`}
+                  title="Preview"
+                  className="absolute inset-0 w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+          )}
+
+          {youtubeInput && !previewId && (
+            <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg p-2">
+              URL inválida. Use o formato: https://www.youtube.com/watch?v=XXXXXX
+            </p>
+          )}
+        </div>
+
+        <div className="p-5 border-t border-gray-100 dark:border-gray-700 flex gap-3">
+          <button onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
+          <button className="btn-primary flex-1">Salvar Exercício</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Página principal ─────────────────────────────────────────
 export default function ExerciciosPage() {
   const [search, setSearch] = useState('')
   const [selectedGroup, setSelectedGroup] = useState('Todos')
   const [selectedLevel, setSelectedLevel] = useState('Todos')
   const [showForm, setShowForm] = useState(false)
+  const [playingEx, setPlayingEx] = useState<typeof mockExercicios[0] | null>(null)
 
   const filtered = mockExercicios.filter(e => {
     const matchSearch =
@@ -75,12 +253,17 @@ export default function ExerciciosPage() {
     return matchSearch && matchGroup && matchLevel
   })
 
+  const comVideo = mockExercicios.filter(e => e.youtube_url).length
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="page-header">
         <div>
           <h1 className="page-title">Exercícios</h1>
-          <p className="page-subtitle">{mockExercicios.length} exercícios na biblioteca</p>
+          <p className="page-subtitle">
+            {mockExercicios.length} exercícios
+            {comVideo > 0 && <span className="text-red-500 font-medium"> · {comVideo} com vídeo</span>}
+          </p>
         </div>
         <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2 text-sm">
           <Plus className="w-4 h-4" />
@@ -89,6 +272,7 @@ export default function ExerciciosPage() {
         </button>
       </div>
 
+      {/* Filtros */}
       <div className="card-base p-4 space-y-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -127,7 +311,9 @@ export default function ExerciciosPage() {
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {filtered.map(e => <ExercicioCard key={e.id} exercicio={e} />)}
+        {filtered.map(e => (
+          <ExercicioCard key={e.id} exercicio={e} onPlay={setPlayingEx} />
+        ))}
       </div>
 
       {filtered.length === 0 && (
@@ -137,64 +323,17 @@ export default function ExerciciosPage() {
         </div>
       )}
 
-      {/* Modal novo exercício */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Novo Exercício</h2>
-              <button onClick={() => setShowForm(false)} className="btn-ghost p-1.5">✕</button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="label-base">Nome do exercício *</label>
-                <input type="text" className="input-base" placeholder="Ex: Supino Reto com Barra" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label-base">Grupo muscular *</label>
-                  <select className="input-base">
-                    {gruposMusculares.filter(g => g !== 'Todos').map(g => <option key={g}>{g}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label-base">Nível *</label>
-                  <select className="input-base">
-                    <option>Iniciante</option>
-                    <option>Intermediário</option>
-                    <option>Avançado</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="label-base">Equipamento</label>
-                <input type="text" className="input-base" placeholder="Ex: Barra, Halteres, Máquina" />
-              </div>
-              <div>
-                <label className="label-base">Descrição</label>
-                <textarea className="input-base resize-none" rows={3} placeholder="Descrição do exercício..." />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label-base">Imagem / GIF</label>
-                  <div className="border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-lg p-4 text-center cursor-pointer hover:border-primary-400 transition-colors">
-                    <Video className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-                    <p className="text-xs text-gray-400">Upload GIF/JPG</p>
-                  </div>
-                </div>
-                <div>
-                  <label className="label-base">Ou URL da imagem</label>
-                  <input type="url" className="input-base" placeholder="https://..." />
-                </div>
-              </div>
-            </div>
-            <div className="p-5 border-t border-gray-100 dark:border-gray-700 flex gap-3">
-              <button onClick={() => setShowForm(false)} className="btn-secondary flex-1">Cancelar</button>
-              <button className="btn-primary flex-1">Salvar Exercício</button>
-            </div>
-          </div>
-        </div>
+      {/* Modal player YouTube */}
+      {playingEx?.youtube_url && (
+        <YouTubePlayerModal
+          url={playingEx.youtube_url}
+          nome={playingEx.nome}
+          onClose={() => setPlayingEx(null)}
+        />
       )}
+
+      {/* Modal novo exercício */}
+      {showForm && <NovoExercicioModal onClose={() => setShowForm(false)} />}
     </div>
   )
 }

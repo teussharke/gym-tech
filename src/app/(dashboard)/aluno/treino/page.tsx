@@ -1,17 +1,17 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { CheckCircle2, Timer, Dumbbell, Info, X, ChevronLeft, ChevronRight, Zap, TrendingUp, Smile, Frown, Meh, MessageSquare, Pause, Play, RotateCcw, Target, Clock } from 'lucide-react'
+import { CheckCircle2, Timer, Dumbbell, Info, X, ChevronLeft, ChevronRight, Zap, TrendingUp, Smile, Frown, Meh, MessageSquare, Pause, Play, RotateCcw, Target, Clock, Youtube } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
-import { grupoColors } from '@/lib/mock/exercicios'
+import { grupoColors, getYouTubeSearchUrl, getYouTubeEmbedUrl } from '@/lib/mock/exercicios'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 
 interface ExercicioTreino {
   id: string; series: number; repeticoes: string; carga_sugerida: number | null
   tempo_descanso_seg: number; observacoes: string | null; ordem: number
-  exercicio: { id: string; nome: string; grupo_muscular: string | null; gif_url: string | null; equipamento: string | null } | null
+  exercicio: { id: string; nome: string; grupo_muscular: string | null; gif_url: string | null; youtube_url: string | null; equipamento: string | null } | null
 }
 interface Treino {
   id: string; nome: string; dia_semana: string | null; descricao: string | null
@@ -20,6 +20,33 @@ interface Treino {
 
 type SerieState = { carga: string; done: boolean }
 type ExState = { series: SerieState[]; concluido: boolean }
+
+// ── Modal YouTube player ─────────────────────────────────────
+function YouTubeModal({ url, nome, onClose }: { url: string; nome: string; onClose: () => void }) {
+  const embedUrl = getYouTubeEmbedUrl(url)
+  if (!embedUrl) return null
+  return (
+    <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Youtube className="w-5 h-5 text-red-500" />
+            <h3 className="text-white font-semibold">{nome}</h3>
+          </div>
+          <button onClick={onClose} className="text-white/70 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="relative w-full rounded-2xl overflow-hidden shadow-2xl" style={{ paddingBottom: '56.25%' }}>
+          <iframe src={embedUrl} title={nome} className="absolute inset-0 w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen />
+        </div>
+        <p className="text-xs text-white/40 mt-3 text-center">Toque fora para fechar</p>
+      </div>
+    </div>
+  )
+}
 
 // ── Feedback pós-treino ─────────────────────────────────────
 interface FeedbackData { cansaco: number; dor: number; dificuldade: number; comentario: string }
@@ -267,6 +294,7 @@ export default function TreinoAlunoPage() {
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedbackSaving, setFeedbackSaving] = useState(false)
   const [historicoId, setHistoricoId] = useState<string | null>(null)
+  const [youtubeModal, setYoutubeModal] = useState<{ url: string; nome: string } | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const touchStartX = useRef(0)
   const touchStartY = useRef(0)
@@ -296,7 +324,7 @@ export default function TreinoAlunoPage() {
         .select(`id, nome, dia_semana, descricao, duracao_estimada_min,
           exercicios:treino_exercicios (
             id, series, repeticoes, carga_sugerida, tempo_descanso_seg, observacoes, ordem,
-            exercicio:exercicios (id, nome, grupo_muscular, gif_url, equipamento)
+            exercicio:exercicios (id, nome, grupo_muscular, gif_url, youtube_url, equipamento)
           )`)
         .eq('aluno_id', alunoId).eq('ativo', true)
         .order('created_at', { ascending: false }).limit(1).single()
@@ -495,6 +523,10 @@ export default function TreinoAlunoPage() {
 
   return (
     <>
+      {/* Modal YouTube */}
+      {youtubeModal && (
+        <YouTubeModal url={youtubeModal.url} nome={youtubeModal.nome} onClose={() => setYoutubeModal(null)} />
+      )}
       {showFeedback && (
         <FeedbackModal onSave={saveFeedback} saving={feedbackSaving} />
       )}
@@ -569,8 +601,36 @@ export default function TreinoAlunoPage() {
               {nome}
             </h2>
 
-            {/* Imagem */}
-            {ex.exercicio?.gif_url && !imgErr ? (
+            {/* Vídeo / Imagem */}
+            {ex.exercicio?.youtube_url ? (
+              <button
+                onClick={() => setYoutubeModal({ url: ex.exercicio!.youtube_url!, nome })}
+                className="w-full rounded-2xl overflow-hidden relative group focus:outline-none"
+              >
+                {/* Thumbnail YouTube */}
+                {(() => {
+                  const vid = ex.exercicio.youtube_url?.match(/[?&]v=([^&]+)/)?.[1] ||
+                    ex.exercicio.youtube_url?.match(/youtu\.be\/([^?]+)/)?.[1] || null
+                  return vid ? (
+                    <img src={`https://img.youtube.com/vi/${vid}/mqdefault.jpg`} alt={nome}
+                      className="w-full h-44 object-cover" />
+                  ) : (
+                    <div className="w-full h-44 bg-gray-900 flex items-center justify-center">
+                      <Youtube className="w-10 h-10 text-red-500" />
+                    </div>
+                  )
+                })()}
+                {/* Play overlay */}
+                <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors flex items-center justify-center">
+                  <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                    <Play className="w-7 h-7 text-white ml-1" fill="white" />
+                  </div>
+                </div>
+                <div className="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                  <Youtube className="w-3 h-3" /> Vídeo
+                </div>
+              </button>
+            ) : ex.exercicio?.gif_url && !imgErr ? (
               <div className="rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-700 h-44">
                 <img src={ex.exercicio.gif_url} alt={nome} className="w-full h-full object-cover"
                   onError={() => setImgErr(true)} />
@@ -578,7 +638,15 @@ export default function TreinoAlunoPage() {
             ) : (
               <div className="rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 h-32 flex flex-col items-center justify-center gap-2">
                 <Dumbbell className="w-10 h-10 text-gray-300 dark:text-gray-600" />
-                <p className="text-xs text-gray-400">Sem imagem</p>
+                <button
+                  onClick={() => {
+                    const q = encodeURIComponent(`como fazer ${nome} academia execução correta`)
+                    window.open(`https://www.youtube.com/results?search_query=${q}`, '_blank')
+                  }}
+                  className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-400 font-medium"
+                >
+                  <Youtube className="w-4 h-4" /> Ver no YouTube
+                </button>
               </div>
             )}
 
