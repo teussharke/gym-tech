@@ -198,25 +198,32 @@ export default function AdminsPage() {
   const confirmarAlteracao = async () => {
     if (!confirmando) return
     setAlterando(true)
-    const novoRole = confirmando.role === 'admin'
-      ? (confirmando.role === 'admin' ? 'professor' : 'aluno') // fallback to professor if was admin
-      : 'admin'
 
-    // Define role de retorno baseado no tipo de usuário antes de virar admin
-    const roleFallback = confirmando.role === 'admin'
-      ? 'professor'   // admin volta a professor por padrão
-      : 'admin'
+    let novoRole: string
+    if (confirmando.role === 'admin') {
+      // Descobrir o papel original antes de ter virado admin
+      const [{ data: profData }, { data: alunoData }] = await Promise.all([
+        supabase.from('professores').select('id').eq('usuario_id', confirmando.id).maybeSingle(),
+        supabase.from('alunos').select('id').eq('usuario_id', confirmando.id).maybeSingle(),
+      ])
+      if (alunoData) novoRole = 'aluno'
+      else if (profData) novoRole = 'professor'
+      else novoRole = 'professor' // fallback seguro
+    } else {
+      novoRole = 'admin'
+    }
 
     const { error } = await supabase
       .from('usuarios')
-      .update({ role: roleFallback })
+      .update({ role: novoRole })
       .eq('id', confirmando.id)
 
     if (error) {
       toast.error('Erro ao alterar permissão')
     } else {
-      const acao = roleFallback === 'admin' ? 'agora é Admin' : 'não é mais Admin'
-      toast.success(`${confirmando.nome} ${acao}!`)
+      toast.success(novoRole === 'admin'
+        ? `${confirmando.nome} agora é Admin! 🛡️`
+        : `Acesso admin removido de ${confirmando.nome}`)
       fetchUsuarios()
     }
     setAlterando(false)

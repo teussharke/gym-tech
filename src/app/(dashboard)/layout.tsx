@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Users, GraduationCap, Dumbbell, ClipboardList,
   BarChart3, CreditCard, CheckSquare, Settings, LogOut,
   ChevronRight, Activity, UserCircle, TrendingUp, Calendar,
-  Trophy, Bell, Menu, X, CalendarDays, Smile, BarChart2, ClipboardCheck, Leaf,
+  Trophy, Bell, Menu, X, CalendarDays, Smile, BarChart2, ClipboardCheck, Leaf, ShieldCheck,
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -22,6 +22,7 @@ const navItems: NavItem[] = [
   { href: '/admin/financeiro',      label: 'Financeiro',  icon: CreditCard,      roles: ['admin'] },
   { href: '/admin/relatorios',      label: 'Relatórios',  icon: BarChart3,       roles: ['admin'] },
   { href: '/admin/configuracoes',   label: 'Config.',     icon: Settings,        roles: ['admin'] },
+  { href: '/admin/admins',          label: 'Acesso Admin', icon: ShieldCheck,     roles: ['admin'] },
   { href: '/professor/alunos',      label: 'Alunos',      icon: Users,           roles: ['professor'] },
   { href: '/professor/agenda',      label: 'Agenda',      icon: CalendarDays,    roles: ['professor'] },
   { href: '/professor/exercicios',  label: 'Exercícios',  icon: Dumbbell,        roles: ['professor'] },

@@ -32,7 +32,8 @@ export function getYouTubeEmbedUrl(url: string): string | null {
   return id ? `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&autoplay=1` : null
 }
 
-const BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises'
+// jsDelivr CDN = muito mais rápido e sem rate-limit vs raw.githubusercontent.com
+const BASE = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises'
 
 // Abre busca do YouTube com o termo do exercício
 export function getYouTubeSearchUrl(termo: string): string {
@@ -106,7 +107,7 @@ export const mockExercicios: Exercicio[] = [
 
   // ── TRÍCEPS ────────────────────────────────────────────
   { id: '54', nome: 'Tríceps Pulley Barra Reta',      grupo: 'Tríceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pushdown/0.jpg`,                                    youtube_search: 'tríceps pulley barra reta execução' },
-  { id: '55', nome: 'Tríceps Pulley Corda',           grupo: 'Tríceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Triceps_Pushdown_(Rope)/0.jpg`,                     youtube_search: 'tríceps pulley corda execução' },
+  { id: '55', nome: 'Tríceps Pulley Corda',           grupo: 'Tríceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Rope_Tricep_Pushdown/0.jpg`,                        youtube_search: 'tríceps pulley corda execução' },
   { id: '56', nome: 'Tríceps Francês com Barra',      grupo: 'Tríceps', equipamento: 'Barra',      nivel: 'Intermediário', gif_url: `${BASE}/Barbell_Lying_Triceps_Extension_Skull_Crusher/0.jpg`,     youtube_search: 'tríceps francês barra execução' },
   { id: '57', nome: 'Tríceps Francês com Halter',     grupo: 'Tríceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lying_Triceps_Extension/0.jpg`,                  youtube_search: 'tríceps francês halter execução' },
   { id: '58', nome: 'Tríceps Coice',                  grupo: 'Tríceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Kickback/0.jpg`,                                 youtube_search: 'tríceps coice halter execução' },
@@ -121,24 +122,24 @@ export const mockExercicios: Exercicio[] = [
   { id: '65', nome: 'Abdominal na Polia',             grupo: 'Abdômen', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crunch/0.jpg`,                                      youtube_search: 'abdominal polia execução' },
   { id: '66', nome: 'Elevação de Pernas na Barra',    grupo: 'Abdômen', equipamento: 'Barra Fixa', nivel: 'Intermediário', gif_url: `${BASE}/Hanging_Leg_Raise/0.jpg`,                                 youtube_search: 'elevação pernas barra fixa execução' },
   { id: '67', nome: 'Russian Twist',                  grupo: 'Abdômen', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Russian_Twist/0.jpg`,                                     youtube_search: 'russian twist execução' },
-  { id: '68', nome: 'Abdominal Bicicleta',            grupo: 'Abdômen', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Bicycle_Crunch/0.jpg`,                                    youtube_search: 'abdominal bicicleta execução' },
+  { id: '68', nome: 'Abdominal Bicicleta',            grupo: 'Abdômen', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Air_Bike/0.jpg`,                                          youtube_search: 'abdominal bicicleta execução' },
   { id: '69', nome: 'Mountain Climber',               grupo: 'Abdômen', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Mountain_Climber/0.jpg`,                                  youtube_search: 'mountain climber exercício execução' },
-  { id: '70', nome: 'Dead Bug',                       grupo: 'Abdômen', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'dead bug exercício abdominal execução' },
+  { id: '70', nome: 'Dead Bug',                       grupo: 'Abdômen', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Dead_Bug/0.jpg`,                                          youtube_search: 'dead bug exercício abdominal execução' },
 
   // ── CARDIO ─────────────────────────────────────────────
-  { id: '71', nome: 'Burpee',                         grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Intermediário', gif_url: `${BASE}/Burpee/0.jpg`,                                            youtube_search: 'burpee execução como fazer' },
-  { id: '72', nome: 'Jumping Jack',                   grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Jumping_Jack/0.jpg`,                                      youtube_search: 'jumping jack exercício execução' },
-  { id: '73', nome: 'Corda (Jump Rope)',              grupo: 'Cardio',  equipamento: 'Corda',      nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'pular corda corretamente' },
-  { id: '74', nome: 'Esteira',                        grupo: 'Cardio',  equipamento: 'Esteira',    nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'treino esteira iniciante' },
-  { id: '75', nome: 'Bicicleta Ergométrica',          grupo: 'Cardio',  equipamento: 'Bicicleta',  nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'bicicleta ergométrica posição correta' },
-  { id: '76', nome: 'Remo Ergométrico',               grupo: 'Cardio',  equipamento: 'Remo',       nivel: 'Intermediário', gif_url: undefined,                                                          youtube_search: 'remo ergométrico execução' },
+  { id: '71', nome: 'Burpee',                         grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Intermediário', gif_url: `${BASE}/Burpees/0.jpg`,                                           youtube_search: 'burpee execução como fazer' },
+  { id: '72', nome: 'Jumping Jack',                   grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Jumping_Jacks/0.jpg`,                                     youtube_search: 'jumping jack exercício execução' },
+  { id: '73', nome: 'Corda (Jump Rope)',              grupo: 'Cardio',  equipamento: 'Corda',      nivel: 'Iniciante',     gif_url: `${BASE}/Jump_Rope/0.jpg`,                                         youtube_search: 'pular corda corretamente' },
+  { id: '74', nome: 'Esteira',                        grupo: 'Cardio',  equipamento: 'Esteira',    nivel: 'Iniciante',     gif_url: `${BASE}/Running,_Treadmill/0.jpg`,                                youtube_search: 'treino esteira iniciante' },
+  { id: '75', nome: 'Bicicleta Ergométrica',          grupo: 'Cardio',  equipamento: 'Bicicleta',  nivel: 'Iniciante',     gif_url: `${BASE}/Stationary_Bike/0.jpg`,                                   youtube_search: 'bicicleta ergométrica posição correta' },
+  { id: '76', nome: 'Remo Ergométrico',               grupo: 'Cardio',  equipamento: 'Remo',       nivel: 'Intermediário', gif_url: `${BASE}/Rowing,_Seat_(2)/0.jpg`,                                  youtube_search: 'remo ergométrico execução' },
 
   // ── GLÚTEOS ────────────────────────────────────────────
   { id: '77', nome: 'Hip Thrust com Barra',           grupo: 'Glúteos', equipamento: 'Barra',      nivel: 'Intermediário', gif_url: `${BASE}/Barbell_Hip_Thrust/0.jpg`,                                youtube_search: 'hip thrust barra execução' },
   { id: '78', nome: 'Elevação Pélvica',               grupo: 'Glúteos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Glute_Bridge/0.jpg`,                                      youtube_search: 'elevação pélvica glúteo execução' },
   { id: '79', nome: 'Glúteo na Polia',                grupo: 'Glúteos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Through/0.jpg`,                                youtube_search: 'glúteo polia execução' },
   { id: '80', nome: 'Coice de Glúteo',                grupo: 'Glúteos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Donkey_Kicks/0.jpg`,                                      youtube_search: 'coice glúteo execução' },
-  { id: '81', nome: 'Abdução de Quadril em Pé',       grupo: 'Glúteos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'abdução quadril polia execução' },
+  { id: '81', nome: 'Abdução de Quadril em Pé',       grupo: 'Glúteos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Hip_Abduction/0.jpg`,                               youtube_search: 'abdução quadril polia execução' },
 ]
 
 export const gruposMusculares = [
