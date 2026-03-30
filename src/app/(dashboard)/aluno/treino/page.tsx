@@ -655,14 +655,21 @@ export default function TreinoAlunoPage() {
               const hasGif = !!gifUrl && !imgErr
               const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`como fazer ${nome} academia execução correta`)}`
 
+              // Extrai ID do vídeo para usar a thumbnail como fallback
+              const ytIdMatch = youtubeUrl?.match(/(?:v=|youtu\.be\/)([^&?\s]{11})/)
+              const ytThumbnail = ytIdMatch ? `https://img.youtube.com/vi/${ytIdMatch[1]}/mqdefault.jpg` : null
+
               return (
                 <div className="rounded-2xl overflow-hidden relative h-44 bg-gray-100 dark:bg-gray-700 group">
-                  {/* Camada de foto — gif do exercício */}
+                  {/* Camada de foto: gif > thumbnail YouTube > placeholder */}
                   {hasGif ? (
                     <img src={gifUrl!} alt={nome} className="w-full h-full object-cover"
                       onError={() => setImgErr(true)} />
+                  ) : ytThumbnail ? (
+                    /* Thumbnail do YouTube como fallback quando não há gif */
+                    <img src={ytThumbnail} alt={nome} className="w-full h-full object-cover" />
                   ) : (
-                    /* Placeholder com gradiente quando não tem foto */
+                    /* Placeholder com gradiente quando não tem foto nem vídeo */
                     <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900">
                       <Dumbbell className="w-12 h-12 text-gray-300 dark:text-gray-600" />
                       <p className="text-xs text-gray-400">{nome}</p>
