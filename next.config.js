@@ -8,6 +8,12 @@ const nextConfig = {
         port: '',
         pathname: '/storage/v1/object/public/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'cdn.jefit.com',
+        port: '',
+        pathname: '/assets/img/exercises/**',
+      },
     ],
   },
   experimental: {

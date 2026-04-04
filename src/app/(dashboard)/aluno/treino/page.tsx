@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { CheckCircle2, Timer, Dumbbell, Info, X, ChevronLeft, ChevronRight, Zap, TrendingUp, Smile, Frown, Meh, MessageSquare, Pause, Play, RotateCcw, Target, Clock, Youtube } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
-import { grupoColors, getYouTubeSearchUrl, getYouTubeEmbedUrl } from '@/lib/mock/exercicios'
+import { mockExercicios, grupoColors, getYouTubeSearchUrl, getYouTubeEmbedUrl } from '@/lib/mock/exercicios'
 import { AnimatedExerciseImage } from '@/components/UIComponents'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
@@ -658,7 +658,9 @@ export default function TreinoAlunoPage() {
             {/* Foto do exercício — sempre visível, com overlay de vídeo/busca */}
             {(() => {
               const youtubeUrl = ex.exercicio?.youtube_url ?? null
-              const gifUrl = ex.exercicio?.gif_url ?? null
+              // Fallback para mock se o banco estiver sem GIF
+              const mockEx = mockExercicios.find(m => m.nome === nome)
+              const gifUrl = ex.exercicio?.gif_url || mockEx?.gif_url || null
               const hasGif = !!gifUrl && !imgErr
               const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`como fazer ${nome} academia execução correta`)}`
 

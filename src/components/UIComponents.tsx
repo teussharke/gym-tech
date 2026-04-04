@@ -137,19 +137,29 @@ export function PWAInstallBanner() {
   )
 }
 
-// ── Animated Exercise Image (GIF Simulation) ─────────────
+// ── Animated Exercise Image ───────────────────────────────
+// Suporta GIFs nativos (JEFIT CDN) e o fallback antigo de frame 0/1 (free-exercise-db)
 export function AnimatedExerciseImage({ src, alt, onError, className }: { src: string; alt: string; onError?: () => void; className?: string }) {
   const [frame, setFrame] = useState(0)
+  const isOldFormat = src?.endsWith('0.jpg')
   
   useEffect(() => {
-    if (!src || !src.endsWith('0.jpg')) return
+    if (!isOldFormat) return
     const t = setInterval(() => setFrame(f => f === 0 ? 1 : 0), 1000)
     return () => clearInterval(t)
-  }, [src])
+  }, [isOldFormat])
   
-  const currentSrc = src && src.endsWith('0.jpg') ? src.replace('0.jpg', `${frame}.jpg`) : src
+  const currentSrc = isOldFormat ? src.replace('0.jpg', `${frame}.jpg`) : (src || '')
 
-  return <img src={currentSrc || ''} alt={alt} className={className || "w-full h-full object-cover"} onError={onError} />
+  return (
+    <img
+      src={currentSrc}
+      alt={alt}
+      className={className || "w-full h-full object-cover"}
+      onError={onError}
+      loading="lazy"
+    />
+  )
 }
 
 // ── Skeleton Components ──────────────────────────────────
