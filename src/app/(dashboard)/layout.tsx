@@ -178,7 +178,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!isLoading) {
       if (!usuario) {
-        router.replace('/login')
+        // Delay de segurança: dá tempo pro retry do fetchUsuario completar
+        // antes de redirecionar (evita loop de login)
+        const redirectTimer = setTimeout(() => {
+          // Verifica novamente se realmente não há sessão ativa
+          supabase.auth.getSession().then(({ data: { session } }) => {
+            if (!session) {
+              router.replace('/login')
+            } else {
+              // Há sessão mas não há usuario — força um refresh da página
+              console.warn('[Dashboard] Sessão ativa mas usuario null — recarregando...')
+              window.location.reload()
+            }
+          })
+        }, 2000)
+        return () => clearTimeout(redirectTimer)
       } else if (usuario.configuracoes && (usuario.configuracoes as any).primeiro_acesso) {
         router.replace('/primeiro-acesso')
       }

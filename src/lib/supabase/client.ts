@@ -9,6 +9,8 @@ export const supabase = createClient<any, 'public', any>(supabaseUrl, supabaseAn
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
+    // flowType implícito é mais estável com PWA
+    flowType: 'implicit',
   },
 })
 

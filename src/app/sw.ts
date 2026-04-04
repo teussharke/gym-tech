@@ -31,6 +31,23 @@ const serwist = new Serwist({
     // NÃO usar credentials:"include" — causaria CORS porque Supabase retorna
     // Access-Control-Allow-Origin: * (wildcard incompatível com credentials).
     // NetworkFirst já faz fallback para cache quando a rede falha.
+    // ── Supabase Auth: NUNCA cachear ──────────────────────────────────────
+    // Requisições de autenticação (token, session) devem SEMPRE ir pra rede.
+    // Cachear estas rotas causa loops de login com tokens stale.
+    {
+      matcher: ({ url }: { url: URL }) =>
+        url.hostname.includes("supabase.co") && url.pathname.includes("/auth/"),
+      handler: new NetworkFirst({
+        cacheName: "supabase-auth-nocache",
+        networkTimeoutSeconds: 10,
+        plugins: [
+          {
+            cacheWillUpdate: async () => null, // Nunca salva no cache
+          },
+        ],
+      }),
+    },
+    // ── Supabase REST API (dados, NÃO auth) ───────────────────────────────
     {
       matcher: ({ url }: { url: URL }) =>
         url.hostname.includes("supabase.co") && url.pathname.includes("/rest/"),

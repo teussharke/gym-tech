@@ -25,17 +25,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   const fetchUsuario = useCallback(async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('usuarios')
-        .select('*')
-        .eq('id', userId)
-        .single()
-      if (error) throw error
-      setUsuario(data)
-    } catch {
-      setUsuario(null)
+    // Retry com backoff — protege contra falhas transitórias de rede/lock
+    const MAX_RETRIES = 3
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const { data, error } = await supabase
+          .from('usuarios')
+          .select('*')
+          .eq('id', userId)
+          .single()
+        if (error) throw error
+        if (data) {
+          setUsuario(data)
+          return // sucesso
+        }
+      } catch (err) {
+        console.warn(`[useAuth] fetchUsuario tentativa ${attempt + 1}/${MAX_RETRIES} falhou:`, err)
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, 500 * (attempt + 1)))
+        }
+      }
     }
+    // Todas as tentativas falharam — mantém null
+    console.error('[useAuth] fetchUsuario falhou após todas as tentativas')
+    setUsuario(null)
   }, [])
 
   const refreshUser = useCallback(async () => {
@@ -56,6 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
+        console.log('[useAuth] onAuthStateChange:', event, !!session)
 
         try {
           setSession(session)
@@ -74,9 +88,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             setUsuario(null)
           }
-        } catch {
-          // Garante que o loading sempre finaliza mesmo com erro inesperado
-          if (mounted) setUsuario(null)
+        } catch (err) {
+          console.error('[useAuth] Erro no onAuthStateChange:', err)
+          // NÃO limpa o usuário se já existia — evita loop de redirect
+          if (mounted && !usuario) setUsuario(null)
         } finally {
           if (mounted) {
             clearTimeout(safetyTimeout)
