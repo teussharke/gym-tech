@@ -4,31 +4,69 @@ import { useEffect } from 'react'
 
 export default function PWARegister() {
   useEffect(() => {
-    // O Serwist (@serwist/next) já injeta o registro do SW automaticamente
-    // no build de produção. Este componente apenas cuida do tratamento
-    // de atualizações quando o SW fica descontrolado.
-
     if (!('serviceWorker' in navigator)) return
 
+    // Limpa todos os SWs com falha de precache e caches corrompidos
+    // Isso evita o loop infinito causado por bad-precaching-response
+    const cleanupBrokenSW = async () => {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        for (const reg of registrations) {
+          // Se o SW está instalando mas nunca ativou (stuck), remove
+          if (reg.installing && !reg.active) {
+            await reg.unregister()
+            console.log('[PWA] Removido SW travado em instalação')
+          }
+        }
+
+        // Limpa caches antigos do Serwist que podem ter entradas 404
+        const cacheKeys = await caches.keys()
+        for (const key of cacheKeys) {
+          // Caches do serwist com build ID antigo
+          if (key.startsWith('serwist-precache') || key.startsWith('next-')) {
+            // Verifica se o cache tem entradas ruins
+            const cache = await caches.open(key)
+            const entries = await cache.keys()
+            let hasStale = false
+            for (const entry of entries) {
+              if (entry.url.includes('_ssgManifest') || entry.url.includes('_buildManifest')) {
+                hasStale = true
+                break
+              }
+            }
+            if (hasStale) {
+              await caches.delete(key)
+              console.log('[PWA] Cache antigo removido:', key)
+            }
+          }
+        }
+      } catch (e) {
+        // Silencia falhas de limpeza
+      }
+    }
+
+    cleanupBrokenSW()
+
+    // Recarrega APENAS quando um SW novo e saudável assume o controle
+    // Usa um flag para evitar loop: só recarrega uma vez por sessão
+    let reloaded = false
     const handleControllerChange = () => {
-      // Quando um novo SW assume o controle, recarrega para evitar
-      // cache velho servindo a página
-      window.location.reload()
+      if (!reloaded && navigator.serviceWorker.controller) {
+        reloaded = true
+        window.location.reload()
+      }
     }
 
     navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange)
 
-    // Verifica se há um SW instalado e limpa caches problemáticos
+    // Verifica atualizações a cada 5 minutos
     navigator.serviceWorker.ready.then((registration) => {
-      // Verifica atualizações a cada 5 minutos
       const interval = setInterval(() => {
-        registration.update().catch(() => {
-          // Silencia erros de rede ao verificar atualizações
-        })
+        registration.update().catch(() => {})
       }, 5 * 60 * 1000)
 
       return () => clearInterval(interval)
-    })
+    }).catch(() => {})
 
     return () => {
       navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange)
@@ -37,3 +75,4 @@ export default function PWARegister() {
 
   return null
 }
+
