@@ -49,15 +49,17 @@ export default function LoginPage() {
       }
 
       if (data.session) {
-        const { data: usuarioRecord } = await supabase
+        const queryRes = await supabase
           .from('usuarios')
           .select('configuracoes')
-          .eq('id', data.session.user.id)
+          .eq('id', data.session?.user?.id)
           .single()
+          
+        const usuarioRecord = queryRes.data as unknown as { configuracoes: any } | null
 
         await new Promise(r => setTimeout(r, 300))
 
-        if (usuarioRecord?.configuracoes && (usuarioRecord.configuracoes as any).primeiro_acesso) {
+        if (usuarioRecord?.configuracoes && usuarioRecord.configuracoes.primeiro_acesso) {
           router.replace('/primeiro-acesso')
         } else {
           router.replace('/dashboard')
