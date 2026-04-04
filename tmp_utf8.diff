@@ -1,0 +1,1213 @@
+﻿commit b57650fe95a7b18d48bfd9baa0ffd6b1ee6b5536
+Author: Mateus Oliveira <teussharke@gmail.com>
+Date:   Sat Apr 4 09:47:12 2026 -0300
+
+    feat: implement workout tracking page with timer, exercise feedback, and database sync script
+
+diff --git a/src/lib/mock/exercicios.ts b/src/lib/mock/exercicios.ts
+index 15c0de2..93ac5bc 100644
+--- a/src/lib/mock/exercicios.ts
++++ b/src/lib/mock/exercicios.ts
+@@ -32,8 +32,13 @@ export function getYouTubeEmbedUrl(url: string): string | null {
+   return id ? `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&autoplay=1` : null
+ }
+ 
+-// jsDelivr CDN = muito mais r├ípido e sem rate-limit vs raw.githubusercontent.com
+-const BASE = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises'
++// ÔöÇÔöÇ JEFIT CDN ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++// GIFs animados gratuitos do JEFIT Exercise Database
++// Padr├úo: https://cdn.jefit.com/assets/img/exercises/gifs/{JEFIT_ID}.gif
++const JEFIT = (id: number) => `https://cdn.jefit.com/assets/img/exercises/gifs/${id}.gif`
++
++// Fallback: imagens est├íticas do free-exercise-db (caso JEFIT falhe)
++const FALLBACK = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises'
+ 
+ // Abre busca do YouTube com o termo do exerc├¡cio
+ export function getYouTubeSearchUrl(termo: string): string {
+@@ -43,103 +48,103 @@ export function getYouTubeSearchUrl(termo: string): string {
+ 
+ export const mockExercicios: Exercicio[] = [
+   // ÔöÇÔöÇ PEITO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '1',  nome: 'Supino Reto com Barra',          grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bench_Press_-_Medium_Grip/0.jpg`,                 youtube_search: 'supino reto barra execu├º├úo' },
+-  { id: '2',  nome: 'Supino Inclinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Incline_Bench_Press_-_Medium_Grip/0.jpg`,         youtube_search: 'supino inclinado barra execu├º├úo' },
+-  { id: '3',  nome: 'Supino Declinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Decline_Bench_Press/0.jpg`,                       youtube_search: 'supino declinado barra execu├º├úo' },
+-  { id: '4',  nome: 'Supino Reto com Halteres',       grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bench_Press/0.jpg`,                              youtube_search: 'supino reto halteres execu├º├úo' },
+-  { id: '5',  nome: 'Supino Inclinado com Halteres',  grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Bench_Press/0.jpg`,                      youtube_search: 'supino inclinado halteres execu├º├úo' },
+-  { id: '6',  nome: 'Crucifixo com Halteres',         grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Flyes/0.jpg`,                                    youtube_search: 'crucifixo halteres execu├º├úo' },
+-  { id: '7',  nome: 'Crucifixo Inclinado',            grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Flyes/0.jpg`,                            youtube_search: 'crucifixo inclinado halteres execu├º├úo' },
+-  { id: '8',  nome: 'Crossover Polia Alta',           grupo: 'Peito',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crossover/0.jpg`,                                   youtube_search: 'crossover polia peito execu├º├úo' },
+-  { id: '9',  nome: 'Flex├úo de Bra├ºo',                grupo: 'Peito',   equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Push-up/0.jpg`,                                           youtube_search: 'flex├úo de bra├ºo execu├º├úo correta' },
+-  { id: '10', nome: 'Peck Deck (Voador)',              grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Pec_Deck_Fly/0.jpg`,                                      youtube_search: 'peck deck voador peito execu├º├úo' },
+-  { id: '11', nome: 'Mergulho no Paralelo',           grupo: 'Peito',   equipamento: 'Paralelo',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dips_-_Chest_Version/0.jpg`,                              youtube_search: 'mergulho paralelo peito execu├º├úo' },
+-  { id: '12', nome: 'Chest Press na M├íquina',         grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Chest_Press/0.jpg`,                                 youtube_search: 'chest press m├íquina execu├º├úo' },
++  { id: '1',  nome: 'Supino Reto com Barra',          grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(2),   youtube_search: 'supino reto barra execu├º├úo' },
++  { id: '2',  nome: 'Supino Inclinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(5),   youtube_search: 'supino inclinado barra execu├º├úo' },
++  { id: '3',  nome: 'Supino Declinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(3),   youtube_search: 'supino declinado barra execu├º├úo' },
++  { id: '4',  nome: 'Supino Reto com Halteres',       grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(26),  youtube_search: 'supino reto halteres execu├º├úo' },
++  { id: '5',  nome: 'Supino Inclinado com Halteres',  grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(31),  youtube_search: 'supino inclinado halteres execu├º├úo' },
++  { id: '6',  nome: 'Crucifixo com Halteres',         grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(27),  youtube_search: 'crucifixo halteres execu├º├úo' },
++  { id: '7',  nome: 'Crucifixo Inclinado',            grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(30),  youtube_search: 'crucifixo inclinado halteres execu├º├úo' },
++  { id: '8',  nome: 'Crossover Polia Alta',           grupo: 'Peito',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: JEFIT(73),  youtube_search: 'crossover polia peito execu├º├úo' },
++  { id: '9',  nome: 'Flex├úo de Bra├ºo',                grupo: 'Peito',   equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: JEFIT(232), youtube_search: 'flex├úo de bra├ºo execu├º├úo correta' },
++  { id: '10', nome: 'Peck Deck (Voador)',              grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: JEFIT(45),  youtube_search: 'peck deck voador peito execu├º├úo' },
++  { id: '11', nome: 'Mergulho no Paralelo',           grupo: 'Peito',   equipamento: 'Paralelo',   nivel: 'Intermedi├írio', gif_url: JEFIT(177), youtube_search: 'mergulho paralelo peito execu├º├úo' },
++  { id: '12', nome: 'Chest Press na M├íquina',         grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: JEFIT(44),  youtube_search: 'chest press m├íquina execu├º├úo' },
+ 
+   // ÔöÇÔöÇ COSTAS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '13', nome: 'Puxada Frontal',                 grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Down/0.jpg`,                                   youtube_search: 'puxada frontal execu├º├úo correta' },
+-  { id: '14', nome: 'Puxada Neutra',                  grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Close_Grip_Pull_Down/0.jpg`,                        youtube_search: 'puxada neutra execu├º├úo' },
+-  { id: '15', nome: 'Remada Curvada com Barra',       grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bent_Over_Row/0.jpg`,                             youtube_search: 'remada curvada barra execu├º├úo' },
+-  { id: '16', nome: 'Remada Unilateral com Halter',   grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_One_Arm_Row/0.jpg`,                              youtube_search: 'remada unilateral halter execu├º├úo' },
+-  { id: '17', nome: 'Remada Baixa na Polia',          grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Seated_Row/0.jpg`,                                  youtube_search: 'remada baixa polia execu├º├úo' },
+-  { id: '18', nome: 'Pullover com Halter',            grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Pullover/0.jpg`,                                 youtube_search: 'pullover halter execu├º├úo' },
+-  { id: '19', nome: 'Barra Fixa (Pull-up)',           grupo: 'Costas',  equipamento: 'Barra Fixa', nivel: 'Avan├ºado',      gif_url: `${BASE}/Pull-up/0.jpg`,                                           youtube_search: 'barra fixa pullup execu├º├úo' },
+-  { id: '20', nome: 'Levantamento Terra',             grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Avan├ºado',      gif_url: `${BASE}/Barbell_Deadlift/0.jpg`,                                  youtube_search: 'levantamento terra execu├º├úo correta' },
+-  { id: '21', nome: 'Hiperextens├úo Lombar',           grupo: 'Costas',  equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Hyperextension/0.jpg`,                                    youtube_search: 'hiperextens├úo lombar execu├º├úo' },
+-  { id: '22', nome: 'Remada Cavalinho',               grupo: 'Costas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Row/0.jpg`,                                  youtube_search: 'remada cavalinho m├íquina execu├º├úo' },
++  { id: '13', nome: 'Puxada Frontal',                 grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: JEFIT(86),  youtube_search: 'puxada frontal execu├º├úo correta' },
++  { id: '14', nome: 'Puxada Neutra',                  grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: JEFIT(87),  youtube_search: 'puxada neutra execu├º├úo' },
++  { id: '15', nome: 'Remada Curvada com Barra',       grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(7),   youtube_search: 'remada curvada barra execu├º├úo' },
++  { id: '16', nome: 'Remada Unilateral com Halter',   grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(90),  youtube_search: 'remada unilateral halter execu├º├úo' },
++  { id: '17', nome: 'Remada Baixa na Polia',          grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: JEFIT(21),  youtube_search: 'remada baixa polia execu├º├úo' },
++  { id: '18', nome: 'Pullover com Halter',            grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: JEFIT(91),  youtube_search: 'pullover halter execu├º├úo' },
++  { id: '19', nome: 'Barra Fixa (Pull-up)',           grupo: 'Costas',  equipamento: 'Barra Fixa', nivel: 'Avan├ºado',      gif_url: JEFIT(83),  youtube_search: 'barra fixa pullup execu├º├úo' },
++  { id: '20', nome: 'Levantamento Terra',             grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Avan├ºado',      gif_url: JEFIT(9),   youtube_search: 'levantamento terra execu├º├úo correta' },
++  { id: '21', nome: 'Hiperextens├úo Lombar',           grupo: 'Costas',  equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: JEFIT(239), youtube_search: 'hiperextens├úo lombar execu├º├úo' },
++  { id: '22', nome: 'Remada Cavalinho',               grupo: 'Costas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: JEFIT(134), youtube_search: 'remada cavalinho m├íquina execu├º├úo' },
+ 
+   // ÔöÇÔöÇ PERNAS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '23', nome: 'Agachamento Livre',              grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Full_Squat/0.jpg`,                                youtube_search: 'agachamento livre barra execu├º├úo' },
+-  { id: '24', nome: 'Agachamento Sum├┤',               grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Sumo_Squat/0.jpg`,                               youtube_search: 'agachamento sumo execu├º├úo' },
+-  { id: '25', nome: 'Leg Press 45┬░',                  grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Leg_Press/0.jpg`,                                         youtube_search: 'leg press 45 execu├º├úo' },
+-  { id: '26', nome: 'Cadeira Extensora',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Leg_Extension/0.jpg`,                               youtube_search: 'cadeira extensora execu├º├úo' },
+-  { id: '27', nome: 'Mesa Flexora',                   grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Lying_Leg_Curl/0.jpg`,                              youtube_search: 'mesa flexora execu├º├úo' },
+-  { id: '28', nome: 'Stiff com Barra',                grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Romanian_Deadlift/0.jpg`,                         youtube_search: 'stiff barra execu├º├úo' },
+-  { id: '29', nome: 'Stiff com Halteres',             grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Romanian_Deadlift/0.jpg`,                        youtube_search: 'stiff halteres execu├º├úo' },
+-  { id: '30', nome: 'Avan├ºo com Halteres',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lunge/0.jpg`,                                    youtube_search: 'avan├ºo afundo halteres execu├º├úo' },
+-  { id: '31', nome: 'Avan├ºo com Barra',               grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lunge/0.jpg`,                                     youtube_search: 'avan├ºo barra execu├º├úo' },
+-  { id: '32', nome: 'Agachamento B├║lgaro',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Avan├ºado',      gif_url: `${BASE}/Dumbbell_Bulgarian_Split_Squat/0.jpg`,                    youtube_search: 'agachamento bulgaro execu├º├úo' },
+-  { id: '33', nome: 'Panturrilha em P├®',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Standing_Calf_Raise/0.jpg`,                         youtube_search: 'panturrilha em p├® execu├º├úo' },
+-  { id: '34', nome: 'Panturrilha Sentado',            grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Calf_Raise/0.jpg`,                           youtube_search: 'panturrilha sentado execu├º├úo' },
+-  { id: '35', nome: 'Cadeira Adutora',                grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Adduction/0.jpg`,                        youtube_search: 'cadeira adutora execu├º├úo' },
+-  { id: '36', nome: 'Cadeira Abdutora',               grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Abduction/0.jpg`,                        youtube_search: 'cadeira abdutora execu├º├úo' },
++  { id: '23', nome: 'Agachamento Livre',              grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(12),  youtube_search: 'agachamento livre barra execu├º├úo' },
++  { id: '24', nome: 'Agachamento Sum├┤',               grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(58),  youtube_search: 'agachamento sumo execu├º├úo' },
++  { id: '25', nome: 'Leg Press 45┬░',                  grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: JEFIT(132), youtube_search: 'leg press 45 execu├º├úo' },
++  { id: '26', nome: 'Cadeira Extensora',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: JEFIT(130), youtube_search: 'cadeira extensora execu├º├úo' },
++  { id: '27', nome: 'Mesa Flexora',                   grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: JEFIT(131), youtube_search: 'mesa flexora execu├º├úo' },
++  { id: '28', nome: 'Stiff com Barra',                grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(11),  youtube_search: 'stiff barra execu├º├úo' },
++  { id: '29', nome: 'Stiff com Halteres',             grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(56),  youtube_search: 'stiff halteres execu├º├úo' },
++  { id: '30', nome: 'Avan├ºo com Halteres',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(55),  youtube_search: 'avan├ºo afundo halteres execu├º├úo' },
++  { id: '31', nome: 'Avan├ºo com Barra',               grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(10),  youtube_search: 'avan├ºo barra execu├º├úo' },
++  { id: '32', nome: 'Agachamento B├║lgaro',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Avan├ºado',      gif_url: JEFIT(742), youtube_search: 'agachamento bulgaro execu├º├úo' },
++  { id: '33', nome: 'Panturrilha em P├®',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: JEFIT(136), youtube_search: 'panturrilha em p├® execu├º├úo' },
++  { id: '34', nome: 'Panturrilha Sentado',            grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: JEFIT(135), youtube_search: 'panturrilha sentado execu├º├úo' },
++  { id: '35', nome: 'Cadeira Adutora',                grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: JEFIT(138), youtube_search: 'cadeira adutora execu├º├úo' },
++  { id: '36', nome: 'Cadeira Abdutora',               grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: JEFIT(137), youtube_search: 'cadeira abdutora execu├º├úo' },
+ 
+   // ÔöÇÔöÇ OMBRO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '37', nome: 'Desenvolvimento com Barra',      grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Seated_Behind_Head_Military_Press/0.jpg`,         youtube_search: 'desenvolvimento ombro barra execu├º├úo' },
+-  { id: '38', nome: 'Desenvolvimento com Halteres',   grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shoulder_Press/0.jpg`,                           youtube_search: 'desenvolvimento halteres ombro execu├º├úo' },
+-  { id: '39', nome: 'Desenvolvimento Arnold',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Arnold_Press/0.jpg`,                             youtube_search: 'arnold press execu├º├úo' },
+-  { id: '40', nome: 'Eleva├º├úo Lateral',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lateral_Raise/0.jpg`,                            youtube_search: 'eleva├º├úo lateral halteres execu├º├úo' },
+-  { id: '41', nome: 'Eleva├º├úo Lateral na Polia',      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Lateral_Raise/0.jpg`,                               youtube_search: 'eleva├º├úo lateral polia execu├º├úo' },
+-  { id: '42', nome: 'Eleva├º├úo Frontal',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Front_Raise/0.jpg`,                              youtube_search: 'eleva├º├úo frontal ombro execu├º├úo' },
+-  { id: '43', nome: 'Remada Alta com Barra',          grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Upright_Row/0.jpg`,                               youtube_search: 'remada alta barra ombro execu├º├úo' },
+-  { id: '44', nome: 'Encolhimento de Ombros',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shrug/0.jpg`,                                    youtube_search: 'encolhimento ombros execu├º├úo' },
+-  { id: '45', nome: 'Face Pull',                      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Face_Pull/0.jpg`,                                   youtube_search: 'face pull execu├º├úo' },
+-  { id: '46', nome: 'P├íssaro (Crucifixo Invertido)',  grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bent_Over_Lateral_Raise/0.jpg`,                  youtube_search: 'p├íssaro crucifixo invertido execu├º├úo' },
++  { id: '37', nome: 'Desenvolvimento com Barra',      grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(15),  youtube_search: 'desenvolvimento ombro barra execu├º├úo' },
++  { id: '38', nome: 'Desenvolvimento com Halteres',   grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(48),  youtube_search: 'desenvolvimento halteres ombro execu├º├úo' },
++  { id: '39', nome: 'Desenvolvimento Arnold',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: JEFIT(46),  youtube_search: 'arnold press execu├º├úo' },
++  { id: '40', nome: 'Eleva├º├úo Lateral',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(32),  youtube_search: 'eleva├º├úo lateral halteres execu├º├úo' },
++  { id: '41', nome: 'Eleva├º├úo Lateral na Polia',      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: JEFIT(75),  youtube_search: 'eleva├º├úo lateral polia execu├º├úo' },
++  { id: '42', nome: 'Eleva├º├úo Frontal',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(33),  youtube_search: 'eleva├º├úo frontal ombro execu├º├úo' },
++  { id: '43', nome: 'Remada Alta com Barra',          grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(16),  youtube_search: 'remada alta barra ombro execu├º├úo' },
++  { id: '44', nome: 'Encolhimento de Ombros',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(35),  youtube_search: 'encolhimento ombros execu├º├úo' },
++  { id: '45', nome: 'Face Pull',                      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: JEFIT(874), youtube_search: 'face pull execu├º├úo' },
++  { id: '46', nome: 'P├íssaro (Crucifixo Invertido)',  grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(34),  youtube_search: 'p├íssaro crucifixo invertido execu├º├úo' },
+ 
+   // ÔöÇÔöÇ B├ìCEPS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '47', nome: 'Rosca Direta com Barra',         grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Iniciante',     gif_url: `${BASE}/Barbell_Curl/0.jpg`,                                      youtube_search: 'rosca direta barra execu├º├úo' },
+-  { id: '48', nome: 'Rosca Alternada',                grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Alternate_Bicep_Curl/0.jpg`,                     youtube_search: 'rosca alternada halteres execu├º├úo' },
+-  { id: '49', nome: 'Rosca Concentrada',              grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Concentration_Curl/0.jpg`,                       youtube_search: 'rosca concentrada execu├º├úo' },
+-  { id: '50', nome: 'Rosca Martelo',                  grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Hammer_Curl/0.jpg`,                              youtube_search: 'rosca martelo execu├º├úo' },
+-  { id: '51', nome: 'Rosca Scott com Barra',          grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Preacher_Curl/0.jpg`,                             youtube_search: 'rosca scott barra execu├º├úo' },
+-  { id: '52', nome: 'Rosca na Polia Baixa',           grupo: 'B├¡ceps',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Curl/0.jpg`,                                        youtube_search: 'rosca polia baixa execu├º├úo' },
+-  { id: '53', nome: 'Rosca 21',                       grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Curl/0.jpg`,                                      youtube_search: 'rosca 21 b├¡ceps execu├º├úo' },
++  { id: '47', nome: 'Rosca Direta com Barra',         grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Iniciante',     gif_url: JEFIT(17),  youtube_search: 'rosca direta barra execu├º├úo' },
++  { id: '48', nome: 'Rosca Alternada',                grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(116), youtube_search: 'rosca alternada halteres execu├º├úo' },
++  { id: '49', nome: 'Rosca Concentrada',              grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(117), youtube_search: 'rosca concentrada execu├º├úo' },
++  { id: '50', nome: 'Rosca Martelo',                  grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(119), youtube_search: 'rosca martelo execu├º├úo' },
++  { id: '51', nome: 'Rosca Scott com Barra',          grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(18),  youtube_search: 'rosca scott barra execu├º├úo' },
++  { id: '52', nome: 'Rosca na Polia Baixa',           grupo: 'B├¡ceps',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: JEFIT(72),  youtube_search: 'rosca polia baixa execu├º├úo' },
++  { id: '53', nome: 'Rosca 21',                       grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(17),  youtube_search: 'rosca 21 b├¡ceps execu├º├úo' },
+ 
+   // ÔöÇÔöÇ TR├ìCEPS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '54', nome: 'Tr├¡ceps Pulley Barra Reta',      grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pushdown/0.jpg`,                                    youtube_search: 'tr├¡ceps pulley barra reta execu├º├úo' },
+-  { id: '55', nome: 'Tr├¡ceps Pulley Corda',           grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Rope_Tricep_Pushdown/0.jpg`,                        youtube_search: 'tr├¡ceps pulley corda execu├º├úo' },
+-  { id: '56', nome: 'Tr├¡ceps Franc├¬s com Barra',      grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lying_Triceps_Extension_Skull_Crusher/0.jpg`,     youtube_search: 'tr├¡ceps franc├¬s barra execu├º├úo' },
+-  { id: '57', nome: 'Tr├¡ceps Franc├¬s com Halter',     grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lying_Triceps_Extension/0.jpg`,                  youtube_search: 'tr├¡ceps franc├¬s halter execu├º├úo' },
+-  { id: '58', nome: 'Tr├¡ceps Coice',                  grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Kickback/0.jpg`,                                 youtube_search: 'tr├¡ceps coice halter execu├º├úo' },
+-  { id: '59', nome: 'Mergulho no Banco',              grupo: 'Tr├¡ceps', equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Triceps_Dips/0.jpg`,                                      youtube_search: 'mergulho banco tr├¡ceps execu├º├úo' },
+-  { id: '60', nome: 'Supino Fechado',                 grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Close-Grip_Bench_Press/0.jpg`,                    youtube_search: 'supino fechado tr├¡ceps execu├º├úo' },
++  { id: '54', nome: 'Tr├¡ceps Pulley Barra Reta',      grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: JEFIT(158), youtube_search: 'tr├¡ceps pulley barra reta execu├º├úo' },
++  { id: '55', nome: 'Tr├¡ceps Pulley Corda',           grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: JEFIT(159), youtube_search: 'tr├¡ceps pulley corda execu├º├úo' },
++  { id: '56', nome: 'Tr├¡ceps Franc├¬s com Barra',      grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(20),  youtube_search: 'tr├¡ceps franc├¬s barra execu├º├úo' },
++  { id: '57', nome: 'Tr├¡ceps Franc├¬s com Halter',     grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(152), youtube_search: 'tr├¡ceps franc├¬s halter execu├º├úo' },
++  { id: '58', nome: 'Tr├¡ceps Coice',                  grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: JEFIT(153), youtube_search: 'tr├¡ceps coice halter execu├º├úo' },
++  { id: '59', nome: 'Mergulho no Banco',              grupo: 'Tr├¡ceps', equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: JEFIT(178), youtube_search: 'mergulho banco tr├¡ceps execu├º├úo' },
++  { id: '60', nome: 'Supino Fechado',                 grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(4),   youtube_search: 'supino fechado tr├¡ceps execu├º├úo' },
+ 
+   // ÔöÇÔöÇ ABD├öMEN ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '61', nome: 'Abdominal Crunch',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Crunch/0.jpg`,                                            youtube_search: 'abdominal crunch execu├º├úo' },
+-  { id: '62', nome: 'Eleva├º├úo de Pernas',             grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Lying_Leg_Raise/0.jpg`,                                   youtube_search: 'eleva├º├úo de pernas abdominal execu├º├úo' },
+-  { id: '63', nome: 'Prancha Frontal',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Plank/0.jpg`,                                             youtube_search: 'prancha abdominal execu├º├úo' },
+-  { id: '64', nome: 'Prancha Lateral',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Side_Plank/0.jpg`,                                        youtube_search: 'prancha lateral execu├º├úo' },
+-  { id: '65', nome: 'Abdominal na Polia',             grupo: 'Abd├┤men', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crunch/0.jpg`,                                      youtube_search: 'abdominal polia execu├º├úo' },
+-  { id: '66', nome: 'Eleva├º├úo de Pernas na Barra',    grupo: 'Abd├┤men', equipamento: 'Barra Fixa', nivel: 'Intermedi├írio', gif_url: `${BASE}/Hanging_Leg_Raise/0.jpg`,                                 youtube_search: 'eleva├º├úo pernas barra fixa execu├º├úo' },
+-  { id: '67', nome: 'Russian Twist',                  grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Russian_Twist/0.jpg`,                                     youtube_search: 'russian twist execu├º├úo' },
+-  { id: '68', nome: 'Abdominal Bicicleta',            grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Air_Bike/0.jpg`,                                          youtube_search: 'abdominal bicicleta execu├º├úo' },
+-  { id: '69', nome: 'Mountain Climber',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Mountain_Climber/0.jpg`,                                  youtube_search: 'mountain climber exerc├¡cio execu├º├úo' },
+-  { id: '70', nome: 'Dead Bug',                       grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Dead_Bug/0.jpg`,                                          youtube_search: 'dead bug exerc├¡cio abdominal execu├º├úo' },
++  { id: '61', nome: 'Abdominal Crunch',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: JEFIT(216), youtube_search: 'abdominal crunch execu├º├úo' },
++  { id: '62', nome: 'Eleva├º├úo de Pernas',             grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: JEFIT(218), youtube_search: 'eleva├º├úo de pernas abdominal execu├º├úo' },
++  { id: '63', nome: 'Prancha Frontal',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: JEFIT(228), youtube_search: 'prancha abdominal execu├º├úo' },
++  { id: '64', nome: 'Prancha Lateral',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: JEFIT(229), youtube_search: 'prancha lateral execu├º├úo' },
++  { id: '65', nome: 'Abdominal na Polia',             grupo: 'Abd├┤men', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: JEFIT(76),  youtube_search: 'abdominal polia execu├º├úo' },
++  { id: '66', nome: 'Eleva├º├úo de Pernas na Barra',    grupo: 'Abd├┤men', equipamento: 'Barra Fixa', nivel: 'Intermedi├írio', gif_url: JEFIT(220), youtube_search: 'eleva├º├úo pernas barra fixa execu├º├úo' },
++  { id: '67', nome: 'Russian Twist',                  grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: JEFIT(226), youtube_search: 'russian twist execu├º├úo' },
++  { id: '68', nome: 'Abdominal Bicicleta',            grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: JEFIT(215), youtube_search: 'abdominal bicicleta execu├º├úo' },
++  { id: '69', nome: 'Mountain Climber',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: JEFIT(249), youtube_search: 'mountain climber exerc├¡cio execu├º├úo' },
++  { id: '70', nome: 'Dead Bug',                       grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: JEFIT(913), youtube_search: 'dead bug exerc├¡cio abdominal execu├º├úo' },
+ 
+   // ÔöÇÔöÇ CARDIO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '71', nome: 'Burpee',                         grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Burpees/0.jpg`,                                           youtube_search: 'burpee execu├º├úo como fazer' },
+-  { id: '72', nome: 'Jumping Jack',                   grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Jumping_Jacks/0.jpg`,                                     youtube_search: 'jumping jack exerc├¡cio execu├º├úo' },
+-  { id: '73', nome: 'Corda (Jump Rope)',              grupo: 'Cardio',  equipamento: 'Corda',      nivel: 'Iniciante',     gif_url: `${BASE}/Jump_Rope/0.jpg`,                                         youtube_search: 'pular corda corretamente' },
+-  { id: '74', nome: 'Esteira',                        grupo: 'Cardio',  equipamento: 'Esteira',    nivel: 'Iniciante',     gif_url: `${BASE}/Running,_Treadmill/0.jpg`,                                youtube_search: 'treino esteira iniciante' },
+-  { id: '75', nome: 'Bicicleta Ergom├®trica',          grupo: 'Cardio',  equipamento: 'Bicicleta',  nivel: 'Iniciante',     gif_url: `${BASE}/Stationary_Bike/0.jpg`,                                   youtube_search: 'bicicleta ergom├®trica posi├º├úo correta' },
+-  { id: '76', nome: 'Remo Ergom├®trico',               grupo: 'Cardio',  equipamento: 'Remo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Rowing,_Seat_(2)/0.jpg`,                                  youtube_search: 'remo ergom├®trico execu├º├úo' },
++  { id: '71', nome: 'Burpee',                         grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Intermedi├írio', gif_url: JEFIT(241), youtube_search: 'burpee execu├º├úo como fazer' },
++  { id: '72', nome: 'Jumping Jack',                   grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: JEFIT(244), youtube_search: 'jumping jack exerc├¡cio execu├º├úo' },
++  { id: '73', nome: 'Corda (Jump Rope)',              grupo: 'Cardio',  equipamento: 'Corda',      nivel: 'Iniciante',     gif_url: JEFIT(245), youtube_search: 'pular corda corretamente' },
++  { id: '74', nome: 'Esteira',                        grupo: 'Cardio',  equipamento: 'Esteira',    nivel: 'Iniciante',     gif_url: JEFIT(322), youtube_search: 'treino esteira iniciante' },
++  { id: '75', nome: 'Bicicleta Ergom├®trica',          grupo: 'Cardio',  equipamento: 'Bicicleta',  nivel: 'Iniciante',     gif_url: JEFIT(316), youtube_search: 'bicicleta ergom├®trica posi├º├úo correta' },
++  { id: '76', nome: 'Remo Ergom├®trico',               grupo: 'Cardio',  equipamento: 'Remo',       nivel: 'Intermedi├írio', gif_url: JEFIT(319), youtube_search: 'remo ergom├®trico execu├º├úo' },
+ 
+   // ÔöÇÔöÇ GL├ÜTEOS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '77', nome: 'Hip Thrust com Barra',           grupo: 'Gl├║teos', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Hip_Thrust/0.jpg`,                                youtube_search: 'hip thrust barra execu├º├úo' },
+-  { id: '78', nome: 'Eleva├º├úo P├®lvica',               grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Glute_Bridge/0.jpg`,                                      youtube_search: 'eleva├º├úo p├®lvica gl├║teo execu├º├úo' },
+-  { id: '79', nome: 'Gl├║teo na Polia',                grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Through/0.jpg`,                                youtube_search: 'gl├║teo polia execu├º├úo' },
+-  { id: '80', nome: 'Coice de Gl├║teo',                grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Donkey_Kicks/0.jpg`,                                      youtube_search: 'coice gl├║teo execu├º├úo' },
+-  { id: '81', nome: 'Abdu├º├úo de Quadril em P├®',       grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Hip_Abduction/0.jpg`,                               youtube_search: 'abdu├º├úo quadril polia execu├º├úo' },
++  { id: '77', nome: 'Hip Thrust com Barra',           grupo: 'Gl├║teos', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: JEFIT(815), youtube_search: 'hip thrust barra execu├º├úo' },
++  { id: '78', nome: 'Eleva├º├úo P├®lvica',               grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: JEFIT(206), youtube_search: 'eleva├º├úo p├®lvica gl├║teo execu├º├úo' },
++  { id: '79', nome: 'Gl├║teo na Polia',                grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: JEFIT(78),  youtube_search: 'gl├║teo polia execu├º├úo' },
++  { id: '80', nome: 'Coice de Gl├║teo',                grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: JEFIT(204), youtube_search: 'coice gl├║teo execu├º├úo' },
++  { id: '81', nome: 'Abdu├º├úo de Quadril em P├®',       grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: JEFIT(79),  youtube_search: 'abdu├º├úo quadril polia execu├º├úo' },
+ ]
+ 
+ export const gruposMusculares = [
+
+commit 4107c0b1bad74fbbc1c587b568b9a8099c9326b0
+Author: Mateus Oliveira <teussharke@gmail.com>
+Date:   Sun Mar 29 22:31:49 2026 -0300
+
+    att
+
+diff --git a/src/lib/mock/exercicios.ts b/src/lib/mock/exercicios.ts
+index b2f4cad..15c0de2 100644
+--- a/src/lib/mock/exercicios.ts
++++ b/src/lib/mock/exercicios.ts
+@@ -32,7 +32,8 @@ export function getYouTubeEmbedUrl(url: string): string | null {
+   return id ? `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&autoplay=1` : null
+ }
+ 
+-const BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises'
++// jsDelivr CDN = muito mais r├ípido e sem rate-limit vs raw.githubusercontent.com
++const BASE = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises'
+ 
+ // Abre busca do YouTube com o termo do exerc├¡cio
+ export function getYouTubeSearchUrl(termo: string): string {
+@@ -106,7 +107,7 @@ export const mockExercicios: Exercicio[] = [
+ 
+   // ÔöÇÔöÇ TR├ìCEPS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+   { id: '54', nome: 'Tr├¡ceps Pulley Barra Reta',      grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pushdown/0.jpg`,                                    youtube_search: 'tr├¡ceps pulley barra reta execu├º├úo' },
+-  { id: '55', nome: 'Tr├¡ceps Pulley Corda',           grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Triceps_Pushdown_(Rope)/0.jpg`,                     youtube_search: 'tr├¡ceps pulley corda execu├º├úo' },
++  { id: '55', nome: 'Tr├¡ceps Pulley Corda',           grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Rope_Tricep_Pushdown/0.jpg`,                        youtube_search: 'tr├¡ceps pulley corda execu├º├úo' },
+   { id: '56', nome: 'Tr├¡ceps Franc├¬s com Barra',      grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lying_Triceps_Extension_Skull_Crusher/0.jpg`,     youtube_search: 'tr├¡ceps franc├¬s barra execu├º├úo' },
+   { id: '57', nome: 'Tr├¡ceps Franc├¬s com Halter',     grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lying_Triceps_Extension/0.jpg`,                  youtube_search: 'tr├¡ceps franc├¬s halter execu├º├úo' },
+   { id: '58', nome: 'Tr├¡ceps Coice',                  grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Kickback/0.jpg`,                                 youtube_search: 'tr├¡ceps coice halter execu├º├úo' },
+@@ -121,24 +122,24 @@ export const mockExercicios: Exercicio[] = [
+   { id: '65', nome: 'Abdominal na Polia',             grupo: 'Abd├┤men', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crunch/0.jpg`,                                      youtube_search: 'abdominal polia execu├º├úo' },
+   { id: '66', nome: 'Eleva├º├úo de Pernas na Barra',    grupo: 'Abd├┤men', equipamento: 'Barra Fixa', nivel: 'Intermedi├írio', gif_url: `${BASE}/Hanging_Leg_Raise/0.jpg`,                                 youtube_search: 'eleva├º├úo pernas barra fixa execu├º├úo' },
+   { id: '67', nome: 'Russian Twist',                  grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Russian_Twist/0.jpg`,                                     youtube_search: 'russian twist execu├º├úo' },
+-  { id: '68', nome: 'Abdominal Bicicleta',            grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Bicycle_Crunch/0.jpg`,                                    youtube_search: 'abdominal bicicleta execu├º├úo' },
++  { id: '68', nome: 'Abdominal Bicicleta',            grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Air_Bike/0.jpg`,                                          youtube_search: 'abdominal bicicleta execu├º├úo' },
+   { id: '69', nome: 'Mountain Climber',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Mountain_Climber/0.jpg`,                                  youtube_search: 'mountain climber exerc├¡cio execu├º├úo' },
+-  { id: '70', nome: 'Dead Bug',                       grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'dead bug exerc├¡cio abdominal execu├º├úo' },
++  { id: '70', nome: 'Dead Bug',                       grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Dead_Bug/0.jpg`,                                          youtube_search: 'dead bug exerc├¡cio abdominal execu├º├úo' },
+ 
+   // ÔöÇÔöÇ CARDIO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '71', nome: 'Burpee',                         grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Burpee/0.jpg`,                                            youtube_search: 'burpee execu├º├úo como fazer' },
+-  { id: '72', nome: 'Jumping Jack',                   grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Jumping_Jack/0.jpg`,                                      youtube_search: 'jumping jack exerc├¡cio execu├º├úo' },
+-  { id: '73', nome: 'Corda (Jump Rope)',              grupo: 'Cardio',  equipamento: 'Corda',      nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'pular corda corretamente' },
+-  { id: '74', nome: 'Esteira',                        grupo: 'Cardio',  equipamento: 'Esteira',    nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'treino esteira iniciante' },
+-  { id: '75', nome: 'Bicicleta Ergom├®trica',          grupo: 'Cardio',  equipamento: 'Bicicleta',  nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'bicicleta ergom├®trica posi├º├úo correta' },
+-  { id: '76', nome: 'Remo Ergom├®trico',               grupo: 'Cardio',  equipamento: 'Remo',       nivel: 'Intermedi├írio', gif_url: undefined,                                                          youtube_search: 'remo ergom├®trico execu├º├úo' },
++  { id: '71', nome: 'Burpee',                         grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Burpees/0.jpg`,                                           youtube_search: 'burpee execu├º├úo como fazer' },
++  { id: '72', nome: 'Jumping Jack',                   grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Jumping_Jacks/0.jpg`,                                     youtube_search: 'jumping jack exerc├¡cio execu├º├úo' },
++  { id: '73', nome: 'Corda (Jump Rope)',              grupo: 'Cardio',  equipamento: 'Corda',      nivel: 'Iniciante',     gif_url: `${BASE}/Jump_Rope/0.jpg`,                                         youtube_search: 'pular corda corretamente' },
++  { id: '74', nome: 'Esteira',                        grupo: 'Cardio',  equipamento: 'Esteira',    nivel: 'Iniciante',     gif_url: `${BASE}/Running,_Treadmill/0.jpg`,                                youtube_search: 'treino esteira iniciante' },
++  { id: '75', nome: 'Bicicleta Ergom├®trica',          grupo: 'Cardio',  equipamento: 'Bicicleta',  nivel: 'Iniciante',     gif_url: `${BASE}/Stationary_Bike/0.jpg`,                                   youtube_search: 'bicicleta ergom├®trica posi├º├úo correta' },
++  { id: '76', nome: 'Remo Ergom├®trico',               grupo: 'Cardio',  equipamento: 'Remo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Rowing,_Seat_(2)/0.jpg`,                                  youtube_search: 'remo ergom├®trico execu├º├úo' },
+ 
+   // ÔöÇÔöÇ GL├ÜTEOS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+   { id: '77', nome: 'Hip Thrust com Barra',           grupo: 'Gl├║teos', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Hip_Thrust/0.jpg`,                                youtube_search: 'hip thrust barra execu├º├úo' },
+   { id: '78', nome: 'Eleva├º├úo P├®lvica',               grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Glute_Bridge/0.jpg`,                                      youtube_search: 'eleva├º├úo p├®lvica gl├║teo execu├º├úo' },
+   { id: '79', nome: 'Gl├║teo na Polia',                grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Through/0.jpg`,                                youtube_search: 'gl├║teo polia execu├º├úo' },
+   { id: '80', nome: 'Coice de Gl├║teo',                grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Donkey_Kicks/0.jpg`,                                      youtube_search: 'coice gl├║teo execu├º├úo' },
+-  { id: '81', nome: 'Abdu├º├úo de Quadril em P├®',       grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'abdu├º├úo quadril polia execu├º├úo' },
++  { id: '81', nome: 'Abdu├º├úo de Quadril em P├®',       grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Hip_Abduction/0.jpg`,                               youtube_search: 'abdu├º├úo quadril polia execu├º├úo' },
+ ]
+ 
+ export const gruposMusculares = [
+
+commit 0e4b20f8d2be8905f6a7afafb9c2a25e44258158
+Author: Mateus Oliveira <teussharke@gmail.com>
+Date:   Sun Mar 29 12:25:24 2026 -0300
+
+    att
+
+diff --git a/src/lib/mock/exercicios.ts b/src/lib/mock/exercicios.ts
+index 97f10ba..b2f4cad 100644
+--- a/src/lib/mock/exercicios.ts
++++ b/src/lib/mock/exercicios.ts
+@@ -8,13 +8,35 @@ export interface Exercicio {
+   nivel: 'Iniciante' | 'Intermedi├írio' | 'Avan├ºado'
+   gif_url?: string
+   youtube_search: string
++  youtube_url?: string  // URL direta do YouTube (ex: https://www.youtube.com/watch?v=XXXX)
++}
++
++// Extrai o video ID de uma URL do YouTube (watch, youtu.be ou embed)
++export function extractYouTubeId(url: string): string | null {
++  if (!url) return null
++  const patterns = [
++    /youtube\.com\/watch\?v=([^&\s]+)/,
++    /youtu\.be\/([^?\s]+)/,
++    /youtube\.com\/embed\/([^?\s]+)/,
++    /youtube\.com\/shorts\/([^?\s]+)/,
++  ]
++  for (const p of patterns) {
++    const m = url.match(p)
++    if (m) return m[1]
++  }
++  return null
++}
++
++export function getYouTubeEmbedUrl(url: string): string | null {
++  const id = extractYouTubeId(url)
++  return id ? `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&autoplay=1` : null
+ }
+ 
+ const BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises'
+ 
+ // Abre busca do YouTube com o termo do exerc├¡cio
+ export function getYouTubeSearchUrl(termo: string): string {
+-  const query = encodeURIComponent(`como fazer ${termo} academia`)
++  const query = encodeURIComponent(`como fazer ${termo} academia execu├º├úo correta`)
+   return `https://www.youtube.com/results?search_query=${query}`
+ }
+ 
+
+commit 0685c4f04c2a8f3d00bbeeebdf7220c37d800d22
+Author: Mateus Oliveira <teussharke@gmail.com>
+Date:   Fri Mar 27 22:40:10 2026 -0300
+
+    att
+
+diff --git a/src/lib/mock/exercicios.ts b/src/lib/mock/exercicios.ts
+index 72d1a09..97f10ba 100644
+--- a/src/lib/mock/exercicios.ts
++++ b/src/lib/mock/exercicios.ts
+@@ -10,7 +10,7 @@ export interface Exercicio {
+   youtube_search: string
+ }
+ 
+-const BASE = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises'
++const BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises'
+ 
+ // Abre busca do YouTube com o termo do exerc├¡cio
+ export function getYouTubeSearchUrl(termo: string): string {
+
+commit 9d32ab455fb9061f7241b01813af0c56d7fa6401
+Author: Mateus <teussharke@gmail.com>
+Date:   Thu Mar 26 08:44:47 2026 -0300
+
+    atte
+
+diff --git a/src/lib/mock/exercicios.ts b/src/lib/mock/exercicios.ts
+index c9eff20..72d1a09 100644
+--- a/src/lib/mock/exercicios.ts
++++ b/src/lib/mock/exercicios.ts
+@@ -1,6 +1,4 @@
+ // src/lib/mock/exercicios.ts
+-// Imagens: wger.de (API p├║blica, sem chave)
+-// Formato: https://wger.de/api/v2/exercise/ID/image/
+ 
+ export interface Exercicio {
+   id: string
+@@ -8,116 +6,117 @@ export interface Exercicio {
+   grupo: string
+   equipamento: string
+   nivel: 'Iniciante' | 'Intermedi├írio' | 'Avan├ºado'
+-  gif_url?: string   // URL da imagem demonstrativa
++  gif_url?: string
++  youtube_search: string
+ }
+ 
+-// wger.de tem imagens em: https://wger.de/en/exercise/IMAGE_ID/view/base
+-// As imagens p├║blicas ficam em /media/exercise-images/
+-// Usando o CDN p├║blico do projeto ExerciseDB que hospeda imagens reais
+-const CDN = 'https://exercisedb.p.rapidapi.com'
+-
+-// Usando imagens do projeto free-exercise-db via jsDelivr CDN (mais confi├ível)
+ const BASE = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises'
+ 
++// Abre busca do YouTube com o termo do exerc├¡cio
++export function getYouTubeSearchUrl(termo: string): string {
++  const query = encodeURIComponent(`como fazer ${termo} academia`)
++  return `https://www.youtube.com/results?search_query=${query}`
++}
++
+ export const mockExercicios: Exercicio[] = [
+   // ÔöÇÔöÇ PEITO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '1',  nome: 'Supino Reto com Barra',          grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bench_Press_-_Medium_Grip/0.jpg` },
+-  { id: '2',  nome: 'Supino Inclinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Incline_Bench_Press_-_Medium_Grip/0.jpg` },
+-  { id: '3',  nome: 'Supino Declinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Decline_Bench_Press/0.jpg` },
+-  { id: '4',  nome: 'Supino Reto com Halteres',       grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bench_Press/0.jpg` },
+-  { id: '5',  nome: 'Supino Inclinado com Halteres',  grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Bench_Press/0.jpg` },
+-  { id: '6',  nome: 'Crucifixo com Halteres',         grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Flyes/0.jpg` },
+-  { id: '7',  nome: 'Crucifixo Inclinado',            grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Flyes/0.jpg` },
+-  { id: '8',  nome: 'Crossover Polia Alta',           grupo: 'Peito',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crossover/0.jpg` },
+-  { id: '9',  nome: 'Flex├úo de Bra├ºo',                grupo: 'Peito',   equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Push-up/0.jpg` },
+-  { id: '10', nome: 'Peck Deck (Voador)',              grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Pec_Deck_Fly/0.jpg` },
+-  { id: '11', nome: 'Mergulho no Paralelo',           grupo: 'Peito',   equipamento: 'Paralelo',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dips_-_Chest_Version/0.jpg` },
+-  { id: '12', nome: 'Chest Press na M├íquina',         grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Chest_Press/0.jpg` },
++  { id: '1',  nome: 'Supino Reto com Barra',          grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bench_Press_-_Medium_Grip/0.jpg`,                 youtube_search: 'supino reto barra execu├º├úo' },
++  { id: '2',  nome: 'Supino Inclinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Incline_Bench_Press_-_Medium_Grip/0.jpg`,         youtube_search: 'supino inclinado barra execu├º├úo' },
++  { id: '3',  nome: 'Supino Declinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Decline_Bench_Press/0.jpg`,                       youtube_search: 'supino declinado barra execu├º├úo' },
++  { id: '4',  nome: 'Supino Reto com Halteres',       grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bench_Press/0.jpg`,                              youtube_search: 'supino reto halteres execu├º├úo' },
++  { id: '5',  nome: 'Supino Inclinado com Halteres',  grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Bench_Press/0.jpg`,                      youtube_search: 'supino inclinado halteres execu├º├úo' },
++  { id: '6',  nome: 'Crucifixo com Halteres',         grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Flyes/0.jpg`,                                    youtube_search: 'crucifixo halteres execu├º├úo' },
++  { id: '7',  nome: 'Crucifixo Inclinado',            grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Flyes/0.jpg`,                            youtube_search: 'crucifixo inclinado halteres execu├º├úo' },
++  { id: '8',  nome: 'Crossover Polia Alta',           grupo: 'Peito',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crossover/0.jpg`,                                   youtube_search: 'crossover polia peito execu├º├úo' },
++  { id: '9',  nome: 'Flex├úo de Bra├ºo',                grupo: 'Peito',   equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Push-up/0.jpg`,                                           youtube_search: 'flex├úo de bra├ºo execu├º├úo correta' },
++  { id: '10', nome: 'Peck Deck (Voador)',              grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Pec_Deck_Fly/0.jpg`,                                      youtube_search: 'peck deck voador peito execu├º├úo' },
++  { id: '11', nome: 'Mergulho no Paralelo',           grupo: 'Peito',   equipamento: 'Paralelo',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dips_-_Chest_Version/0.jpg`,                              youtube_search: 'mergulho paralelo peito execu├º├úo' },
++  { id: '12', nome: 'Chest Press na M├íquina',         grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Chest_Press/0.jpg`,                                 youtube_search: 'chest press m├íquina execu├º├úo' },
+ 
+   // ÔöÇÔöÇ COSTAS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '13', nome: 'Puxada Frontal',                 grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Down/0.jpg` },
+-  { id: '14', nome: 'Puxada Neutra',                  grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Close_Grip_Pull_Down/0.jpg` },
+-  { id: '15', nome: 'Remada Curvada com Barra',       grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bent_Over_Row/0.jpg` },
+-  { id: '16', nome: 'Remada Unilateral com Halter',   grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_One_Arm_Row/0.jpg` },
+-  { id: '17', nome: 'Remada Baixa na Polia',          grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Seated_Row/0.jpg` },
+-  { id: '18', nome: 'Pullover com Halter',            grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Pullover/0.jpg` },
+-  { id: '19', nome: 'Barra Fixa (Pull-up)',           grupo: 'Costas',  equipamento: 'Barra Fixa', nivel: 'Avan├ºado',      gif_url: `${BASE}/Pull-up/0.jpg` },
+-  { id: '20', nome: 'Levantamento Terra',             grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Avan├ºado',      gif_url: `${BASE}/Barbell_Deadlift/0.jpg` },
+-  { id: '21', nome: 'Hiperextens├úo Lombar',           grupo: 'Costas',  equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Hyperextension/0.jpg` },
+-  { id: '22', nome: 'Remada Cavalinho',               grupo: 'Costas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Row/0.jpg` },
++  { id: '13', nome: 'Puxada Frontal',                 grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Down/0.jpg`,                                   youtube_search: 'puxada frontal execu├º├úo correta' },
++  { id: '14', nome: 'Puxada Neutra',                  grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Close_Grip_Pull_Down/0.jpg`,                        youtube_search: 'puxada neutra execu├º├úo' },
++  { id: '15', nome: 'Remada Curvada com Barra',       grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bent_Over_Row/0.jpg`,                             youtube_search: 'remada curvada barra execu├º├úo' },
++  { id: '16', nome: 'Remada Unilateral com Halter',   grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_One_Arm_Row/0.jpg`,                              youtube_search: 'remada unilateral halter execu├º├úo' },
++  { id: '17', nome: 'Remada Baixa na Polia',          grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Seated_Row/0.jpg`,                                  youtube_search: 'remada baixa polia execu├º├úo' },
++  { id: '18', nome: 'Pullover com Halter',            grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Pullover/0.jpg`,                                 youtube_search: 'pullover halter execu├º├úo' },
++  { id: '19', nome: 'Barra Fixa (Pull-up)',           grupo: 'Costas',  equipamento: 'Barra Fixa', nivel: 'Avan├ºado',      gif_url: `${BASE}/Pull-up/0.jpg`,                                           youtube_search: 'barra fixa pullup execu├º├úo' },
++  { id: '20', nome: 'Levantamento Terra',             grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Avan├ºado',      gif_url: `${BASE}/Barbell_Deadlift/0.jpg`,                                  youtube_search: 'levantamento terra execu├º├úo correta' },
++  { id: '21', nome: 'Hiperextens├úo Lombar',           grupo: 'Costas',  equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Hyperextension/0.jpg`,                                    youtube_search: 'hiperextens├úo lombar execu├º├úo' },
++  { id: '22', nome: 'Remada Cavalinho',               grupo: 'Costas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Row/0.jpg`,                                  youtube_search: 'remada cavalinho m├íquina execu├º├úo' },
+ 
+   // ÔöÇÔöÇ PERNAS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '23', nome: 'Agachamento Livre',              grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Full_Squat/0.jpg` },
+-  { id: '24', nome: 'Agachamento Sum├┤',               grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Sumo_Squat/0.jpg` },
+-  { id: '25', nome: 'Leg Press 45┬░',                  grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Leg_Press/0.jpg` },
+-  { id: '26', nome: 'Cadeira Extensora',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Leg_Extension/0.jpg` },
+-  { id: '27', nome: 'Mesa Flexora',                   grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Lying_Leg_Curl/0.jpg` },
+-  { id: '28', nome: 'Stiff com Barra',                grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Romanian_Deadlift/0.jpg` },
+-  { id: '29', nome: 'Stiff com Halteres',             grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Romanian_Deadlift/0.jpg` },
+-  { id: '30', nome: 'Avan├ºo com Halteres',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lunge/0.jpg` },
+-  { id: '31', nome: 'Avan├ºo com Barra',               grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lunge/0.jpg` },
+-  { id: '32', nome: 'Agachamento B├║lgaro',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Avan├ºado',      gif_url: `${BASE}/Dumbbell_Bulgarian_Split_Squat/0.jpg` },
+-  { id: '33', nome: 'Panturrilha em P├®',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Standing_Calf_Raise/0.jpg` },
+-  { id: '34', nome: 'Panturrilha Sentado',            grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Calf_Raise/0.jpg` },
+-  { id: '35', nome: 'Cadeira Adutora',                grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Adduction/0.jpg` },
+-  { id: '36', nome: 'Cadeira Abdutora',               grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Abduction/0.jpg` },
++  { id: '23', nome: 'Agachamento Livre',              grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Full_Squat/0.jpg`,                                youtube_search: 'agachamento livre barra execu├º├úo' },
++  { id: '24', nome: 'Agachamento Sum├┤',               grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Sumo_Squat/0.jpg`,                               youtube_search: 'agachamento sumo execu├º├úo' },
++  { id: '25', nome: 'Leg Press 45┬░',                  grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Leg_Press/0.jpg`,                                         youtube_search: 'leg press 45 execu├º├úo' },
++  { id: '26', nome: 'Cadeira Extensora',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Leg_Extension/0.jpg`,                               youtube_search: 'cadeira extensora execu├º├úo' },
++  { id: '27', nome: 'Mesa Flexora',                   grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Lying_Leg_Curl/0.jpg`,                              youtube_search: 'mesa flexora execu├º├úo' },
++  { id: '28', nome: 'Stiff com Barra',                grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Romanian_Deadlift/0.jpg`,                         youtube_search: 'stiff barra execu├º├úo' },
++  { id: '29', nome: 'Stiff com Halteres',             grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Romanian_Deadlift/0.jpg`,                        youtube_search: 'stiff halteres execu├º├úo' },
++  { id: '30', nome: 'Avan├ºo com Halteres',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lunge/0.jpg`,                                    youtube_search: 'avan├ºo afundo halteres execu├º├úo' },
++  { id: '31', nome: 'Avan├ºo com Barra',               grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lunge/0.jpg`,                                     youtube_search: 'avan├ºo barra execu├º├úo' },
++  { id: '32', nome: 'Agachamento B├║lgaro',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Avan├ºado',      gif_url: `${BASE}/Dumbbell_Bulgarian_Split_Squat/0.jpg`,                    youtube_search: 'agachamento bulgaro execu├º├úo' },
++  { id: '33', nome: 'Panturrilha em P├®',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Standing_Calf_Raise/0.jpg`,                         youtube_search: 'panturrilha em p├® execu├º├úo' },
++  { id: '34', nome: 'Panturrilha Sentado',            grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Calf_Raise/0.jpg`,                           youtube_search: 'panturrilha sentado execu├º├úo' },
++  { id: '35', nome: 'Cadeira Adutora',                grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Adduction/0.jpg`,                        youtube_search: 'cadeira adutora execu├º├úo' },
++  { id: '36', nome: 'Cadeira Abdutora',               grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Abduction/0.jpg`,                        youtube_search: 'cadeira abdutora execu├º├úo' },
+ 
+   // ÔöÇÔöÇ OMBRO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '37', nome: 'Desenvolvimento com Barra',      grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Seated_Behind_Head_Military_Press/0.jpg` },
+-  { id: '38', nome: 'Desenvolvimento com Halteres',   grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shoulder_Press/0.jpg` },
+-  { id: '39', nome: 'Desenvolvimento Arnold',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Arnold_Press/0.jpg` },
+-  { id: '40', nome: 'Eleva├º├úo Lateral',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lateral_Raise/0.jpg` },
+-  { id: '41', nome: 'Eleva├º├úo Lateral na Polia',      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Lateral_Raise/0.jpg` },
+-  { id: '42', nome: 'Eleva├º├úo Frontal',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Front_Raise/0.jpg` },
+-  { id: '43', nome: 'Remada Alta com Barra',          grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Upright_Row/0.jpg` },
+-  { id: '44', nome: 'Encolhimento de Ombros',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shrug/0.jpg` },
+-  { id: '45', nome: 'Face Pull',                      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Face_Pull/0.jpg` },
+-  { id: '46', nome: 'P├íssaro (Crucifixo Invertido)',  grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bent_Over_Lateral_Raise/0.jpg` },
++  { id: '37', nome: 'Desenvolvimento com Barra',      grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Seated_Behind_Head_Military_Press/0.jpg`,         youtube_search: 'desenvolvimento ombro barra execu├º├úo' },
++  { id: '38', nome: 'Desenvolvimento com Halteres',   grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shoulder_Press/0.jpg`,                           youtube_search: 'desenvolvimento halteres ombro execu├º├úo' },
++  { id: '39', nome: 'Desenvolvimento Arnold',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Arnold_Press/0.jpg`,                             youtube_search: 'arnold press execu├º├úo' },
++  { id: '40', nome: 'Eleva├º├úo Lateral',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lateral_Raise/0.jpg`,                            youtube_search: 'eleva├º├úo lateral halteres execu├º├úo' },
++  { id: '41', nome: 'Eleva├º├úo Lateral na Polia',      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Lateral_Raise/0.jpg`,                               youtube_search: 'eleva├º├úo lateral polia execu├º├úo' },
++  { id: '42', nome: 'Eleva├º├úo Frontal',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Front_Raise/0.jpg`,                              youtube_search: 'eleva├º├úo frontal ombro execu├º├úo' },
++  { id: '43', nome: 'Remada Alta com Barra',          grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Upright_Row/0.jpg`,                               youtube_search: 'remada alta barra ombro execu├º├úo' },
++  { id: '44', nome: 'Encolhimento de Ombros',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shrug/0.jpg`,                                    youtube_search: 'encolhimento ombros execu├º├úo' },
++  { id: '45', nome: 'Face Pull',                      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Face_Pull/0.jpg`,                                   youtube_search: 'face pull execu├º├úo' },
++  { id: '46', nome: 'P├íssaro (Crucifixo Invertido)',  grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bent_Over_Lateral_Raise/0.jpg`,                  youtube_search: 'p├íssaro crucifixo invertido execu├º├úo' },
+ 
+   // ÔöÇÔöÇ B├ìCEPS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '47', nome: 'Rosca Direta com Barra',         grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Iniciante',     gif_url: `${BASE}/Barbell_Curl/0.jpg` },
+-  { id: '48', nome: 'Rosca Alternada',                grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Alternate_Bicep_Curl/0.jpg` },
+-  { id: '49', nome: 'Rosca Concentrada',              grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Concentration_Curl/0.jpg` },
+-  { id: '50', nome: 'Rosca Martelo',                  grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Hammer_Curl/0.jpg` },
+-  { id: '51', nome: 'Rosca Scott com Barra',          grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Preacher_Curl/0.jpg` },
+-  { id: '52', nome: 'Rosca na Polia Baixa',           grupo: 'B├¡ceps',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Curl/0.jpg` },
+-  { id: '53', nome: 'Rosca 21',                       grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Curl/0.jpg` },
++  { id: '47', nome: 'Rosca Direta com Barra',         grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Iniciante',     gif_url: `${BASE}/Barbell_Curl/0.jpg`,                                      youtube_search: 'rosca direta barra execu├º├úo' },
++  { id: '48', nome: 'Rosca Alternada',                grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Alternate_Bicep_Curl/0.jpg`,                     youtube_search: 'rosca alternada halteres execu├º├úo' },
++  { id: '49', nome: 'Rosca Concentrada',              grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Concentration_Curl/0.jpg`,                       youtube_search: 'rosca concentrada execu├º├úo' },
++  { id: '50', nome: 'Rosca Martelo',                  grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Hammer_Curl/0.jpg`,                              youtube_search: 'rosca martelo execu├º├úo' },
++  { id: '51', nome: 'Rosca Scott com Barra',          grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Preacher_Curl/0.jpg`,                             youtube_search: 'rosca scott barra execu├º├úo' },
++  { id: '52', nome: 'Rosca na Polia Baixa',           grupo: 'B├¡ceps',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Curl/0.jpg`,                                        youtube_search: 'rosca polia baixa execu├º├úo' },
++  { id: '53', nome: 'Rosca 21',                       grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Curl/0.jpg`,                                      youtube_search: 'rosca 21 b├¡ceps execu├º├úo' },
+ 
+   // ÔöÇÔöÇ TR├ìCEPS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '54', nome: 'Tr├¡ceps Pulley Barra Reta',      grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pushdown/0.jpg` },
+-  { id: '55', nome: 'Tr├¡ceps Pulley Corda',           grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Triceps_Pushdown_(Rope)/0.jpg` },
+-  { id: '56', nome: 'Tr├¡ceps Franc├¬s com Barra',      grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lying_Triceps_Extension_Skull_Crusher/0.jpg` },
+-  { id: '57', nome: 'Tr├¡ceps Franc├¬s com Halter',     grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lying_Triceps_Extension/0.jpg` },
+-  { id: '58', nome: 'Tr├¡ceps Coice',                  grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Kickback/0.jpg` },
+-  { id: '59', nome: 'Mergulho no Banco',              grupo: 'Tr├¡ceps', equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Triceps_Dips/0.jpg` },
+-  { id: '60', nome: 'Supino Fechado',                 grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Close-Grip_Bench_Press/0.jpg` },
++  { id: '54', nome: 'Tr├¡ceps Pulley Barra Reta',      grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pushdown/0.jpg`,                                    youtube_search: 'tr├¡ceps pulley barra reta execu├º├úo' },
++  { id: '55', nome: 'Tr├¡ceps Pulley Corda',           grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Triceps_Pushdown_(Rope)/0.jpg`,                     youtube_search: 'tr├¡ceps pulley corda execu├º├úo' },
++  { id: '56', nome: 'Tr├¡ceps Franc├¬s com Barra',      grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lying_Triceps_Extension_Skull_Crusher/0.jpg`,     youtube_search: 'tr├¡ceps franc├¬s barra execu├º├úo' },
++  { id: '57', nome: 'Tr├¡ceps Franc├¬s com Halter',     grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lying_Triceps_Extension/0.jpg`,                  youtube_search: 'tr├¡ceps franc├¬s halter execu├º├úo' },
++  { id: '58', nome: 'Tr├¡ceps Coice',                  grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Kickback/0.jpg`,                                 youtube_search: 'tr├¡ceps coice halter execu├º├úo' },
++  { id: '59', nome: 'Mergulho no Banco',              grupo: 'Tr├¡ceps', equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Triceps_Dips/0.jpg`,                                      youtube_search: 'mergulho banco tr├¡ceps execu├º├úo' },
++  { id: '60', nome: 'Supino Fechado',                 grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Close-Grip_Bench_Press/0.jpg`,                    youtube_search: 'supino fechado tr├¡ceps execu├º├úo' },
+ 
+   // ÔöÇÔöÇ ABD├öMEN ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '61', nome: 'Abdominal Crunch',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Crunch/0.jpg` },
+-  { id: '62', nome: 'Eleva├º├úo de Pernas',             grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Lying_Leg_Raise/0.jpg` },
+-  { id: '63', nome: 'Prancha Frontal',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Plank/0.jpg` },
+-  { id: '64', nome: 'Prancha Lateral',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Side_Plank/0.jpg` },
+-  { id: '65', nome: 'Abdominal na Polia',             grupo: 'Abd├┤men', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crunch/0.jpg` },
+-  { id: '66', nome: 'Eleva├º├úo de Pernas na Barra',    grupo: 'Abd├┤men', equipamento: 'Barra Fixa', nivel: 'Intermedi├írio', gif_url: `${BASE}/Hanging_Leg_Raise/0.jpg` },
+-  { id: '67', nome: 'Russian Twist',                  grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Russian_Twist/0.jpg` },
+-  { id: '68', nome: 'Abdominal Bicicleta',            grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Bicycle_Crunch/0.jpg` },
+-  { id: '69', nome: 'Mountain Climber',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Mountain_Climber/0.jpg` },
+-  { id: '70', nome: 'Dead Bug',                       grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Dead_Bug/0.jpg` },
++  { id: '61', nome: 'Abdominal Crunch',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Crunch/0.jpg`,                                            youtube_search: 'abdominal crunch execu├º├úo' },
++  { id: '62', nome: 'Eleva├º├úo de Pernas',             grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Lying_Leg_Raise/0.jpg`,                                   youtube_search: 'eleva├º├úo de pernas abdominal execu├º├úo' },
++  { id: '63', nome: 'Prancha Frontal',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Plank/0.jpg`,                                             youtube_search: 'prancha abdominal execu├º├úo' },
++  { id: '64', nome: 'Prancha Lateral',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Side_Plank/0.jpg`,                                        youtube_search: 'prancha lateral execu├º├úo' },
++  { id: '65', nome: 'Abdominal na Polia',             grupo: 'Abd├┤men', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crunch/0.jpg`,                                      youtube_search: 'abdominal polia execu├º├úo' },
++  { id: '66', nome: 'Eleva├º├úo de Pernas na Barra',    grupo: 'Abd├┤men', equipamento: 'Barra Fixa', nivel: 'Intermedi├írio', gif_url: `${BASE}/Hanging_Leg_Raise/0.jpg`,                                 youtube_search: 'eleva├º├úo pernas barra fixa execu├º├úo' },
++  { id: '67', nome: 'Russian Twist',                  grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Russian_Twist/0.jpg`,                                     youtube_search: 'russian twist execu├º├úo' },
++  { id: '68', nome: 'Abdominal Bicicleta',            grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Bicycle_Crunch/0.jpg`,                                    youtube_search: 'abdominal bicicleta execu├º├úo' },
++  { id: '69', nome: 'Mountain Climber',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Mountain_Climber/0.jpg`,                                  youtube_search: 'mountain climber exerc├¡cio execu├º├úo' },
++  { id: '70', nome: 'Dead Bug',                       grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'dead bug exerc├¡cio abdominal execu├º├úo' },
+ 
+   // ÔöÇÔöÇ CARDIO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '71', nome: 'Burpee',                         grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Burpee/0.jpg` },
+-  { id: '72', nome: 'Jumping Jack',                   grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Jumping_Jack/0.jpg` },
+-  { id: '73', nome: 'Corda (Jump Rope)',              grupo: 'Cardio',  equipamento: 'Corda',      nivel: 'Iniciante',     gif_url: `${BASE}/Jump_Rope/0.jpg` },
+-  { id: '74', nome: 'Esteira',                        grupo: 'Cardio',  equipamento: 'Esteira',    nivel: 'Iniciante',     gif_url: undefined },
+-  { id: '75', nome: 'Bicicleta Ergom├®trica',          grupo: 'Cardio',  equipamento: 'Bicicleta',  nivel: 'Iniciante',     gif_url: undefined },
+-  { id: '76', nome: 'Remo Ergom├®trico',               grupo: 'Cardio',  equipamento: 'Remo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Rowing/0.jpg` },
++  { id: '71', nome: 'Burpee',                         grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Burpee/0.jpg`,                                            youtube_search: 'burpee execu├º├úo como fazer' },
++  { id: '72', nome: 'Jumping Jack',                   grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Jumping_Jack/0.jpg`,                                      youtube_search: 'jumping jack exerc├¡cio execu├º├úo' },
++  { id: '73', nome: 'Corda (Jump Rope)',              grupo: 'Cardio',  equipamento: 'Corda',      nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'pular corda corretamente' },
++  { id: '74', nome: 'Esteira',                        grupo: 'Cardio',  equipamento: 'Esteira',    nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'treino esteira iniciante' },
++  { id: '75', nome: 'Bicicleta Ergom├®trica',          grupo: 'Cardio',  equipamento: 'Bicicleta',  nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'bicicleta ergom├®trica posi├º├úo correta' },
++  { id: '76', nome: 'Remo Ergom├®trico',               grupo: 'Cardio',  equipamento: 'Remo',       nivel: 'Intermedi├írio', gif_url: undefined,                                                          youtube_search: 'remo ergom├®trico execu├º├úo' },
+ 
+   // ÔöÇÔöÇ GL├ÜTEOS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '77', nome: 'Hip Thrust com Barra',           grupo: 'Gl├║teos', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Hip_Thrust/0.jpg` },
+-  { id: '78', nome: 'Eleva├º├úo P├®lvica',               grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Glute_Bridge/0.jpg` },
+-  { id: '79', nome: 'Gl├║teo na Polia',                grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Through/0.jpg` },
+-  { id: '80', nome: 'Coice de Gl├║teo',                grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Donkey_Kicks/0.jpg` },
+-  { id: '81', nome: 'Abdu├º├úo de Quadril em P├®',       grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: undefined },
++  { id: '77', nome: 'Hip Thrust com Barra',           grupo: 'Gl├║teos', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Hip_Thrust/0.jpg`,                                youtube_search: 'hip thrust barra execu├º├úo' },
++  { id: '78', nome: 'Eleva├º├úo P├®lvica',               grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Glute_Bridge/0.jpg`,                                      youtube_search: 'eleva├º├úo p├®lvica gl├║teo execu├º├úo' },
++  { id: '79', nome: 'Gl├║teo na Polia',                grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Through/0.jpg`,                                youtube_search: 'gl├║teo polia execu├º├úo' },
++  { id: '80', nome: 'Coice de Gl├║teo',                grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Donkey_Kicks/0.jpg`,                                      youtube_search: 'coice gl├║teo execu├º├úo' },
++  { id: '81', nome: 'Abdu├º├úo de Quadril em P├®',       grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: undefined,                                                          youtube_search: 'abdu├º├úo quadril polia execu├º├úo' },
+ ]
+ 
+ export const gruposMusculares = [
+@@ -142,9 +141,3 @@ export const nivelColors: Record<string, string> = {
+   'Intermedi├írio': 'badge-warning',
+   'Avan├ºado':      'badge-danger',
+ }
+-
+-// Fun├º├úo para buscar imagem com fallback
+-export function getExercicioImageUrl(nome: string): string {
+-  const found = mockExercicios.find(e => e.nome === nome)
+-  return found?.gif_url ?? ''
+-}
+
+commit 2648d58e61ac05f4b8e66fe92c884eddbec4f6f9
+Author: Mateus <teussharke@gmail.com>
+Date:   Wed Mar 25 12:31:54 2026 -0300
+
+    mega2
+
+diff --git a/src/lib/mock/exercicios.ts b/src/lib/mock/exercicios.ts
+index 844b94d..c9eff20 100644
+--- a/src/lib/mock/exercicios.ts
++++ b/src/lib/mock/exercicios.ts
+@@ -1,6 +1,6 @@
+ // src/lib/mock/exercicios.ts
+-// GIFs: free-exercise-db (github.com/yuhonas/free-exercise-db)
+-// Fallback: YouTube embed quando n├úo h├í GIF
++// Imagens: wger.de (API p├║blica, sem chave)
++// Formato: https://wger.de/api/v2/exercise/ID/image/
+ 
+ export interface Exercicio {
+   id: string
+@@ -8,118 +8,116 @@ export interface Exercicio {
+   grupo: string
+   equipamento: string
+   nivel: 'Iniciante' | 'Intermedi├írio' | 'Avan├ºado'
+-  gif_url?: string
+-  youtube_search: string // termo de busca para embed do YouTube
++  gif_url?: string   // URL da imagem demonstrativa
+ }
+ 
+-const BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises'
++// wger.de tem imagens em: https://wger.de/en/exercise/IMAGE_ID/view/base
++// As imagens p├║blicas ficam em /media/exercise-images/
++// Usando o CDN p├║blico do projeto ExerciseDB que hospeda imagens reais
++const CDN = 'https://exercisedb.p.rapidapi.com'
+ 
+-// YouTube embed: https://www.youtube.com/embed?listType=search&list=TERMO
+-// Abre o primeiro v├¡deo da busca ÔÇö gratuito, sem chave de API
+-export function getYouTubeSearchUrl(termo: string): string {
+-  const query = encodeURIComponent(`como fazer ${termo} academia`)
+-  return `https://www.youtube.com/results?search_query=${query}`
+-}
++// Usando imagens do projeto free-exercise-db via jsDelivr CDN (mais confi├ível)
++const BASE = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises'
+ 
+ export const mockExercicios: Exercicio[] = [
+   // ÔöÇÔöÇ PEITO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '1',  nome: 'Supino Reto com Barra',          grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bench_Press_-_Medium_Grip/0.jpg`,                    youtube_search: 'supino reto barra execu├º├úo' },
+-  { id: '2',  nome: 'Supino Inclinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Incline_Bench_Press_-_Medium_Grip/0.jpg`,            youtube_search: 'supino inclinado barra execu├º├úo' },
+-  { id: '3',  nome: 'Supino Declinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Decline_Bench_Press/0.jpg`,                          youtube_search: 'supino declinado barra execu├º├úo' },
+-  { id: '4',  nome: 'Supino Reto com Halteres',       grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bench_Press/0.jpg`,                                 youtube_search: 'supino reto halteres execu├º├úo' },
+-  { id: '5',  nome: 'Supino Inclinado com Halteres',  grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Bench_Press/0.jpg`,                         youtube_search: 'supino inclinado halteres execu├º├úo' },
+-  { id: '6',  nome: 'Crucifixo com Halteres',         grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Flyes/0.jpg`,                                       youtube_search: 'crucifixo halteres execu├º├úo' },
+-  { id: '7',  nome: 'Crucifixo Inclinado',            grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Flyes/0.jpg`,                               youtube_search: 'crucifixo inclinado halteres execu├º├úo' },
+-  { id: '8',  nome: 'Crossover Polia Alta',           grupo: 'Peito',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crossover/0.jpg`,                                      youtube_search: 'crossover polia peito execu├º├úo' },
+-  { id: '9',  nome: 'Flex├úo de Bra├ºo',                grupo: 'Peito',   equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Push-up/0.jpg`,                                              youtube_search: 'flex├úo de bra├ºo execu├º├úo correta' },
+-  { id: '10', nome: 'Peck Deck (Voador)',              grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Pec_Deck_Fly/0.jpg`,                                         youtube_search: 'peck deck voador peito execu├º├úo' },
+-  { id: '11', nome: 'Mergulho no Paralelo',           grupo: 'Peito',   equipamento: 'Paralelo',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dips_-_Chest_Version/0.jpg`,                                 youtube_search: 'mergulho paralelo peito execu├º├úo' },
+-  { id: '12', nome: 'Chest Press na M├íquina',         grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Chest_Press/0.jpg`,                                    youtube_search: 'chest press m├íquina execu├º├úo' },
++  { id: '1',  nome: 'Supino Reto com Barra',          grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bench_Press_-_Medium_Grip/0.jpg` },
++  { id: '2',  nome: 'Supino Inclinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Incline_Bench_Press_-_Medium_Grip/0.jpg` },
++  { id: '3',  nome: 'Supino Declinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Decline_Bench_Press/0.jpg` },
++  { id: '4',  nome: 'Supino Reto com Halteres',       grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bench_Press/0.jpg` },
++  { id: '5',  nome: 'Supino Inclinado com Halteres',  grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Bench_Press/0.jpg` },
++  { id: '6',  nome: 'Crucifixo com Halteres',         grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Flyes/0.jpg` },
++  { id: '7',  nome: 'Crucifixo Inclinado',            grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Flyes/0.jpg` },
++  { id: '8',  nome: 'Crossover Polia Alta',           grupo: 'Peito',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crossover/0.jpg` },
++  { id: '9',  nome: 'Flex├úo de Bra├ºo',                grupo: 'Peito',   equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Push-up/0.jpg` },
++  { id: '10', nome: 'Peck Deck (Voador)',              grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Pec_Deck_Fly/0.jpg` },
++  { id: '11', nome: 'Mergulho no Paralelo',           grupo: 'Peito',   equipamento: 'Paralelo',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dips_-_Chest_Version/0.jpg` },
++  { id: '12', nome: 'Chest Press na M├íquina',         grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Chest_Press/0.jpg` },
+ 
+   // ÔöÇÔöÇ COSTAS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '13', nome: 'Puxada Frontal',                 grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Down/0.jpg`,                                      youtube_search: 'puxada frontal execu├º├úo correta' },
+-  { id: '14', nome: 'Puxada Neutra',                  grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Close_Grip_Pull_Down/0.jpg`,                           youtube_search: 'puxada neutra execu├º├úo' },
+-  { id: '15', nome: 'Remada Curvada com Barra',       grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bent_Over_Row/0.jpg`,                                youtube_search: 'remada curvada barra execu├º├úo' },
+-  { id: '16', nome: 'Remada Unilateral com Halter',   grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_One_Arm_Row/0.jpg`,                                 youtube_search: 'remada unilateral halter execu├º├úo' },
+-  { id: '17', nome: 'Remada Baixa na Polia',          grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Seated_Row/0.jpg`,                                     youtube_search: 'remada baixa polia execu├º├úo' },
+-  { id: '18', nome: 'Pullover com Halter',            grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Pullover/0.jpg`,                                    youtube_search: 'pullover halter execu├º├úo' },
+-  { id: '19', nome: 'Barra Fixa (Pull-up)',           grupo: 'Costas',  equipamento: 'Barra Fixa', nivel: 'Avan├ºado',      gif_url: `${BASE}/Pull-up/0.jpg`,                                              youtube_search: 'barra fixa pullup execu├º├úo' },
+-  { id: '20', nome: 'Levantamento Terra',             grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Avan├ºado',      gif_url: `${BASE}/Barbell_Deadlift/0.jpg`,                                     youtube_search: 'levantamento terra execu├º├úo correta' },
+-  { id: '21', nome: 'Hiperextens├úo Lombar',           grupo: 'Costas',  equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Hyperextension/0.jpg`,                                       youtube_search: 'hiperextens├úo lombar execu├º├úo' },
+-  { id: '22', nome: 'Remada Cavalinho',               grupo: 'Costas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Row/0.jpg`,                                     youtube_search: 'remada cavalinho m├íquina execu├º├úo' },
++  { id: '13', nome: 'Puxada Frontal',                 grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Down/0.jpg` },
++  { id: '14', nome: 'Puxada Neutra',                  grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Close_Grip_Pull_Down/0.jpg` },
++  { id: '15', nome: 'Remada Curvada com Barra',       grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bent_Over_Row/0.jpg` },
++  { id: '16', nome: 'Remada Unilateral com Halter',   grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_One_Arm_Row/0.jpg` },
++  { id: '17', nome: 'Remada Baixa na Polia',          grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Seated_Row/0.jpg` },
++  { id: '18', nome: 'Pullover com Halter',            grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Pullover/0.jpg` },
++  { id: '19', nome: 'Barra Fixa (Pull-up)',           grupo: 'Costas',  equipamento: 'Barra Fixa', nivel: 'Avan├ºado',      gif_url: `${BASE}/Pull-up/0.jpg` },
++  { id: '20', nome: 'Levantamento Terra',             grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Avan├ºado',      gif_url: `${BASE}/Barbell_Deadlift/0.jpg` },
++  { id: '21', nome: 'Hiperextens├úo Lombar',           grupo: 'Costas',  equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Hyperextension/0.jpg` },
++  { id: '22', nome: 'Remada Cavalinho',               grupo: 'Costas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Row/0.jpg` },
+ 
+   // ÔöÇÔöÇ PERNAS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '23', nome: 'Agachamento Livre',              grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Full_Squat/0.jpg`,                                   youtube_search: 'agachamento livre barra execu├º├úo' },
+-  { id: '24', nome: 'Agachamento Sum├┤',               grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Sumo_Squat/0.jpg`,                                  youtube_search: 'agachamento sumo execu├º├úo' },
+-  { id: '25', nome: 'Leg Press 45┬░',                  grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Leg_Press/0.jpg`,                                            youtube_search: 'leg press 45 execu├º├úo' },
+-  { id: '26', nome: 'Cadeira Extensora',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Leg_Extension/0.jpg`,                                  youtube_search: 'cadeira extensora execu├º├úo' },
+-  { id: '27', nome: 'Mesa Flexora',                   grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Lying_Leg_Curl/0.jpg`,                                 youtube_search: 'mesa flexora execu├º├úo' },
+-  { id: '28', nome: 'Stiff com Barra',                grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Romanian_Deadlift/0.jpg`,                            youtube_search: 'stiff barra execu├º├úo' },
+-  { id: '29', nome: 'Stiff com Halteres',             grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Romanian_Deadlift/0.jpg`,                           youtube_search: 'stiff halteres execu├º├úo' },
+-  { id: '30', nome: 'Avan├ºo com Halteres',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lunge/0.jpg`,                                       youtube_search: 'avan├ºo afundo halteres execu├º├úo' },
+-  { id: '31', nome: 'Avan├ºo com Barra',               grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lunge/0.jpg`,                                        youtube_search: 'avan├ºo barra execu├º├úo' },
+-  { id: '32', nome: 'Agachamento B├║lgaro',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Avan├ºado',      gif_url: `${BASE}/Dumbbell_Bulgarian_Split_Squat/0.jpg`,                       youtube_search: 'agachamento bulgaro execu├º├úo' },
+-  { id: '33', nome: 'Panturrilha em P├®',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Standing_Calf_Raise/0.jpg`,                            youtube_search: 'panturrilha em p├® execu├º├úo' },
+-  { id: '34', nome: 'Panturrilha Sentado',            grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Calf_Raise/0.jpg`,                              youtube_search: 'panturrilha sentado execu├º├úo' },
+-  { id: '35', nome: 'Cadeira Adutora',                grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Adduction/0.jpg`,                           youtube_search: 'cadeira adutora execu├º├úo' },
+-  { id: '36', nome: 'Cadeira Abdutora',               grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Abduction/0.jpg`,                           youtube_search: 'cadeira abdutora execu├º├úo' },
++  { id: '23', nome: 'Agachamento Livre',              grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Full_Squat/0.jpg` },
++  { id: '24', nome: 'Agachamento Sum├┤',               grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Sumo_Squat/0.jpg` },
++  { id: '25', nome: 'Leg Press 45┬░',                  grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Leg_Press/0.jpg` },
++  { id: '26', nome: 'Cadeira Extensora',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Leg_Extension/0.jpg` },
++  { id: '27', nome: 'Mesa Flexora',                   grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Lying_Leg_Curl/0.jpg` },
++  { id: '28', nome: 'Stiff com Barra',                grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Romanian_Deadlift/0.jpg` },
++  { id: '29', nome: 'Stiff com Halteres',             grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Romanian_Deadlift/0.jpg` },
++  { id: '30', nome: 'Avan├ºo com Halteres',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lunge/0.jpg` },
++  { id: '31', nome: 'Avan├ºo com Barra',               grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lunge/0.jpg` },
++  { id: '32', nome: 'Agachamento B├║lgaro',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Avan├ºado',      gif_url: `${BASE}/Dumbbell_Bulgarian_Split_Squat/0.jpg` },
++  { id: '33', nome: 'Panturrilha em P├®',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Standing_Calf_Raise/0.jpg` },
++  { id: '34', nome: 'Panturrilha Sentado',            grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Calf_Raise/0.jpg` },
++  { id: '35', nome: 'Cadeira Adutora',                grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Adduction/0.jpg` },
++  { id: '36', nome: 'Cadeira Abdutora',               grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Abduction/0.jpg` },
+ 
+   // ÔöÇÔöÇ OMBRO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '37', nome: 'Desenvolvimento com Barra',      grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Seated_Behind_Head_Military_Press/0.jpg`,            youtube_search: 'desenvolvimento ombro barra execu├º├úo' },
+-  { id: '38', nome: 'Desenvolvimento com Halteres',   grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shoulder_Press/0.jpg`,                              youtube_search: 'desenvolvimento halteres ombro execu├º├úo' },
+-  { id: '39', nome: 'Desenvolvimento Arnold',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Arnold_Press/0.jpg`,                                youtube_search: 'arnold press execu├º├úo' },
+-  { id: '40', nome: 'Eleva├º├úo Lateral',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lateral_Raise/0.jpg`,                               youtube_search: 'eleva├º├úo lateral halteres execu├º├úo' },
+-  { id: '41', nome: 'Eleva├º├úo Lateral na Polia',      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Lateral_Raise/0.jpg`,                                  youtube_search: 'eleva├º├úo lateral polia execu├º├úo' },
+-  { id: '42', nome: 'Eleva├º├úo Frontal',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Front_Raise/0.jpg`,                                 youtube_search: 'eleva├º├úo frontal ombro execu├º├úo' },
+-  { id: '43', nome: 'Remada Alta com Barra',          grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Upright_Row/0.jpg`,                                  youtube_search: 'remada alta barra ombro execu├º├úo' },
+-  { id: '44', nome: 'Encolhimento de Ombros',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shrug/0.jpg`,                                       youtube_search: 'encolhimento ombros execu├º├úo' },
+-  { id: '45', nome: 'Face Pull',                      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Face_Pull/0.jpg`,                                      youtube_search: 'face pull execu├º├úo' },
+-  { id: '46', nome: 'P├íssaro (Crucifixo Invertido)',  grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bent_Over_Lateral_Raise/0.jpg`,                     youtube_search: 'p├íssaro crucifixo invertido execu├º├úo' },
++  { id: '37', nome: 'Desenvolvimento com Barra',      grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Seated_Behind_Head_Military_Press/0.jpg` },
++  { id: '38', nome: 'Desenvolvimento com Halteres',   grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shoulder_Press/0.jpg` },
++  { id: '39', nome: 'Desenvolvimento Arnold',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Arnold_Press/0.jpg` },
++  { id: '40', nome: 'Eleva├º├úo Lateral',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lateral_Raise/0.jpg` },
++  { id: '41', nome: 'Eleva├º├úo Lateral na Polia',      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Lateral_Raise/0.jpg` },
++  { id: '42', nome: 'Eleva├º├úo Frontal',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Front_Raise/0.jpg` },
++  { id: '43', nome: 'Remada Alta com Barra',          grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Upright_Row/0.jpg` },
++  { id: '44', nome: 'Encolhimento de Ombros',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shrug/0.jpg` },
++  { id: '45', nome: 'Face Pull',                      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Face_Pull/0.jpg` },
++  { id: '46', nome: 'P├íssaro (Crucifixo Invertido)',  grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bent_Over_Lateral_Raise/0.jpg` },
+ 
+   // ÔöÇÔöÇ B├ìCEPS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '47', nome: 'Rosca Direta com Barra',         grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Iniciante',     gif_url: `${BASE}/Barbell_Curl/0.jpg`,                                         youtube_search: 'rosca direta barra execu├º├úo' },
+-  { id: '48', nome: 'Rosca Alternada',                grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Alternate_Bicep_Curl/0.jpg`,                        youtube_search: 'rosca alternada halteres execu├º├úo' },
+-  { id: '49', nome: 'Rosca Concentrada',              grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Concentration_Curl/0.jpg`,                          youtube_search: 'rosca concentrada execu├º├úo' },
+-  { id: '50', nome: 'Rosca Martelo',                  grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Hammer_Curl/0.jpg`,                                 youtube_search: 'rosca martelo execu├º├úo' },
+-  { id: '51', nome: 'Rosca Scott com Barra',          grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Preacher_Curl/0.jpg`,                                youtube_search: 'rosca scott barra execu├º├úo' },
+-  { id: '52', nome: 'Rosca na Polia Baixa',           grupo: 'B├¡ceps',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Curl/0.jpg`,                                           youtube_search: 'rosca polia baixa execu├º├úo' },
+-  { id: '53', nome: 'Rosca 21',                       grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Curl/0.jpg`,                                         youtube_search: 'rosca 21 b├¡ceps execu├º├úo' },
++  { id: '47', nome: 'Rosca Direta com Barra',         grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Iniciante',     gif_url: `${BASE}/Barbell_Curl/0.jpg` },
++  { id: '48', nome: 'Rosca Alternada',                grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Alternate_Bicep_Curl/0.jpg` },
++  { id: '49', nome: 'Rosca Concentrada',              grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Concentration_Curl/0.jpg` },
++  { id: '50', nome: 'Rosca Martelo',                  grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Hammer_Curl/0.jpg` },
++  { id: '51', nome: 'Rosca Scott com Barra',          grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Preacher_Curl/0.jpg` },
++  { id: '52', nome: 'Rosca na Polia Baixa',           grupo: 'B├¡ceps',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Curl/0.jpg` },
++  { id: '53', nome: 'Rosca 21',                       grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Curl/0.jpg` },
+ 
+   // ÔöÇÔöÇ TR├ìCEPS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '54', nome: 'Tr├¡ceps Pulley Barra Reta',      grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pushdown/0.jpg`,                                       youtube_search: 'tr├¡ceps pulley barra reta execu├º├úo' },
+-  { id: '55', nome: 'Tr├¡ceps Pulley Corda',           grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Triceps_Pushdown_(Rope)/0.jpg`,                        youtube_search: 'tr├¡ceps pulley corda execu├º├úo' },
+-  { id: '56', nome: 'Tr├¡ceps Franc├¬s com Barra',      grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lying_Triceps_Extension_Skull_Crusher/0.jpg`,        youtube_search: 'tr├¡ceps franc├¬s barra execu├º├úo' },
+-  { id: '57', nome: 'Tr├¡ceps Franc├¬s com Halter',     grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lying_Triceps_Extension/0.jpg`,                     youtube_search: 'tr├¡ceps franc├¬s halter execu├º├úo' },
+-  { id: '58', nome: 'Tr├¡ceps Coice',                  grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Kickback/0.jpg`,                                    youtube_search: 'tr├¡ceps coice halter execu├º├úo' },
+-  { id: '59', nome: 'Mergulho no Banco',              grupo: 'Tr├¡ceps', equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Triceps_Dips/0.jpg`,                                         youtube_search: 'mergulho banco tr├¡ceps execu├º├úo' },
+-  { id: '60', nome: 'Supino Fechado',                 grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Close-Grip_Bench_Press/0.jpg`,                       youtube_search: 'supino fechado tr├¡ceps execu├º├úo' },
++  { id: '54', nome: 'Tr├¡ceps Pulley Barra Reta',      grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pushdown/0.jpg` },
++  { id: '55', nome: 'Tr├¡ceps Pulley Corda',           grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Triceps_Pushdown_(Rope)/0.jpg` },
++  { id: '56', nome: 'Tr├¡ceps Franc├¬s com Barra',      grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lying_Triceps_Extension_Skull_Crusher/0.jpg` },
++  { id: '57', nome: 'Tr├¡ceps Franc├¬s com Halter',     grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lying_Triceps_Extension/0.jpg` },
++  { id: '58', nome: 'Tr├¡ceps Coice',                  grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Kickback/0.jpg` },
++  { id: '59', nome: 'Mergulho no Banco',              grupo: 'Tr├¡ceps', equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Triceps_Dips/0.jpg` },
++  { id: '60', nome: 'Supino Fechado',                 grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Close-Grip_Bench_Press/0.jpg` },
+ 
+   // ÔöÇÔöÇ ABD├öMEN ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '61', nome: 'Abdominal Crunch',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Crunch/0.jpg`,                                               youtube_search: 'abdominal crunch execu├º├úo' },
+-  { id: '62', nome: 'Eleva├º├úo de Pernas',             grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Lying_Leg_Raise/0.jpg`,                                      youtube_search: 'eleva├º├úo de pernas abdominal execu├º├úo' },
+-  { id: '63', nome: 'Prancha Frontal',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Plank/0.jpg`,                                                youtube_search: 'prancha abdominal execu├º├úo' },
+-  { id: '64', nome: 'Prancha Lateral',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Side_Plank/0.jpg`,                                           youtube_search: 'prancha lateral execu├º├úo' },
+-  { id: '65', nome: 'Abdominal na Polia',             grupo: 'Abd├┤men', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crunch/0.jpg`,                                         youtube_search: 'abdominal polia execu├º├úo' },
+-  { id: '66', nome: 'Eleva├º├úo de Pernas na Barra',    grupo: 'Abd├┤men', equipamento: 'Barra Fixa', nivel: 'Intermedi├írio', gif_url: `${BASE}/Hanging_Leg_Raise/0.jpg`,                                    youtube_search: 'eleva├º├úo pernas barra fixa execu├º├úo' },
+-  { id: '67', nome: 'Russian Twist',                  grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Russian_Twist/0.jpg`,                                        youtube_search: 'russian twist execu├º├úo' },
+-  { id: '68', nome: 'Abdominal Bicicleta',            grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Bicycle_Crunch/0.jpg`,                                       youtube_search: 'abdominal bicicleta execu├º├úo' },
+-  { id: '69', nome: 'Mountain Climber',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Mountain_Climber/0.jpg`,                                     youtube_search: 'mountain climber exerc├¡cio execu├º├úo' },
+-  { id: '70', nome: 'Dead Bug',                       grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: undefined,                                                             youtube_search: 'dead bug exerc├¡cio abdominal execu├º├úo' },
++  { id: '61', nome: 'Abdominal Crunch',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Crunch/0.jpg` },
++  { id: '62', nome: 'Eleva├º├úo de Pernas',             grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Lying_Leg_Raise/0.jpg` },
++  { id: '63', nome: 'Prancha Frontal',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Plank/0.jpg` },
++  { id: '64', nome: 'Prancha Lateral',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Side_Plank/0.jpg` },
++  { id: '65', nome: 'Abdominal na Polia',             grupo: 'Abd├┤men', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crunch/0.jpg` },
++  { id: '66', nome: 'Eleva├º├úo de Pernas na Barra',    grupo: 'Abd├┤men', equipamento: 'Barra Fixa', nivel: 'Intermedi├írio', gif_url: `${BASE}/Hanging_Leg_Raise/0.jpg` },
++  { id: '67', nome: 'Russian Twist',                  grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Russian_Twist/0.jpg` },
++  { id: '68', nome: 'Abdominal Bicicleta',            grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Bicycle_Crunch/0.jpg` },
++  { id: '69', nome: 'Mountain Climber',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Mountain_Climber/0.jpg` },
++  { id: '70', nome: 'Dead Bug',                       grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Dead_Bug/0.jpg` },
+ 
+   // ÔöÇÔöÇ CARDIO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '71', nome: 'Burpee',                         grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Burpee/0.jpg`,                                               youtube_search: 'burpee execu├º├úo como fazer' },
+-  { id: '72', nome: 'Jumping Jack',                   grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Jumping_Jack/0.jpg`,                                         youtube_search: 'jumping jack exerc├¡cio execu├º├úo' },
+-  { id: '73', nome: 'Corda (Jump Rope)',              grupo: 'Cardio',  equipamento: 'Corda',      nivel: 'Iniciante',     gif_url: undefined,                                                             youtube_search: 'pular corda corretamente' },
+-  { id: '74', nome: 'Esteira',                        grupo: 'Cardio',  equipamento: 'Esteira',    nivel: 'Iniciante',     gif_url: undefined,                                                             youtube_search: 'treino esteira iniciante' },
+-  { id: '75', nome: 'Bicicleta Ergom├®trica',          grupo: 'Cardio',  equipamento: 'Bicicleta',  nivel: 'Iniciante',     gif_url: undefined,                                                             youtube_search: 'bicicleta ergom├®trica posi├º├úo correta' },
+-  { id: '76', nome: 'Remo Ergom├®trico',               grupo: 'Cardio',  equipamento: 'Remo',       nivel: 'Intermedi├írio', gif_url: undefined,                                                             youtube_search: 'remo ergom├®trico execu├º├úo' },
++  { id: '71', nome: 'Burpee',                         grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Burpee/0.jpg` },
++  { id: '72', nome: 'Jumping Jack',                   grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Jumping_Jack/0.jpg` },
++  { id: '73', nome: 'Corda (Jump Rope)',              grupo: 'Cardio',  equipamento: 'Corda',      nivel: 'Iniciante',     gif_url: `${BASE}/Jump_Rope/0.jpg` },
++  { id: '74', nome: 'Esteira',                        grupo: 'Cardio',  equipamento: 'Esteira',    nivel: 'Iniciante',     gif_url: undefined },
++  { id: '75', nome: 'Bicicleta Ergom├®trica',          grupo: 'Cardio',  equipamento: 'Bicicleta',  nivel: 'Iniciante',     gif_url: undefined },
++  { id: '76', nome: 'Remo Ergom├®trico',               grupo: 'Cardio',  equipamento: 'Remo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Rowing/0.jpg` },
+ 
+   // ÔöÇÔöÇ GL├ÜTEOS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '77', nome: 'Hip Thrust com Barra',           grupo: 'Gl├║teos', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Hip_Thrust/0.jpg`,                                   youtube_search: 'hip thrust barra execu├º├úo' },
+-  { id: '78', nome: 'Eleva├º├úo P├®lvica',               grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Glute_Bridge/0.jpg`,                                         youtube_search: 'eleva├º├úo p├®lvica gl├║teo execu├º├úo' },
+-  { id: '79', nome: 'Gl├║teo na Polia',                grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Through/0.jpg`,                                   youtube_search: 'gl├║teo polia execu├º├úo' },
+-  { id: '80', nome: 'Coice de Gl├║teo',                grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Donkey_Kicks/0.jpg`,                                         youtube_search: 'coice gl├║teo execu├º├úo' },
+-  { id: '81', nome: 'Abdu├º├úo de Quadril em P├®',       grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: undefined,                                                             youtube_search: 'abdu├º├úo quadril polia execu├º├úo' },
++  { id: '77', nome: 'Hip Thrust com Barra',           grupo: 'Gl├║teos', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Hip_Thrust/0.jpg` },
++  { id: '78', nome: 'Eleva├º├úo P├®lvica',               grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Glute_Bridge/0.jpg` },
++  { id: '79', nome: 'Gl├║teo na Polia',                grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Through/0.jpg` },
++  { id: '80', nome: 'Coice de Gl├║teo',                grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Donkey_Kicks/0.jpg` },
++  { id: '81', nome: 'Abdu├º├úo de Quadril em P├®',       grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: undefined },
+ ]
+ 
+ export const gruposMusculares = [
+@@ -144,3 +142,9 @@ export const nivelColors: Record<string, string> = {
+   'Intermedi├írio': 'badge-warning',
+   'Avan├ºado':      'badge-danger',
+ }
++
++// Fun├º├úo para buscar imagem com fallback
++export function getExercicioImageUrl(nome: string): string {
++  const found = mockExercicios.find(e => e.nome === nome)
++  return found?.gif_url ?? ''
++}
+
+commit a0cc25fa4352e1a8ddeb620896a9e6e9c4371570
+Author: Mateus <teussharke@gmail.com>
+Date:   Wed Mar 25 09:01:08 2026 -0300
+
+    atte
+
+diff --git a/src/lib/mock/exercicios.ts b/src/lib/mock/exercicios.ts
+index 81c454b..844b94d 100644
+--- a/src/lib/mock/exercicios.ts
++++ b/src/lib/mock/exercicios.ts
+@@ -138,3 +138,9 @@ export const grupoColors: Record<string, string> = {
+   'Cardio':   'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+   'Gl├║teos':  'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
+ }
++
++export const nivelColors: Record<string, string> = {
++  'Iniciante':     'badge-success',
++  'Intermedi├írio': 'badge-warning',
++  'Avan├ºado':      'badge-danger',
++}
+
+commit a628a6f8fdea132cfafcbb34d815d01f7eb861bc
+Author: Mateus <teussharke@gmail.com>
+Date:   Wed Mar 25 08:37:33 2026 -0300
+
+    att
+
+diff --git a/src/lib/mock/exercicios.ts b/src/lib/mock/exercicios.ts
+index a8cc11b..81c454b 100644
+--- a/src/lib/mock/exercicios.ts
++++ b/src/lib/mock/exercicios.ts
+@@ -1,5 +1,6 @@
+ // src/lib/mock/exercicios.ts
+-// Imagens do reposit├│rio p├║blico: github.com/yuhonas/free-exercise-db
++// GIFs: free-exercise-db (github.com/yuhonas/free-exercise-db)
++// Fallback: YouTube embed quando n├úo h├í GIF
+ 
+ export interface Exercicio {
+   id: string
+@@ -8,109 +9,117 @@ export interface Exercicio {
+   equipamento: string
+   nivel: 'Iniciante' | 'Intermedi├írio' | 'Avan├ºado'
+   gif_url?: string
++  youtube_search: string // termo de busca para embed do YouTube
+ }
+ 
+ const BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises'
+ 
++// YouTube embed: https://www.youtube.com/embed?listType=search&list=TERMO
++// Abre o primeiro v├¡deo da busca ÔÇö gratuito, sem chave de API
++export function getYouTubeSearchUrl(termo: string): string {
++  const query = encodeURIComponent(`como fazer ${termo} academia`)
++  return `https://www.youtube.com/results?search_query=${query}`
++}
++
+ export const mockExercicios: Exercicio[] = [
+   // ÔöÇÔöÇ PEITO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '1',  nome: 'Supino Reto com Barra',          grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bench_Press_-_Medium_Grip/0.jpg` },
+-  { id: '2',  nome: 'Supino Inclinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Incline_Bench_Press_-_Medium_Grip/0.jpg` },
+-  { id: '3',  nome: 'Supino Declinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Decline_Bench_Press/0.jpg` },
+-  { id: '4',  nome: 'Supino Reto com Halteres',       grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bench_Press/0.jpg` },
+-  { id: '5',  nome: 'Supino Inclinado com Halteres',  grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Bench_Press/0.jpg` },
+-  { id: '6',  nome: 'Crucifixo com Halteres',         grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Flyes/0.jpg` },
+-  { id: '7',  nome: 'Crucifixo Inclinado',            grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Flyes/0.jpg` },
+-  { id: '8',  nome: 'Crossover Polia Alta',           grupo: 'Peito',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crossover/0.jpg` },
+-  { id: '9',  nome: 'Flex├úo de Bra├ºo',                grupo: 'Peito',   equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Push-up/0.jpg` },
+-  { id: '10', nome: 'Peck Deck (Voador)',              grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Pec_Deck_Fly/0.jpg` },
+-  { id: '11', nome: 'Mergulho no Paralelo',           grupo: 'Peito',   equipamento: 'Paralelo',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dips_-_Chest_Version/0.jpg` },
+-  { id: '12', nome: 'Chest Press na M├íquina',         grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Chest_Press/0.jpg` },
++  { id: '1',  nome: 'Supino Reto com Barra',          grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bench_Press_-_Medium_Grip/0.jpg`,                    youtube_search: 'supino reto barra execu├º├úo' },
++  { id: '2',  nome: 'Supino Inclinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Incline_Bench_Press_-_Medium_Grip/0.jpg`,            youtube_search: 'supino inclinado barra execu├º├úo' },
++  { id: '3',  nome: 'Supino Declinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Decline_Bench_Press/0.jpg`,                          youtube_search: 'supino declinado barra execu├º├úo' },
++  { id: '4',  nome: 'Supino Reto com Halteres',       grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bench_Press/0.jpg`,                                 youtube_search: 'supino reto halteres execu├º├úo' },
++  { id: '5',  nome: 'Supino Inclinado com Halteres',  grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Bench_Press/0.jpg`,                         youtube_search: 'supino inclinado halteres execu├º├úo' },
++  { id: '6',  nome: 'Crucifixo com Halteres',         grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Flyes/0.jpg`,                                       youtube_search: 'crucifixo halteres execu├º├úo' },
++  { id: '7',  nome: 'Crucifixo Inclinado',            grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Flyes/0.jpg`,                               youtube_search: 'crucifixo inclinado halteres execu├º├úo' },
++  { id: '8',  nome: 'Crossover Polia Alta',           grupo: 'Peito',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crossover/0.jpg`,                                      youtube_search: 'crossover polia peito execu├º├úo' },
++  { id: '9',  nome: 'Flex├úo de Bra├ºo',                grupo: 'Peito',   equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Push-up/0.jpg`,                                              youtube_search: 'flex├úo de bra├ºo execu├º├úo correta' },
++  { id: '10', nome: 'Peck Deck (Voador)',              grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Pec_Deck_Fly/0.jpg`,                                         youtube_search: 'peck deck voador peito execu├º├úo' },
++  { id: '11', nome: 'Mergulho no Paralelo',           grupo: 'Peito',   equipamento: 'Paralelo',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dips_-_Chest_Version/0.jpg`,                                 youtube_search: 'mergulho paralelo peito execu├º├úo' },
++  { id: '12', nome: 'Chest Press na M├íquina',         grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Chest_Press/0.jpg`,                                    youtube_search: 'chest press m├íquina execu├º├úo' },
+ 
+   // ÔöÇÔöÇ COSTAS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '13', nome: 'Puxada Frontal',                 grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Down/0.jpg` },
+-  { id: '14', nome: 'Puxada Neutra',                  grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Close_Grip_Pull_Down/0.jpg` },
+-  { id: '15', nome: 'Remada Curvada com Barra',       grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bent_Over_Row/0.jpg` },
+-  { id: '16', nome: 'Remada Unilateral com Halter',   grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_One_Arm_Row/0.jpg` },
+-  { id: '17', nome: 'Remada Baixa na Polia',          grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Seated_Row/0.jpg` },
+-  { id: '18', nome: 'Pullover com Halter',            grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Pullover/0.jpg` },
+-  { id: '19', nome: 'Barra Fixa (Pull-up)',           grupo: 'Costas',  equipamento: 'Barra Fixa', nivel: 'Avan├ºado',      gif_url: `${BASE}/Pull-up/0.jpg` },
+-  { id: '20', nome: 'Levantamento Terra',             grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Avan├ºado',      gif_url: `${BASE}/Barbell_Deadlift/0.jpg` },
+-  { id: '21', nome: 'Hiperextens├úo Lombar',           grupo: 'Costas',  equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Hyperextension/0.jpg` },
+-  { id: '22', nome: 'Remada Cavalinho',               grupo: 'Costas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Row/0.jpg` },
++  { id: '13', nome: 'Puxada Frontal',                 grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Down/0.jpg`,                                      youtube_search: 'puxada frontal execu├º├úo correta' },
++  { id: '14', nome: 'Puxada Neutra',                  grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Close_Grip_Pull_Down/0.jpg`,                           youtube_search: 'puxada neutra execu├º├úo' },
++  { id: '15', nome: 'Remada Curvada com Barra',       grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bent_Over_Row/0.jpg`,                                youtube_search: 'remada curvada barra execu├º├úo' },
++  { id: '16', nome: 'Remada Unilateral com Halter',   grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_One_Arm_Row/0.jpg`,                                 youtube_search: 'remada unilateral halter execu├º├úo' },
++  { id: '17', nome: 'Remada Baixa na Polia',          grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Seated_Row/0.jpg`,                                     youtube_search: 'remada baixa polia execu├º├úo' },
++  { id: '18', nome: 'Pullover com Halter',            grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Pullover/0.jpg`,                                    youtube_search: 'pullover halter execu├º├úo' },
++  { id: '19', nome: 'Barra Fixa (Pull-up)',           grupo: 'Costas',  equipamento: 'Barra Fixa', nivel: 'Avan├ºado',      gif_url: `${BASE}/Pull-up/0.jpg`,                                              youtube_search: 'barra fixa pullup execu├º├úo' },
++  { id: '20', nome: 'Levantamento Terra',             grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Avan├ºado',      gif_url: `${BASE}/Barbell_Deadlift/0.jpg`,                                     youtube_search: 'levantamento terra execu├º├úo correta' },
++  { id: '21', nome: 'Hiperextens├úo Lombar',           grupo: 'Costas',  equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Hyperextension/0.jpg`,                                       youtube_search: 'hiperextens├úo lombar execu├º├úo' },
++  { id: '22', nome: 'Remada Cavalinho',               grupo: 'Costas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Row/0.jpg`,                                     youtube_search: 'remada cavalinho m├íquina execu├º├úo' },
+ 
+   // ÔöÇÔöÇ PERNAS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '23', nome: 'Agachamento Livre',              grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Full_Squat/0.jpg` },
+-  { id: '24', nome: 'Agachamento Sum├┤',               grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Sumo_Squat/0.jpg` },
+-  { id: '25', nome: 'Leg Press 45┬░',                  grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Leg_Press/0.jpg` },
+-  { id: '26', nome: 'Cadeira Extensora',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Leg_Extension/0.jpg` },
+-  { id: '27', nome: 'Mesa Flexora',                   grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Lying_Leg_Curl/0.jpg` },
+-  { id: '28', nome: 'Stiff com Barra',                grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Romanian_Deadlift/0.jpg` },
+-  { id: '29', nome: 'Stiff com Halteres',             grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Romanian_Deadlift/0.jpg` },
+-  { id: '30', nome: 'Avan├ºo com Halteres',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lunge/0.jpg` },
+-  { id: '31', nome: 'Avan├ºo com Barra',               grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lunge/0.jpg` },
+-  { id: '32', nome: 'Agachamento B├║lgaro',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Avan├ºado',      gif_url: `${BASE}/Dumbbell_Bulgarian_Split_Squat/0.jpg` },
+-  { id: '33', nome: 'Panturrilha em P├®',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Standing_Calf_Raise/0.jpg` },
+-  { id: '34', nome: 'Panturrilha Sentado',            grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Calf_Raise/0.jpg` },
+-  { id: '35', nome: 'Cadeira Adutora',                grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Adduction/0.jpg` },
+-  { id: '36', nome: 'Cadeira Abdutora',               grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Abduction/0.jpg` },
++  { id: '23', nome: 'Agachamento Livre',              grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Full_Squat/0.jpg`,                                   youtube_search: 'agachamento livre barra execu├º├úo' },
++  { id: '24', nome: 'Agachamento Sum├┤',               grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Sumo_Squat/0.jpg`,                                  youtube_search: 'agachamento sumo execu├º├úo' },
++  { id: '25', nome: 'Leg Press 45┬░',                  grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Leg_Press/0.jpg`,                                            youtube_search: 'leg press 45 execu├º├úo' },
++  { id: '26', nome: 'Cadeira Extensora',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Leg_Extension/0.jpg`,                                  youtube_search: 'cadeira extensora execu├º├úo' },
++  { id: '27', nome: 'Mesa Flexora',                   grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Lying_Leg_Curl/0.jpg`,                                 youtube_search: 'mesa flexora execu├º├úo' },
++  { id: '28', nome: 'Stiff com Barra',                grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Romanian_Deadlift/0.jpg`,                            youtube_search: 'stiff barra execu├º├úo' },
++  { id: '29', nome: 'Stiff com Halteres',             grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Romanian_Deadlift/0.jpg`,                           youtube_search: 'stiff halteres execu├º├úo' },
++  { id: '30', nome: 'Avan├ºo com Halteres',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lunge/0.jpg`,                                       youtube_search: 'avan├ºo afundo halteres execu├º├úo' },
++  { id: '31', nome: 'Avan├ºo com Barra',               grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lunge/0.jpg`,                                        youtube_search: 'avan├ºo barra execu├º├úo' },
++  { id: '32', nome: 'Agachamento B├║lgaro',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Avan├ºado',      gif_url: `${BASE}/Dumbbell_Bulgarian_Split_Squat/0.jpg`,                       youtube_search: 'agachamento bulgaro execu├º├úo' },
++  { id: '33', nome: 'Panturrilha em P├®',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Standing_Calf_Raise/0.jpg`,                            youtube_search: 'panturrilha em p├® execu├º├úo' },
++  { id: '34', nome: 'Panturrilha Sentado',            grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Calf_Raise/0.jpg`,                              youtube_search: 'panturrilha sentado execu├º├úo' },
++  { id: '35', nome: 'Cadeira Adutora',                grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Adduction/0.jpg`,                           youtube_search: 'cadeira adutora execu├º├úo' },
++  { id: '36', nome: 'Cadeira Abdutora',               grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Abduction/0.jpg`,                           youtube_search: 'cadeira abdutora execu├º├úo' },
+ 
+   // ÔöÇÔöÇ OMBRO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '37', nome: 'Desenvolvimento com Barra',      grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Seated_Behind_Head_Military_Press/0.jpg` },
+-  { id: '38', nome: 'Desenvolvimento com Halteres',   grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shoulder_Press/0.jpg` },
+-  { id: '39', nome: 'Desenvolvimento Arnold',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Arnold_Press/0.jpg` },
+-  { id: '40', nome: 'Eleva├º├úo Lateral',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lateral_Raise/0.jpg` },
+-  { id: '41', nome: 'Eleva├º├úo Lateral na Polia',      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Lateral_Raise/0.jpg` },
+-  { id: '42', nome: 'Eleva├º├úo Frontal',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Front_Raise/0.jpg` },
+-  { id: '43', nome: 'Remada Alta com Barra',          grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Upright_Row/0.jpg` },
+-  { id: '44', nome: 'Encolhimento de Ombros',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shrug/0.jpg` },
+-  { id: '45', nome: 'Face Pull',                      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Face_Pull/0.jpg` },
+-  { id: '46', nome: 'P├íssaro (Crucifixo Invertido)',  grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bent_Over_Lateral_Raise/0.jpg` },
++  { id: '37', nome: 'Desenvolvimento com Barra',      grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Seated_Behind_Head_Military_Press/0.jpg`,            youtube_search: 'desenvolvimento ombro barra execu├º├úo' },
++  { id: '38', nome: 'Desenvolvimento com Halteres',   grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shoulder_Press/0.jpg`,                              youtube_search: 'desenvolvimento halteres ombro execu├º├úo' },
++  { id: '39', nome: 'Desenvolvimento Arnold',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Arnold_Press/0.jpg`,                                youtube_search: 'arnold press execu├º├úo' },
++  { id: '40', nome: 'Eleva├º├úo Lateral',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lateral_Raise/0.jpg`,                               youtube_search: 'eleva├º├úo lateral halteres execu├º├úo' },
++  { id: '41', nome: 'Eleva├º├úo Lateral na Polia',      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Lateral_Raise/0.jpg`,                                  youtube_search: 'eleva├º├úo lateral polia execu├º├úo' },
++  { id: '42', nome: 'Eleva├º├úo Frontal',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Front_Raise/0.jpg`,                                 youtube_search: 'eleva├º├úo frontal ombro execu├º├úo' },
++  { id: '43', nome: 'Remada Alta com Barra',          grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Upright_Row/0.jpg`,                                  youtube_search: 'remada alta barra ombro execu├º├úo' },
++  { id: '44', nome: 'Encolhimento de Ombros',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shrug/0.jpg`,                                       youtube_search: 'encolhimento ombros execu├º├úo' },
++  { id: '45', nome: 'Face Pull',                      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Face_Pull/0.jpg`,                                      youtube_search: 'face pull execu├º├úo' },
++  { id: '46', nome: 'P├íssaro (Crucifixo Invertido)',  grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bent_Over_Lateral_Raise/0.jpg`,                     youtube_search: 'p├íssaro crucifixo invertido execu├º├úo' },
+ 
+   // ÔöÇÔöÇ B├ìCEPS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '47', nome: 'Rosca Direta com Barra',         grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Iniciante',     gif_url: `${BASE}/Barbell_Curl/0.jpg` },
+-  { id: '48', nome: 'Rosca Alternada',                grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Alternate_Bicep_Curl/0.jpg` },
+-  { id: '49', nome: 'Rosca Concentrada',              grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Concentration_Curl/0.jpg` },
+-  { id: '50', nome: 'Rosca Martelo',                  grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Hammer_Curl/0.jpg` },
+-  { id: '51', nome: 'Rosca Scott com Barra',          grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Preacher_Curl/0.jpg` },
+-  { id: '52', nome: 'Rosca na Polia Baixa',           grupo: 'B├¡ceps',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Curl/0.jpg` },
+-  { id: '53', nome: 'Rosca 21',                       grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Curl/0.jpg` },
++  { id: '47', nome: 'Rosca Direta com Barra',         grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Iniciante',     gif_url: `${BASE}/Barbell_Curl/0.jpg`,                                         youtube_search: 'rosca direta barra execu├º├úo' },
++  { id: '48', nome: 'Rosca Alternada',                grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Alternate_Bicep_Curl/0.jpg`,                        youtube_search: 'rosca alternada halteres execu├º├úo' },
++  { id: '49', nome: 'Rosca Concentrada',              grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Concentration_Curl/0.jpg`,                          youtube_search: 'rosca concentrada execu├º├úo' },
++  { id: '50', nome: 'Rosca Martelo',                  grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Hammer_Curl/0.jpg`,                                 youtube_search: 'rosca martelo execu├º├úo' },
++  { id: '51', nome: 'Rosca Scott com Barra',          grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Preacher_Curl/0.jpg`,                                youtube_search: 'rosca scott barra execu├º├úo' },
++  { id: '52', nome: 'Rosca na Polia Baixa',           grupo: 'B├¡ceps',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Curl/0.jpg`,                                           youtube_search: 'rosca polia baixa execu├º├úo' },
++  { id: '53', nome: 'Rosca 21',                       grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Curl/0.jpg`,                                         youtube_search: 'rosca 21 b├¡ceps execu├º├úo' },
+ 
+   // ÔöÇÔöÇ TR├ìCEPS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '54', nome: 'Tr├¡ceps Pulley Barra Reta',      grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pushdown/0.jpg` },
+-  { id: '55', nome: 'Tr├¡ceps Pulley Corda',           grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Triceps_Pushdown_(Rope)/0.jpg` },
+-  { id: '56', nome: 'Tr├¡ceps Franc├¬s com Barra',      grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lying_Triceps_Extension_Skull_Crusher/0.jpg` },
+-  { id: '57', nome: 'Tr├¡ceps Franc├¬s com Halter',     grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lying_Triceps_Extension/0.jpg` },
+-  { id: '58', nome: 'Tr├¡ceps Coice',                  grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Kickback/0.jpg` },
+-  { id: '59', nome: 'Mergulho no Banco',              grupo: 'Tr├¡ceps', equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Triceps_Dips/0.jpg` },
+-  { id: '60', nome: 'Supino Fechado',                 grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Close-Grip_Bench_Press/0.jpg` },
++  { id: '54', nome: 'Tr├¡ceps Pulley Barra Reta',      grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pushdown/0.jpg`,                                       youtube_search: 'tr├¡ceps pulley barra reta execu├º├úo' },
++  { id: '55', nome: 'Tr├¡ceps Pulley Corda',           grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Triceps_Pushdown_(Rope)/0.jpg`,                        youtube_search: 'tr├¡ceps pulley corda execu├º├úo' },
++  { id: '56', nome: 'Tr├¡ceps Franc├¬s com Barra',      grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lying_Triceps_Extension_Skull_Crusher/0.jpg`,        youtube_search: 'tr├¡ceps franc├¬s barra execu├º├úo' },
++  { id: '57', nome: 'Tr├¡ceps Franc├¬s com Halter',     grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lying_Triceps_Extension/0.jpg`,                     youtube_search: 'tr├¡ceps franc├¬s halter execu├º├úo' },
++  { id: '58', nome: 'Tr├¡ceps Coice',                  grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Kickback/0.jpg`,                                    youtube_search: 'tr├¡ceps coice halter execu├º├úo' },
++  { id: '59', nome: 'Mergulho no Banco',              grupo: 'Tr├¡ceps', equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Triceps_Dips/0.jpg`,                                         youtube_search: 'mergulho banco tr├¡ceps execu├º├úo' },
++  { id: '60', nome: 'Supino Fechado',                 grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Close-Grip_Bench_Press/0.jpg`,                       youtube_search: 'supino fechado tr├¡ceps execu├º├úo' },
+ 
+   // ÔöÇÔöÇ ABD├öMEN ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '61', nome: 'Abdominal Crunch',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Crunch/0.jpg` },
+-  { id: '62', nome: 'Eleva├º├úo de Pernas',             grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Lying_Leg_Raise/0.jpg` },
+-  { id: '63', nome: 'Prancha Frontal',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Plank/0.jpg` },
+-  { id: '64', nome: 'Prancha Lateral',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Side_Plank/0.jpg` },
+-  { id: '65', nome: 'Abdominal na Polia',             grupo: 'Abd├┤men', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crunch/0.jpg` },
+-  { id: '66', nome: 'Eleva├º├úo de Pernas na Barra',    grupo: 'Abd├┤men', equipamento: 'Barra Fixa', nivel: 'Intermedi├írio', gif_url: `${BASE}/Hanging_Leg_Raise/0.jpg` },
+-  { id: '67', nome: 'Russian Twist',                  grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Russian_Twist/0.jpg` },
+-  { id: '68', nome: 'Abdominal Bicicleta',            grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Bicycle_Crunch/0.jpg` },
+-  { id: '69', nome: 'Mountain Climber',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Mountain_Climber/0.jpg` },
+-  { id: '70', nome: 'Dead Bug',                       grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: undefined },
++  { id: '61', nome: 'Abdominal Crunch',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Crunch/0.jpg`,                                               youtube_search: 'abdominal crunch execu├º├úo' },
++  { id: '62', nome: 'Eleva├º├úo de Pernas',             grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Lying_Leg_Raise/0.jpg`,                                      youtube_search: 'eleva├º├úo de pernas abdominal execu├º├úo' },
++  { id: '63', nome: 'Prancha Frontal',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Plank/0.jpg`,                                                youtube_search: 'prancha abdominal execu├º├úo' },
++  { id: '64', nome: 'Prancha Lateral',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Side_Plank/0.jpg`,                                           youtube_search: 'prancha lateral execu├º├úo' },
++  { id: '65', nome: 'Abdominal na Polia',             grupo: 'Abd├┤men', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crunch/0.jpg`,                                         youtube_search: 'abdominal polia execu├º├úo' },
++  { id: '66', nome: 'Eleva├º├úo de Pernas na Barra',    grupo: 'Abd├┤men', equipamento: 'Barra Fixa', nivel: 'Intermedi├írio', gif_url: `${BASE}/Hanging_Leg_Raise/0.jpg`,                                    youtube_search: 'eleva├º├úo pernas barra fixa execu├º├úo' },
++  { id: '67', nome: 'Russian Twist',                  grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Russian_Twist/0.jpg`,                                        youtube_search: 'russian twist execu├º├úo' },
++  { id: '68', nome: 'Abdominal Bicicleta',            grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Bicycle_Crunch/0.jpg`,                                       youtube_search: 'abdominal bicicleta execu├º├úo' },
++  { id: '69', nome: 'Mountain Climber',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Mountain_Climber/0.jpg`,                                     youtube_search: 'mountain climber exerc├¡cio execu├º├úo' },
++  { id: '70', nome: 'Dead Bug',                       grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: undefined,                                                             youtube_search: 'dead bug exerc├¡cio abdominal execu├º├úo' },
+ 
+   // ÔöÇÔöÇ CARDIO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '71', nome: 'Burpee',                         grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Burpee/0.jpg` },
+-  { id: '72', nome: 'Jumping Jack',                   grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Jumping_Jack/0.jpg` },
+-  { id: '73', nome: 'Corda (Jump Rope)',              grupo: 'Cardio',  equipamento: 'Corda',      nivel: 'Iniciante',     gif_url: undefined },
+-  { id: '74', nome: 'Esteira',                        grupo: 'Cardio',  equipamento: 'Esteira',    nivel: 'Iniciante',     gif_url: undefined },
+-  { id: '75', nome: 'Bicicleta Ergom├®trica',          grupo: 'Cardio',  equipamento: 'Bicicleta',  nivel: 'Iniciante',     gif_url: undefined },
+-  { id: '76', nome: 'Remo Ergom├®trico',               grupo: 'Cardio',  equipamento: 'Remo',       nivel: 'Intermedi├írio', gif_url: undefined },
++  { id: '71', nome: 'Burpee',                         grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Burpee/0.jpg`,                                               youtube_search: 'burpee execu├º├úo como fazer' },
++  { id: '72', nome: 'Jumping Jack',                   grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Jumping_Jack/0.jpg`,                                         youtube_search: 'jumping jack exerc├¡cio execu├º├úo' },
++  { id: '73', nome: 'Corda (Jump Rope)',              grupo: 'Cardio',  equipamento: 'Corda',      nivel: 'Iniciante',     gif_url: undefined,                                                             youtube_search: 'pular corda corretamente' },
++  { id: '74', nome: 'Esteira',                        grupo: 'Cardio',  equipamento: 'Esteira',    nivel: 'Iniciante',     gif_url: undefined,                                                             youtube_search: 'treino esteira iniciante' },
++  { id: '75', nome: 'Bicicleta Ergom├®trica',          grupo: 'Cardio',  equipamento: 'Bicicleta',  nivel: 'Iniciante',     gif_url: undefined,                                                             youtube_search: 'bicicleta ergom├®trica posi├º├úo correta' },
++  { id: '76', nome: 'Remo Ergom├®trico',               grupo: 'Cardio',  equipamento: 'Remo',       nivel: 'Intermedi├írio', gif_url: undefined,                                                             youtube_search: 'remo ergom├®trico execu├º├úo' },
+ 
+   // ÔöÇÔöÇ GL├ÜTEOS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-  { id: '77', nome: 'Hip Thrust com Barra',           grupo: 'Gl├║teos', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Hip_Thrust/0.jpg` },
+-  { id: '78', nome: 'Eleva├º├úo P├®lvica',               grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Glute_Bridge/0.jpg` },
+-  { id: '79', nome: 'Gl├║teo na Polia',                grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Through/0.jpg` },
+-  { id: '80', nome: 'Coice de Gl├║teo',                grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Donkey_Kicks/0.jpg` },
+-  { id: '81', nome: 'Abdu├º├úo de Quadril em P├®',       grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: undefined },
++  { id: '77', nome: 'Hip Thrust com Barra',           grupo: 'Gl├║teos', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Hip_Thrust/0.jpg`,                                   youtube_search: 'hip thrust barra execu├º├úo' },
++  { id: '78', nome: 'Eleva├º├úo P├®lvica',               grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Glute_Bridge/0.jpg`,                                         youtube_search: 'eleva├º├úo p├®lvica gl├║teo execu├º├úo' },
++  { id: '79', nome: 'Gl├║teo na Polia',                grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Through/0.jpg`,                                   youtube_search: 'gl├║teo polia execu├º├úo' },
++  { id: '80', nome: 'Coice de Gl├║teo',                grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Donkey_Kicks/0.jpg`,                                         youtube_search: 'coice gl├║teo execu├º├úo' },
++  { id: '81', nome: 'Abdu├º├úo de Quadril em P├®',       grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: undefined,                                                             youtube_search: 'abdu├º├úo quadril polia execu├º├úo' },
+ ]
+ 
+ export const gruposMusculares = [
+@@ -129,9 +138,3 @@ export const grupoColors: Record<string, string> = {
+   'Cardio':   'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+   'Gl├║teos':  'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
+ }
+-
+-export const nivelColors: Record<string, string> = {
+-  'Iniciante':     'badge-success',
+-  'Intermedi├írio': 'badge-warning',
+-  'Avan├ºado':      'badge-danger',
+-}
+
+commit a1f485ec61db113944998dc04ed7c9852b3f2ec9
+Author: Mateus Oliveira <teussharke@gmail.com>
+Date:   Mon Mar 23 21:45:25 2026 -0300
+
+    mega att
+
+diff --git a/src/lib/mock/exercicios.ts b/src/lib/mock/exercicios.ts
+new file mode 100644
+index 0000000..a8cc11b
+--- /dev/null
++++ b/src/lib/mock/exercicios.ts
+@@ -0,0 +1,137 @@
++// src/lib/mock/exercicios.ts
++// Imagens do reposit├│rio p├║blico: github.com/yuhonas/free-exercise-db
++
++export interface Exercicio {
++  id: string
++  nome: string
++  grupo: string
++  equipamento: string
++  nivel: 'Iniciante' | 'Intermedi├írio' | 'Avan├ºado'
++  gif_url?: string
++}
++
++const BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises'
++
++export const mockExercicios: Exercicio[] = [
++  // ÔöÇÔöÇ PEITO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++  { id: '1',  nome: 'Supino Reto com Barra',          grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bench_Press_-_Medium_Grip/0.jpg` },
++  { id: '2',  nome: 'Supino Inclinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Incline_Bench_Press_-_Medium_Grip/0.jpg` },
++  { id: '3',  nome: 'Supino Declinado com Barra',     grupo: 'Peito',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Decline_Bench_Press/0.jpg` },
++  { id: '4',  nome: 'Supino Reto com Halteres',       grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bench_Press/0.jpg` },
++  { id: '5',  nome: 'Supino Inclinado com Halteres',  grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Bench_Press/0.jpg` },
++  { id: '6',  nome: 'Crucifixo com Halteres',         grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Flyes/0.jpg` },
++  { id: '7',  nome: 'Crucifixo Inclinado',            grupo: 'Peito',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Incline_Flyes/0.jpg` },
++  { id: '8',  nome: 'Crossover Polia Alta',           grupo: 'Peito',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crossover/0.jpg` },
++  { id: '9',  nome: 'Flex├úo de Bra├ºo',                grupo: 'Peito',   equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Push-up/0.jpg` },
++  { id: '10', nome: 'Peck Deck (Voador)',              grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Pec_Deck_Fly/0.jpg` },
++  { id: '11', nome: 'Mergulho no Paralelo',           grupo: 'Peito',   equipamento: 'Paralelo',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dips_-_Chest_Version/0.jpg` },
++  { id: '12', nome: 'Chest Press na M├íquina',         grupo: 'Peito',   equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Chest_Press/0.jpg` },
++
++  // ÔöÇÔöÇ COSTAS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++  { id: '13', nome: 'Puxada Frontal',                 grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Down/0.jpg` },
++  { id: '14', nome: 'Puxada Neutra',                  grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Close_Grip_Pull_Down/0.jpg` },
++  { id: '15', nome: 'Remada Curvada com Barra',       grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Bent_Over_Row/0.jpg` },
++  { id: '16', nome: 'Remada Unilateral com Halter',   grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_One_Arm_Row/0.jpg` },
++  { id: '17', nome: 'Remada Baixa na Polia',          grupo: 'Costas',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Seated_Row/0.jpg` },
++  { id: '18', nome: 'Pullover com Halter',            grupo: 'Costas',  equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Pullover/0.jpg` },
++  { id: '19', nome: 'Barra Fixa (Pull-up)',           grupo: 'Costas',  equipamento: 'Barra Fixa', nivel: 'Avan├ºado',      gif_url: `${BASE}/Pull-up/0.jpg` },
++  { id: '20', nome: 'Levantamento Terra',             grupo: 'Costas',  equipamento: 'Barra',      nivel: 'Avan├ºado',      gif_url: `${BASE}/Barbell_Deadlift/0.jpg` },
++  { id: '21', nome: 'Hiperextens├úo Lombar',           grupo: 'Costas',  equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Hyperextension/0.jpg` },
++  { id: '22', nome: 'Remada Cavalinho',               grupo: 'Costas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Row/0.jpg` },
++
++  // ÔöÇÔöÇ PERNAS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++  { id: '23', nome: 'Agachamento Livre',              grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Full_Squat/0.jpg` },
++  { id: '24', nome: 'Agachamento Sum├┤',               grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Sumo_Squat/0.jpg` },
++  { id: '25', nome: 'Leg Press 45┬░',                  grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Leg_Press/0.jpg` },
++  { id: '26', nome: 'Cadeira Extensora',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Leg_Extension/0.jpg` },
++  { id: '27', nome: 'Mesa Flexora',                   grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Lying_Leg_Curl/0.jpg` },
++  { id: '28', nome: 'Stiff com Barra',                grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Romanian_Deadlift/0.jpg` },
++  { id: '29', nome: 'Stiff com Halteres',             grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Romanian_Deadlift/0.jpg` },
++  { id: '30', nome: 'Avan├ºo com Halteres',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lunge/0.jpg` },
++  { id: '31', nome: 'Avan├ºo com Barra',               grupo: 'Pernas',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lunge/0.jpg` },
++  { id: '32', nome: 'Agachamento B├║lgaro',            grupo: 'Pernas',  equipamento: 'Halteres',   nivel: 'Avan├ºado',      gif_url: `${BASE}/Dumbbell_Bulgarian_Split_Squat/0.jpg` },
++  { id: '33', nome: 'Panturrilha em P├®',              grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Standing_Calf_Raise/0.jpg` },
++  { id: '34', nome: 'Panturrilha Sentado',            grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Calf_Raise/0.jpg` },
++  { id: '35', nome: 'Cadeira Adutora',                grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Adduction/0.jpg` },
++  { id: '36', nome: 'Cadeira Abdutora',               grupo: 'Pernas',  equipamento: 'M├íquina',    nivel: 'Iniciante',     gif_url: `${BASE}/Lever_Seated_Hip_Abduction/0.jpg` },
++
++  // ÔöÇÔöÇ OMBRO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++  { id: '37', nome: 'Desenvolvimento com Barra',      grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Seated_Behind_Head_Military_Press/0.jpg` },
++  { id: '38', nome: 'Desenvolvimento com Halteres',   grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shoulder_Press/0.jpg` },
++  { id: '39', nome: 'Desenvolvimento Arnold',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Intermedi├írio', gif_url: `${BASE}/Dumbbell_Arnold_Press/0.jpg` },
++  { id: '40', nome: 'Eleva├º├úo Lateral',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lateral_Raise/0.jpg` },
++  { id: '41', nome: 'Eleva├º├úo Lateral na Polia',      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Lateral_Raise/0.jpg` },
++  { id: '42', nome: 'Eleva├º├úo Frontal',               grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Front_Raise/0.jpg` },
++  { id: '43', nome: 'Remada Alta com Barra',          grupo: 'Ombro',   equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Upright_Row/0.jpg` },
++  { id: '44', nome: 'Encolhimento de Ombros',         grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Shrug/0.jpg` },
++  { id: '45', nome: 'Face Pull',                      grupo: 'Ombro',   equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Face_Pull/0.jpg` },
++  { id: '46', nome: 'P├íssaro (Crucifixo Invertido)',  grupo: 'Ombro',   equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Bent_Over_Lateral_Raise/0.jpg` },
++
++  // ÔöÇÔöÇ B├ìCEPS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++  { id: '47', nome: 'Rosca Direta com Barra',         grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Iniciante',     gif_url: `${BASE}/Barbell_Curl/0.jpg` },
++  { id: '48', nome: 'Rosca Alternada',                grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Alternate_Bicep_Curl/0.jpg` },
++  { id: '49', nome: 'Rosca Concentrada',              grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Concentration_Curl/0.jpg` },
++  { id: '50', nome: 'Rosca Martelo',                  grupo: 'B├¡ceps',  equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Hammer_Curl/0.jpg` },
++  { id: '51', nome: 'Rosca Scott com Barra',          grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Preacher_Curl/0.jpg` },
++  { id: '52', nome: 'Rosca na Polia Baixa',           grupo: 'B├¡ceps',  equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Curl/0.jpg` },
++  { id: '53', nome: 'Rosca 21',                       grupo: 'B├¡ceps',  equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Curl/0.jpg` },
++
++  // ÔöÇÔöÇ TR├ìCEPS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++  { id: '54', nome: 'Tr├¡ceps Pulley Barra Reta',      grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pushdown/0.jpg` },
++  { id: '55', nome: 'Tr├¡ceps Pulley Corda',           grupo: 'Tr├¡ceps', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Triceps_Pushdown_(Rope)/0.jpg` },
++  { id: '56', nome: 'Tr├¡ceps Franc├¬s com Barra',      grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Lying_Triceps_Extension_Skull_Crusher/0.jpg` },
++  { id: '57', nome: 'Tr├¡ceps Franc├¬s com Halter',     grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Lying_Triceps_Extension/0.jpg` },
++  { id: '58', nome: 'Tr├¡ceps Coice',                  grupo: 'Tr├¡ceps', equipamento: 'Halteres',   nivel: 'Iniciante',     gif_url: `${BASE}/Dumbbell_Kickback/0.jpg` },
++  { id: '59', nome: 'Mergulho no Banco',              grupo: 'Tr├¡ceps', equipamento: 'Banco',      nivel: 'Iniciante',     gif_url: `${BASE}/Triceps_Dips/0.jpg` },
++  { id: '60', nome: 'Supino Fechado',                 grupo: 'Tr├¡ceps', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Close-Grip_Bench_Press/0.jpg` },
++
++  // ÔöÇÔöÇ ABD├öMEN ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++  { id: '61', nome: 'Abdominal Crunch',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Crunch/0.jpg` },
++  { id: '62', nome: 'Eleva├º├úo de Pernas',             grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Lying_Leg_Raise/0.jpg` },
++  { id: '63', nome: 'Prancha Frontal',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Plank/0.jpg` },
++  { id: '64', nome: 'Prancha Lateral',                grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Side_Plank/0.jpg` },
++  { id: '65', nome: 'Abdominal na Polia',             grupo: 'Abd├┤men', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Crunch/0.jpg` },
++  { id: '66', nome: 'Eleva├º├úo de Pernas na Barra',    grupo: 'Abd├┤men', equipamento: 'Barra Fixa', nivel: 'Intermedi├írio', gif_url: `${BASE}/Hanging_Leg_Raise/0.jpg` },
++  { id: '67', nome: 'Russian Twist',                  grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Russian_Twist/0.jpg` },
++  { id: '68', nome: 'Abdominal Bicicleta',            grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Bicycle_Crunch/0.jpg` },
++  { id: '69', nome: 'Mountain Climber',               grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Mountain_Climber/0.jpg` },
++  { id: '70', nome: 'Dead Bug',                       grupo: 'Abd├┤men', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: undefined },
++
++  // ÔöÇÔöÇ CARDIO ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++  { id: '71', nome: 'Burpee',                         grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Intermedi├írio', gif_url: `${BASE}/Burpee/0.jpg` },
++  { id: '72', nome: 'Jumping Jack',                   grupo: 'Cardio',  equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Jumping_Jack/0.jpg` },
++  { id: '73', nome: 'Corda (Jump Rope)',              grupo: 'Cardio',  equipamento: 'Corda',      nivel: 'Iniciante',     gif_url: undefined },
++  { id: '74', nome: 'Esteira',                        grupo: 'Cardio',  equipamento: 'Esteira',    nivel: 'Iniciante',     gif_url: undefined },
++  { id: '75', nome: 'Bicicleta Ergom├®trica',          grupo: 'Cardio',  equipamento: 'Bicicleta',  nivel: 'Iniciante',     gif_url: undefined },
++  { id: '76', nome: 'Remo Ergom├®trico',               grupo: 'Cardio',  equipamento: 'Remo',       nivel: 'Intermedi├írio', gif_url: undefined },
++
++  // ÔöÇÔöÇ GL├ÜTEOS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++  { id: '77', nome: 'Hip Thrust com Barra',           grupo: 'Gl├║teos', equipamento: 'Barra',      nivel: 'Intermedi├írio', gif_url: `${BASE}/Barbell_Hip_Thrust/0.jpg` },
++  { id: '78', nome: 'Eleva├º├úo P├®lvica',               grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Glute_Bridge/0.jpg` },
++  { id: '79', nome: 'Gl├║teo na Polia',                grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: `${BASE}/Cable_Pull_Through/0.jpg` },
++  { id: '80', nome: 'Coice de Gl├║teo',                grupo: 'Gl├║teos', equipamento: 'Solo',       nivel: 'Iniciante',     gif_url: `${BASE}/Donkey_Kicks/0.jpg` },
++  { id: '81', nome: 'Abdu├º├úo de Quadril em P├®',       grupo: 'Gl├║teos', equipamento: 'Polia',      nivel: 'Iniciante',     gif_url: undefined },
++]
++
++export const gruposMusculares = [
++  'Todos', 'Peito', 'Costas', 'Pernas', 'Ombro',
++  'B├¡ceps', 'Tr├¡ceps', 'Abd├┤men', 'Cardio', 'Gl├║teos',
++]
++
++export const grupoColors: Record<string, string> = {
++  'Peito':    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
++  'Costas':   'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
++  'Pernas':   'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
++  'Ombro':    'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
++  'B├¡ceps':   'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
++  'Tr├¡ceps':  'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
++  'Abd├┤men':  'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
++  'Cardio':   'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
++  'Gl├║teos':  'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
++}
++
++export const nivelColors: Record<string, string> = {
++  'Iniciante':     'badge-success',
++  'Intermedi├írio': 'badge-warning',
++  'Avan├ºado':      'badge-danger',
++}

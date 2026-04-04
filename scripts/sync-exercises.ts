@@ -22,16 +22,16 @@ async function sync() {
 
     console.log(`Updating: ${ex.nome}...`)
     
-    // Attempt to upsert based on name
+    // Use update instead of upsert because we don't have unique constraint on nome
     const { data, error } = await supabase
       .from('exercicios')
-      .upsert({ 
-        nome: ex.nome,
+      .update({ 
         gif_url: ex.gif_url, 
         equipamento: ex.equipamento, 
         grupo_muscular: ex.grupo,
         nivel: ex.nivel
-      }, { onConflict: 'nome' })
+      })
+      .eq('nome', ex.nome)
       .select()
 
     if (error) {
