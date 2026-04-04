@@ -253,7 +253,8 @@ function StartScreen({ treino, onStart }: { treino: Treino; onStart: () => void 
         </div>
         <div className="divide-y divide-gray-100 dark:divide-gray-700">
           {treino.exercicios.map((ex, i) => {
-            const nome = ex.exercicio?.nome ?? ex.observacoes ?? `Exercício ${i + 1}`
+            const rawNome = ex.exercicio?.nome ?? ex.observacoes ?? `Exercício ${i + 1}`
+            const nomeStr = rawNome.includes(' | ') ? rawNome.split(' | ')[0].trim() : rawNome
             const grupo = ex.exercicio?.grupo_muscular?.replace(/_/g, ' ') ?? null
             return (
               <div key={ex.id} className="flex items-center gap-3 p-3.5">
@@ -261,7 +262,7 @@ function StartScreen({ treino, onStart }: { treino: Treino; onStart: () => void 
                   {i + 1}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{nome}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{nomeStr}</p>
                   {grupo && (
                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${grupoColors[grupo] ?? 'badge-gray'}`}>
                       {grupo}
@@ -730,7 +731,9 @@ export default function TreinoAlunoPage() {
   const ex = t.exercicios[currentIndex]
   if (!ex) return null
 
-  const nome = ex.exercicio?.nome ?? ex.observacoes ?? `Exercício ${currentIndex + 1}`
+  const rawNomeObj = ex.exercicio?.nome ?? ex.observacoes ?? `Exercício ${currentIndex + 1}`
+  const nome = rawNomeObj.includes(' | ') ? rawNomeObj.split(' | ')[0].trim() : rawNomeObj
+  const observacoes = rawNomeObj.includes(' | ') ? rawNomeObj.split(' | ').slice(1).join(' | ').trim() : null
   const grupo = ex.exercicio?.grupo_muscular?.replace(/_/g, ' ') ?? null
   const state = states[ex.id] ?? {
     series: Array.from({ length: ex.series }, () => ({ carga: '', done: false })),
@@ -828,8 +831,13 @@ export default function TreinoAlunoPage() {
             {/* Foto do exercício — sempre visível, com overlay de vídeo/busca */}
             {(() => {
               const youtubeUrl = ex.exercicio?.youtube_url ?? null
-              // Fallback para mock se o banco estiver sem GIF
-              const mockEx = mockExercicios.find(m => m.nome === nome)
+              // Fallback fuzzy para mock caso os nomes variem entre a versão antiga e a traduzida
+              const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+              const nName = normalize(nome)
+              
+              const mockEx = mockExercicios.find(m => normalize(m.nome) === nName) 
+                || mockExercicios.find(m => normalize(m.nome).includes(nName) || nName.includes(normalize(m.nome)))
+                
               const gifUrl = ex.exercicio?.gif_url || mockEx?.gif_url || null
               const hasGif = !!gifUrl && !imgErr
               const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`como fazer ${nome} academia execução correta`)}`
