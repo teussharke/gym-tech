@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Plus, Grip, X, Clock, Repeat, Weight, Copy, Save, ArrowLeft,
-  Dumbbell, Search, Youtube, Sparkles, Loader2, Send, Bot, User, Wand2,
+  Dumbbell, Search, Youtube, Loader2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
@@ -43,9 +43,7 @@ interface AlunoSimples {
   objetivo: string | null
 }
 
-interface ChatMsg { role: 'user' | 'assistant'; content: string }
 type Step = 'info' | 'exercicios'
-type AIMode = 'none' | 'chat' | 'sugestao'
 
 export default function NovoTreinoPage() {
   const router = useRouter()
@@ -58,13 +56,7 @@ export default function NovoTreinoPage() {
   const [grupoFiltro, setGrupoFiltro] = useState('Todos')
   const [exercicios, setExercicios] = useState<ExercicioForm[]>([])
   const [loadingAlunos, setLoadingAlunos] = useState(true)
-  const [aiMode, setAiMode] = useState<AIMode>('none')
-  const [aiLoading, setAiLoading] = useState(false)
-  const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([])
-  const [chatInput, setChatInput] = useState('')
-  const [sugestaoIA, setSugestaoIA] = useState<Record<string, unknown> | null>(null)
   const [treino, setTreino] = useState({ nome: '', aluno_id: '', dia_semana: 'A', objetivo: '', descricao: '' })
-  const chatEndRef = useRef<HTMLDivElement>(null)
 
   const fetchAlunos = useCallback(async () => {
     if (!usuario?.academia_id) return
@@ -96,94 +88,6 @@ export default function NovoTreinoPage() {
   }, [usuario?.academia_id])
 
   useEffect(() => { fetchAlunos() }, [fetchAlunos])
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chatMsgs])
-
-  // ── IA: Gerar treino ──────────────────────────────────
-  const gerarTreinoIA = async () => {
-    const aluno = alunos.find(a => a.id === treino.aluno_id)
-    if (!aluno) { toast.error('Selecione um aluno primeiro'); return }
-    setAiLoading(true)
-    setSugestaoIA(null)
-    try {
-      const res = await fetch('/api/ia', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-        body: JSON.stringify({
-          tipo: 'sugerir_treino',
-          dados: {
-            aluno: {
-              nome: aluno.nome,
-              objetivo: treino.objetivo || aluno.objetivo || 'Hipertrofia',
-              nivel: 'Intermediário',
-              observacoes: treino.descricao || '',
-              divisao: treino.dia_semana,
-            },
-          },
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setSugestaoIA(data.data)
-      setAiMode('sugestao')
-      toast.success('Sugestão gerada! 🤖')
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Erro na IA')
-    } finally { setAiLoading(false) }
-  }
-
-  const aplicarSugestao = (treinoIA: Record<string, unknown>) => {
-    const exerciciosIA = treinoIA.exercicios as Array<Record<string, unknown>> | undefined
-    if (!exerciciosIA) return
-    const novos: ExercicioForm[] = exerciciosIA.map((ex, i) => {
-      const found = mockExercicios.find(m =>
-        m.nome.toLowerCase().includes(String(ex.nome ?? '').toLowerCase().split(' ').slice(0, 2).join(' '))
-      )
-      return {
-        id: `ia-${Date.now()}-${i}`,
-        exercicio_id: found?.id ?? `ia-${i}`,
-        nome: String(ex.nome ?? `Exercício ${i + 1}`),
-        grupo: found?.grupo ?? 'Outros',
-        gif_url: found?.gif_url,
-        youtube_search: found?.youtube_search ?? String(ex.nome ?? ''),
-        series: Number(ex.series ?? 3),
-        repeticoes: String(ex.repeticoes ?? '10-12'),
-        carga: ex.carga_sugerida ? String(ex.carga_sugerida) : '',
-        descanso: Number(ex.descanso ?? 60),
-        observacoes: String(ex.observacoes ?? ''),
-      }
-    })
-    setExercicios(prev => [...prev, ...novos])
-    if (!treino.nome && treinoIA.nome) setTreino(p => ({ ...p, nome: String(treinoIA.nome) }))
-    setAiMode('none'); setSugestaoIA(null)
-    setStep('exercicios')
-    toast.success(`${novos.length} exercícios adicionados!`)
-  }
-
-  // ── IA: Chat ──────────────────────────────────────────
-  const enviarChat = async () => {
-    if (!chatInput.trim() || aiLoading) return
-    const msg = chatInput.trim()
-    setChatInput('')
-    setChatMsgs(prev => [...prev, { role: 'user', content: msg }])
-    setAiLoading(true)
-    try {
-      const aluno = alunos.find(a => a.id === treino.aluno_id)
-      const res = await fetch('/api/ia', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-        body: JSON.stringify({
-          tipo: 'assistente_treino',
-          dados: {
-            mensagem: msg,
-            contexto: `Treino: ${treino.nome || 'Sem nome'} | Aluno: ${aluno?.nome ?? 'Não selecionado'} | Objetivo: ${treino.objetivo || aluno?.objetivo || 'Não definido'} | Exercícios: ${exercicios.map(e => e.nome).join(', ') || 'Nenhum'}`,
-          },
-        }),
-      })
-      const data = await res.json()
-      setChatMsgs(prev => [...prev, { role: 'assistant', content: res.ok ? data.data : '❌ Erro ao consultar IA.' }])
-    } catch {
-      setChatMsgs(prev => [...prev, { role: 'assistant', content: '❌ Erro ao consultar IA.' }])
-    } finally { setAiLoading(false) }
-  }
-
   // ── Salvar treino ─────────────────────────────────────
   const salvar = async () => {
     if (!treino.nome || !treino.aluno_id) { toast.error('Preencha nome e aluno'); return }
@@ -307,124 +211,10 @@ export default function NovoTreinoPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1">
             <button onClick={() => setStep('exercicios')} disabled={!treino.nome || !treino.aluno_id} className="btn-secondary py-3 flex items-center justify-center gap-2">
-              <Dumbbell className="w-5 h-5" />Montar Manualmente
+              <Dumbbell className="w-5 h-5" />Avançar para Exercícios
             </button>
-            <button onClick={gerarTreinoIA} disabled={!treino.aluno_id || aiLoading}
-              className="btn-primary py-3 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-purple-600">
-              {aiLoading ? <><Loader2 className="w-5 h-5 animate-spin" />Gerando...</> : <><Sparkles className="w-5 h-5" />Gerar com IA</>}
-            </button>
-          </div>
-
-          {/* Sugestão IA */}
-          {aiMode === 'sugestao' && sugestaoIA && (
-            <div className="card-base p-5 space-y-4 border-2 border-purple-300 dark:border-purple-600">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-purple-500" />
-                <h3 className="font-bold text-gray-900 dark:text-gray-100">Sugestão da IA</h3>
-                <span className="badge-info ml-auto">Claude AI</span>
-              </div>
-              {typeof sugestaoIA.observacoes_gerais === 'string' && (
-                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3">
-                  <p className="text-xs text-purple-700 dark:text-purple-300">{sugestaoIA.observacoes_gerais}</p>
-                </div>
-              )}
-              {Array.isArray(sugestaoIA.treinos) && (sugestaoIA.treinos as Array<Record<string, unknown>>).map((t, i) => (
-                <div key={i} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{String(t.nome ?? '')}</p>
-                      <p className="text-xs text-gray-400">{String(t.objetivo ?? '')}</p>
-                    </div>
-                    <button onClick={() => { setTreino(p => ({ ...p, nome: String(t.nome ?? p.nome) })); aplicarSugestao(t) }}
-                      className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5">
-                      <Wand2 className="w-3.5 h-3.5" />Usar este
-                    </button>
-                  </div>
-                  {Array.isArray(t.exercicios) && (t.exercicios as Array<Record<string, unknown>>).map((ex, j) => (
-                    <div key={j} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                      <span className="w-5 h-5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-full flex items-center justify-center font-bold flex-shrink-0">{j + 1}</span>
-                      <span className="flex-1">{String(ex.nome ?? '')}</span>
-                      <span>{Number(ex.series ?? 3)}×{String(ex.repeticoes ?? '')}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-              <button onClick={() => { setAiMode('none'); setSugestaoIA(null) }} className="btn-secondary w-full text-sm">Fechar</button>
-            </div>
-          )}
-
-          {/* Chat IA */}
-          <div className="card-base overflow-hidden">
-            <button onClick={() => setAiMode(aiMode === 'chat' ? 'none' : 'chat')}
-              className="w-full p-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-              <div className="w-9 h-9 bg-gradient-to-br from-orange-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Bot className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">Assistente IA</p>
-                <p className="text-xs text-gray-400">Tire dúvidas sobre exercícios e treinos</p>
-              </div>
-              <span className="text-xs text-gray-400">{aiMode === 'chat' ? '▲' : '▼'}</span>
-            </button>
-            {aiMode === 'chat' && (
-              <div className="border-t border-gray-100 dark:border-gray-700">
-                <div className="h-60 overflow-y-auto p-4 space-y-3">
-                  {chatMsgs.length === 0 && (
-                    <div className="text-center py-4">
-                      <p className="text-xs text-gray-400 mb-3">Pergunte sobre exercícios, séries, progressão...</p>
-                      <div className="flex flex-wrap gap-1.5 justify-center">
-                        {['Sugira exercícios para glúteos', 'Quantas séries para hipertrofia?', 'Substituto para supino'].map(s => (
-                          <button key={s} onClick={() => setChatInput(s)}
-                            className="text-xs bg-gray-100 dark:bg-gray-700 px-2.5 py-1 rounded-full text-gray-600 dark:text-gray-400 hover:bg-orange-100 hover:text-orange-600 transition-colors">
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {chatMsgs.map((msg, i) => (
-                    <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      {msg.role === 'assistant' && (
-                        <div className="w-7 h-7 bg-gradient-to-br from-orange-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Bot className="w-4 h-4 text-white" />
-                        </div>
-                      )}
-                      <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${msg.role === 'user' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}`}>
-                        <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                      </div>
-                      {msg.role === 'user' && (
-                        <div className="w-7 h-7 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <User className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {aiLoading && (
-                    <div className="flex gap-2">
-                      <div className="w-7 h-7 bg-gradient-to-br from-orange-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Bot className="w-4 h-4 text-white" />
-                      </div>
-                      <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl px-3 py-2.5">
-                        <div className="flex gap-1">
-                          {[0, 150, 300].map(d => <div key={d} className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />)}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={chatEndRef} />
-                </div>
-                <div className="p-3 border-t border-gray-100 dark:border-gray-700 flex gap-2">
-                  <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviarChat()}
-                    placeholder="Pergunte..." className="input-base text-sm" disabled={aiLoading} />
-                  <button onClick={enviarChat} disabled={aiLoading || !chatInput.trim()} className="btn-primary p-2.5 rounded-xl flex-shrink-0">
-                    <Send className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}

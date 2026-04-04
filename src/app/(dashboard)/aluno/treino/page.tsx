@@ -22,6 +22,26 @@ interface Treino {
 type SerieState = { carga: string; done: boolean }
 type ExState = { series: SerieState[]; concluido: boolean }
 
+// ── Funções de Áudio ─────────────────────────────────────────
+const playBeep = () => {
+  if (typeof window === 'undefined') return
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioContext) return
+    const ctx = new AudioContext()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(800, ctx.currentTime)
+    gain.gain.setValueAtTime(0.1, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5)
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start()
+    osc.stop(ctx.currentTime + 0.5)
+  } catch { /* ignorar erro em browsers que bloqueiam auto-play */ }
+}
+
 // ── Modal YouTube player ─────────────────────────────────────
 function YouTubeModal({ url, nome, onClose }: { url: string; nome: string; onClose: () => void }) {
   const embedUrl = getYouTubeEmbedUrl(url)
@@ -131,17 +151,16 @@ function FeedbackModal({ onSave, saving }: {
   )
 }
 
-function TimerModal({ seconds, total, active, onToggle, onClose, onAddTime }: {
+function FloatingTimer({ seconds, total, active, onToggle, onClose, onAddTime }: {
   seconds: number; total: number; active: boolean
   onToggle: () => void; onClose: () => void; onAddTime: (s: number) => void
 }) {
   const progress = total > 0 ? ((total - seconds) / total) * 100 : 0
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-  const c = 2 * Math.PI * 45
   const urgent = seconds <= 10 && seconds > 0
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end justify-center p-4 lg:items-center">
-      <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-orange-500/20 animate-scale-in">
+    <div className="fixed bottom-4 left-4 right-4 z-50 flex justify-center pointer-events-none">
+      <div className="bg-gray-900/95 backdrop-blur-md rounded-2xl p-4 w-full max-w-sm shadow-[0_10px_40px_-10px_rgba(249,115,22,0.4)] border border-orange-500/20 animate-fade-in-up pointer-events-auto">
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-bold text-white flex items-center gap-2">
             <Timer className="w-4 h-4 text-orange-500" />Descanso
@@ -152,52 +171,38 @@ function TimerModal({ seconds, total, active, onToggle, onClose, onAddTime }: {
         </div>
 
         {seconds === 0 ? (
-          <div className="text-center py-6">
-            <div className="text-5xl mb-3">💪</div>
-            <p className="text-white font-black text-xl mb-1">Hora da próxima série!</p>
-            <p className="text-gray-400 text-sm">Pronto para continuar?</p>
+          <div className="flex items-center justify-between my-2">
+            <div>
+              <p className="text-white font-black text-lg">Tempo esgotado! 💪</p>
+              <p className="text-gray-400 text-xs">Hora da próxima série</p>
+            </div>
+            <button onClick={onClose} className="px-5 py-2.5 rounded-xl font-bold text-sm gradient-orange text-white active:scale-95">
+              Continuar
+            </button>
           </div>
         ) : (
-          <div className="flex justify-center my-4">
-            <div className="relative w-44 h-44">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="45" fill="none" stroke="#1f2937" strokeWidth="8" />
-                <circle cx="50" cy="50" r="45" fill="none"
-                  stroke={urgent ? '#ef4444' : '#f97316'} strokeWidth="8"
-                  strokeLinecap="round" strokeDasharray={c}
-                  strokeDashoffset={c * (1 - progress / 100)}
-                  className="transition-all duration-1000" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className={`font-mono text-5xl font-black ${urgent ? 'text-red-500 animate-pulse' : 'text-orange-500'}`}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 flex flex-col gap-2">
+              <div className="flex justify-between items-end">
+                <span className={`font-mono text-3xl font-black ${urgent ? 'text-red-500 animate-pulse' : 'text-orange-500'}`}>
                   {fmt(seconds)}
                 </span>
-                <span className="text-gray-500 text-xs mt-1">{total}s total</span>
+                <span className="text-gray-500 text-xs mb-1">de {total}s</span>
               </div>
+              <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                <div className={`h-full transition-all duration-1000 ${urgent ? 'bg-red-500' : 'bg-orange-500'}`} style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-2 flex-shrink-0">
+              <button onClick={onToggle}
+                className={clsx('w-12 h-12 flex items-center justify-center rounded-xl transition-colors active:scale-95',
+                  active ? 'bg-gray-800 text-white' : 'gradient-orange text-white')}>
+                {active ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+              </button>
             </div>
           </div>
         )}
-
-        <div className="flex gap-2 mb-3">
-          {[15, 30].map(s => (
-            <button key={s} onClick={() => onAddTime(s)}
-              className="flex-1 py-2 rounded-xl bg-gray-800 text-gray-300 text-xs font-medium hover:bg-gray-700 active:scale-95">
-              +{s}s
-            </button>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <button onClick={onToggle}
-            className={clsx('flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm active:scale-95',
-              active ? 'bg-gray-700 text-white' : 'gradient-orange text-white')}>
-            {active ? <><Pause className="w-4 h-4" />Pausar</> : <><Play className="w-4 h-4" />Continuar</>}
-          </button>
-          <button onClick={onClose}
-            className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm bg-gray-700 text-white active:scale-95">
-            <RotateCcw className="w-4 h-4" />Pular
-          </button>
-        </div>
       </div>
     </div>
   )
@@ -398,6 +403,7 @@ export default function TreinoAlunoPage() {
     intervalRef.current = setInterval(() => {
       setTimerSecs(s => {
         if (s <= 1) {
+          playBeep()
           setTimerActive(false)
           clearInterval(intervalRef.current!)
           return 0
@@ -579,7 +585,7 @@ export default function TreinoAlunoPage() {
         <FeedbackModal onSave={saveFeedback} saving={feedbackSaving} />
       )}
       {showTimer && !showFeedback && (
-        <TimerModal
+        <FloatingTimer
           seconds={timerSecs} total={timerTotal} active={timerActive}
           onToggle={() => setTimerActive(a => !a)}
           onAddTime={addTimerTime}

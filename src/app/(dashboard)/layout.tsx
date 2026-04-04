@@ -36,7 +36,6 @@ const navItems: NavItem[] = [
   { href: '/aluno/avaliacoes',      label: 'Avaliações',  icon: TrendingUp,      roles: ['aluno'] },
   { href: '/aluno/ocupacao',        label: 'Ocupação',    icon: BarChart2,       roles: ['aluno'] },
   { href: '/aluno/anamnese',        label: 'Anamnese',    icon: ClipboardCheck,  roles: ['aluno'] },
-  { href: '/aluno/nutricao',        label: 'Nutrição IA', icon: Leaf,            roles: ['aluno'] },
   { href: '/aluno/checkin',         label: 'Check-in',    icon: CheckSquare,     roles: ['aluno'] },
   { href: '/aluno/frequencia',      label: 'Frequência',  icon: Trophy,          roles: ['aluno'] },
 ]
@@ -59,7 +58,6 @@ const mobileNavByRole: Record<string, NavItem[]> = {
   aluno: [
     { href: '/dashboard',        label: 'Início',   icon: LayoutDashboard, roles: ['aluno'] },
     { href: '/aluno/treino',     label: 'Treino',   icon: Dumbbell,        roles: ['aluno'] },
-    { href: '/aluno/nutricao',   label: 'Nutrição', icon: Leaf,            roles: ['aluno'] },
     { href: '/aluno/checkin',    label: 'Check-in', icon: CheckSquare,     roles: ['aluno'] },
     { href: '/perfil',           label: 'Perfil',   icon: UserCircle,      roles: ['aluno'] },
   ],
