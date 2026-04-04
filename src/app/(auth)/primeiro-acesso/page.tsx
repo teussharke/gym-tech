@@ -64,8 +64,8 @@ export default function PrimeiroAcessoPage() {
           
         const newConfig = { ...currentConfig, primeiro_acesso: false }
         
-        const { error: dbError } = await supabase
-          .from('usuarios')
+        const { error: dbError } = await (supabase
+          .from('usuarios') as any)
           .update({ configuracoes: newConfig })
           .eq('id', usuario.id)
 
