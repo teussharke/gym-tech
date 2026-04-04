@@ -16,12 +16,15 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
 
-  // Auto-healing: Limpa caches PWA cheios se voltamos pro login (Evita QuotaExceededError)
+  // Auto-healing inteligente: força a atualização do Service Worker para
+  // recuperar eventuais caches corrompidos que causam erro "no-response" no Safari/Chrome.
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'caches' in window) {
-      caches.keys().then((names) => {
-        names.forEach(name => caches.delete(name))
-      }).catch(() => {})
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (let registration of registrations) {
+          registration.update().catch(() => {})
+        }
+      })
     }
   }, [])
 
