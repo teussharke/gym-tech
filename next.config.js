@@ -21,6 +21,12 @@ const withSerwist = require('@serwist/next').default({
   swSrc: 'src/app/sw.ts',
   swDest: 'public/sw.js',
   disable: process.env.NODE_ENV === 'development',
+  // Exclui rotas de API e autenticação do precache
+  exclude: [
+    /\/api\//,
+    /\/manifest\.webmanifest$/,
+    /\/_next\/data\//,
+  ],
 });
 
 module.exports = withSerwist(nextConfig)
