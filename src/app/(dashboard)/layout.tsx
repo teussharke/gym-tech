@@ -56,10 +56,11 @@ const mobileNavByRole: Record<string, NavItem[]> = {
     { href: '/perfil',                label: 'Perfil',     icon: UserCircle,      roles: ['professor'] },
   ],
   aluno: [
-    { href: '/dashboard',        label: 'Início',   icon: LayoutDashboard, roles: ['aluno'] },
-    { href: '/aluno/treino',     label: 'Treino',   icon: Dumbbell,        roles: ['aluno'] },
-    { href: '/aluno/checkin',    label: 'Check-in', icon: CheckSquare,     roles: ['aluno'] },
-    { href: '/perfil',           label: 'Perfil',   icon: UserCircle,      roles: ['aluno'] },
+    { href: '/dashboard',        label: 'Início',     icon: LayoutDashboard, roles: ['aluno'] },
+    { href: '/aluno/treino',     label: 'Treino',     icon: Dumbbell,        roles: ['aluno'] },
+    { href: '/aluno/avaliacoes', label: 'Avaliações', icon: Activity,        roles: ['aluno'] },
+    { href: '/aluno/checkin',    label: 'Check-in',   icon: CheckSquare,     roles: ['aluno'] },
+    { href: '/perfil',           label: 'Perfil',     icon: UserCircle,      roles: ['aluno'] },
   ],
 }
 

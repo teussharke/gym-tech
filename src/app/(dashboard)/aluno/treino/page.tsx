@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { CheckCircle2, Timer, Dumbbell, Info, X, ChevronLeft, ChevronRight, Zap, TrendingUp, Smile, Frown, Meh, MessageSquare, Pause, Play, RotateCcw, Target, Clock, Youtube } from 'lucide-react'
+import { CheckCircle2, Timer, Dumbbell, Info, X, ChevronLeft, ChevronRight, Zap, TrendingUp, Smile, Frown, Meh, MessageSquare, Pause, Play, RotateCcw, Target, Clock, Youtube, WifiOff, ChevronRight as ChevronArrow } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { mockExercicios, grupoColors, getYouTubeSearchUrl, getYouTubeEmbedUrl } from '@/lib/mock/exercicios'
@@ -284,9 +284,104 @@ function StartScreen({ treino, onStart }: { treino: Treino; onStart: () => void 
   )
 }
 
+// ── Seletor de múltiplos treinos A/B/C ─────────────────────────────────────
+function TreinoSelectorScreen({ treinos, recomendadoIdx, isOffline, onSelect }: {
+  treinos: Treino[]
+  recomendadoIdx: number
+  isOffline: boolean
+  onSelect: (t: Treino) => void
+}) {
+  const labels = ['A', 'B', 'C', 'D', 'E', 'F']
+  return (
+    <div className="max-w-lg mx-auto space-y-5 animate-fade-in-up">
+      <div className="text-center space-y-1 pt-2">
+        <h1 className="text-2xl font-black text-gray-900 dark:text-gray-100">Qual treino hoje?</h1>
+        <p className="text-sm text-gray-500">Escolha a ficha que deseja executar</p>
+        {isOffline && (
+          <div className="flex items-center justify-center gap-1.5 mt-2">
+            <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2.5 py-1 rounded-full font-medium">
+              📴 Modo offline — cache local
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {treinos.map((t, i) => {
+          const isRecomendado = i === recomendadoIdx
+          const totalSeries = t.exercicios.reduce((s, e) => s + e.series, 0)
+          const tempoEstimado = t.duracao_estimada_min ?? Math.round(totalSeries * 2.5)
+          const label = t.dia_semana ?? labels[i] ?? `Treino ${i + 1}`
+
+          return (
+            <button
+              key={t.id}
+              onClick={() => onSelect(t)}
+              className={clsx(
+                'w-full text-left rounded-2xl p-5 transition-all active:scale-[0.98] border-2',
+                isRecomendado
+                  ? 'gradient-orange text-white border-orange-400 shadow-xl shadow-orange-500/30'
+                  : 'card-base border-transparent hover:border-orange-200 dark:hover:border-orange-800'
+              )}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <span className={clsx(
+                    'w-10 h-10 rounded-xl font-black text-lg flex items-center justify-center flex-shrink-0',
+                    isRecomendado ? 'bg-white/20 text-white' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-600'
+                  )}>
+                    {label}
+                  </span>
+                  <div>
+                    <p className={clsx('font-black text-base', isRecomendado ? 'text-white' : 'text-gray-900 dark:text-gray-100')}>
+                      {t.nome}
+                    </p>
+                    {isRecomendado && (
+                      <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-medium">
+                        ⭐ Recomendado para hoje
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <ChevronArrow className={clsx('w-5 h-5 flex-shrink-0', isRecomendado ? 'text-white/70' : 'text-gray-400')} />
+              </div>
+
+              <div className="flex gap-4">
+                {[
+                  { v: t.exercicios.length, l: 'exercícios' },
+                  { v: totalSeries, l: 'séries' },
+                  { v: `~${tempoEstimado}min`, l: 'duração' },
+                ].map(({ v, l }) => (
+                  <div key={l}>
+                    <p className={clsx('font-black text-sm', isRecomendado ? 'text-white' : 'text-gray-900 dark:text-gray-100')}>{v}</p>
+                    <p className={clsx('text-xs', isRecomendado ? 'text-white/70' : 'text-gray-400')}>{l}</p>
+                  </div>
+                ))}
+              </div>
+
+              {t.descricao && (
+                <p className={clsx('text-xs mt-3 line-clamp-1', isRecomendado ? 'text-white/80' : 'text-gray-500')}>
+                  {t.descricao}
+                </p>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function TreinoAlunoPage() {
   const { usuario, session } = useAuth()
-  const [treino, setTreino] = useState<Treino | null>(null)
+  // ── múltiplos treinos ──────────────────────────────────────
+  const [treinos, setTreinos] = useState<Treino[]>([])
+  const [treinoSelecionado, setTreinoSelecionado] = useState<Treino | null>(null)
+  // ícone de compatibilidade: "treino" ainda referencia o selecionado
+  const treino = treinoSelecionado
+  const [recomendadoIdx, setRecomendadoIdx] = useState(0)
+  const [isOfflineCache, setIsOfflineCache] = useState(false)
+  // ── estado original ────────────────────────────────────────
   const [alunoId, setAlunoId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [started, setStarted] = useState(false)
@@ -326,6 +421,7 @@ export default function TreinoAlunoPage() {
   const fetchTreino = useCallback(async () => {
     if (!alunoId) return
     setLoading(true)
+    const CACHE_KEY = `treino_cache_${alunoId}`
     try {
       const { data, error } = await supabase
         .from('treinos')
@@ -335,24 +431,74 @@ export default function TreinoAlunoPage() {
             exercicio:exercicios (id, nome, grupo_muscular, gif_url, youtube_url, equipamento)
           )`)
         .eq('aluno_id', alunoId).eq('ativo', true)
-        .order('created_at', { ascending: false }).limit(1).single()
+        .order('created_at', { ascending: true })
       if (error && error.code !== 'PGRST116') throw error
-      if (data) {
-        const t = data as unknown as Treino
-        t.exercicios = (t.exercicios ?? []).sort((a, b) => a.ordem - b.ordem)
-        setTreino(t)
-        // Estado por exercício: array de séries com carga individual
-        setStates(Object.fromEntries(t.exercicios.map(e => [
-          e.id,
-          {
-            series: Array.from({ length: e.series }, () => ({ carga: '', done: false })),
-            concluido: false,
-          }
-        ])))
+
+      const lista = ((data ?? []) as unknown as Treino[]).map(t => ({
+        ...t,
+        exercicios: (t.exercicios ?? []).sort((a, b) => a.ordem - b.ordem),
+      }))
+
+      if (lista.length > 0) {
+        // Salvar cache no localStorage para uso offline
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify({ treinos: lista, ts: Date.now() }))
+        } catch { /* localStorage pode estar cheio */ }
+        setIsOfflineCache(false)
+        setTreinos(lista)
+
+        // Detectar próximo treino recomendado pelo histórico
+        const { data: hist } = await supabase
+          .from('historico_treinos')
+          .select('treino_id')
+          .eq('aluno_id', alunoId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (hist?.treino_id) {
+          const lastIdx = lista.findIndex(t => t.id === hist.treino_id)
+          const nextIdx = lastIdx >= 0 ? (lastIdx + 1) % lista.length : 0
+          setRecomendadoIdx(nextIdx)
+          // Auto-selecionar se só há 1 treino
+          if (lista.length === 1) setTreinoSelecionado(lista[0])
+        } else {
+          setRecomendadoIdx(0)
+          if (lista.length === 1) setTreinoSelecionado(lista[0])
+        }
+        // Inicializar estados de séries para todos os treinos
+        initStates(lista[0])
       }
-    } catch { toast.error('Erro ao carregar treino') }
-    finally { setLoading(false) }
+    } catch {
+      // Tentar carregar do cache localStorage (modo offline)
+      try {
+        const cached = localStorage.getItem(CACHE_KEY)
+        if (cached) {
+          const { treinos: cachedTreinos, ts } = JSON.parse(cached)
+          // Cache válido por 24 horas
+          if (Date.now() - ts < 86_400_000 && cachedTreinos?.length > 0) {
+            setTreinos(cachedTreinos)
+            setIsOfflineCache(true)
+            setRecomendadoIdx(0)
+            if (cachedTreinos.length === 1) setTreinoSelecionado(cachedTreinos[0])
+            initStates(cachedTreinos[0])
+            toast('⚡ Treino carregado do cache offline', { icon: '📴' })
+          } else {
+            toast.error('Sem conexão e cache expirado')
+          }
+        } else {
+          toast.error('Erro ao carregar treino')
+        }
+      } catch { toast.error('Erro ao carregar treino') }
+    } finally { setLoading(false) }
   }, [alunoId])
+
+  const initStates = (t: Treino) => {
+    setStates(Object.fromEntries(t.exercicios.map(e => [
+      e.id,
+      { series: Array.from({ length: e.series }, () => ({ carga: '', done: false })), concluido: false },
+    ])))
+  }
 
   // Busca a última carga registrada para cada exercício
   const fetchUltimasCargas = useCallback(async (exercicios: ExercicioTreino[]) => {
@@ -392,8 +538,8 @@ export default function TreinoAlunoPage() {
     if (alunoId) fetchTreino()
   }, [fetchTreino, alunoId])
   useEffect(() => {
-    if (treino) fetchUltimasCargas(treino.exercicios)
-  }, [treino, fetchUltimasCargas])
+    if (treinoSelecionado) fetchUltimasCargas(treinoSelecionado.exercicios)
+  }, [treinoSelecionado, fetchUltimasCargas])
 
   // Timer countdown — depende APENAS de timerActive para não recriar interval a cada segundo
   useEffect(() => {
@@ -523,16 +669,13 @@ export default function TreinoAlunoPage() {
       setShowFeedback(false)
       setHistoricoId(null)
       setStarted(false)
-      if (treino) {
-        setStates(Object.fromEntries(treino.exercicios.map(e => [
-          e.id,
-          { series: Array.from({ length: e.series }, () => ({ carga: '', done: false })), concluido: false }
-        ])))
-      }
+      // Voltar para o seletor após finalizar (permite escolher próximo treino A/B/C)
+      setTreinoSelecionado(null)
       setCurrentIndex(0)
     }
   }
 
+  // ── Render flow ──────────────────────────────────────────────────────────────────
   if (loading) return (
     <div className="flex items-center justify-center min-h-64">
       <div className="flex flex-col items-center gap-4">
@@ -544,28 +687,47 @@ export default function TreinoAlunoPage() {
     </div>
   )
 
-  if (!treino) return (
+  // Sem treinos ativos
+  if (treinos.length === 0) return (
     <div className="max-w-lg mx-auto card-base p-12 text-center animate-fade-in">
-      <div className="text-5xl mb-4 animate-float">🏋️</div>
+      <div className="text-5xl mb-4 animate-float">🏗️</div>
       <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Nenhum treino ativo</h2>
       <p className="text-gray-500">Seu professor ainda não criou um treino para você.</p>
     </div>
   )
 
-  if (!started) return (
-    <StartScreen
-      treino={treino}
-      onStart={() => {
-        setStarted(true)
-        autoCheckin() // Check-in automático silencioso
+  // Seletor de treinos A/B/C (quando não há treino selecionado)
+  if (!treinoSelecionado) return (
+    <TreinoSelectorScreen
+      treinos={treinos}
+      recomendadoIdx={recomendadoIdx}
+      isOffline={isOfflineCache}
+      onSelect={(t) => {
+        setTreinoSelecionado(t)
+        initStates(t)
+        setCurrentIndex(0)
+        setImgErr(false)
       }}
     />
   )
 
+  if (!started) return (
+    <StartScreen
+      treino={treinoSelecionado}
+      onStart={() => {
+        setStarted(true)
+        autoCheckin()
+      }}
+    />
+  )
+
+  // A partir daqui treinoSelecionado está garantido (guard acima)
+  const t = treinoSelecionado
+
   // Tela de execução
   const totalConcluidos = Object.values(states).filter(s => s.concluido).length
-  const progress = treino.exercicios.length > 0 ? (totalConcluidos / treino.exercicios.length) * 100 : 0
-  const ex = treino.exercicios[currentIndex]
+  const progress = t.exercicios.length > 0 ? (totalConcluidos / t.exercicios.length) * 100 : 0
+  const ex = t.exercicios[currentIndex]
   if (!ex) return null
 
   const nome = ex.exercicio?.nome ?? ex.observacoes ?? `Exercício ${currentIndex + 1}`
@@ -597,15 +759,22 @@ export default function TreinoAlunoPage() {
       <div className="max-w-lg mx-auto space-y-4 page-enter">
         {/* Header progresso */}
         <div className="card-base p-4 space-y-3">
+          {/* Banner modo offline */}
+          {isOfflineCache && (
+            <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-3 py-2 -mb-1">
+              <WifiOff className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+              <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">Modo offline — treino carregado do cache</p>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div className="flex-1 min-w-0 mr-3">
               <div className="flex items-center gap-2">
-                {treino.dia_semana && <span className="badge-info flex-shrink-0">{treino.dia_semana}</span>}
-                <h1 className="font-bold text-gray-900 dark:text-gray-100 text-sm truncate">{treino.nome}</h1>
+                {t.dia_semana && <span className="badge-info flex-shrink-0">{t.dia_semana}</span>}
+                <h1 className="font-bold text-gray-900 dark:text-gray-100 text-sm truncate">{t.nome}</h1>
               </div>
             </div>
             <div className="text-right flex-shrink-0">
-              <p className="text-2xl font-black text-orange-500">{totalConcluidos}/{treino.exercicios.length}</p>
+              <p className="text-2xl font-black text-orange-500">{totalConcluidos}/{t.exercicios.length}</p>
               <p className="text-xs text-gray-400">exercícios</p>
             </div>
           </div>
@@ -619,7 +788,7 @@ export default function TreinoAlunoPage() {
           <button onClick={() => goTo(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}
             className="btn-ghost p-2 disabled:opacity-30"><ChevronLeft className="w-5 h-5" /></button>
           <div className="flex gap-1.5 flex-wrap justify-center">
-            {treino.exercicios.map((e, i) => (
+            {t.exercicios.map((e, i) => (
               <button key={e.id} onClick={() => goTo(i)}
                 className={clsx('rounded-full transition-all duration-300',
                   i === currentIndex ? 'w-6 h-2.5 bg-orange-500' :
@@ -627,8 +796,8 @@ export default function TreinoAlunoPage() {
                   'w-2.5 h-2.5 bg-gray-300 dark:bg-gray-600')} />
             ))}
           </div>
-          <button onClick={() => goTo(Math.min(treino.exercicios.length - 1, currentIndex + 1))}
-            disabled={currentIndex === treino.exercicios.length - 1}
+          <button onClick={() => goTo(Math.min(t.exercicios.length - 1, currentIndex + 1))}
+            disabled={currentIndex === t.exercicios.length - 1}
             className="btn-ghost p-2 disabled:opacity-30"><ChevronRight className="w-5 h-5" /></button>
         </div>
 
@@ -643,7 +812,7 @@ export default function TreinoAlunoPage() {
             {/* Cabeçalho */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">{currentIndex + 1}/{treino.exercicios.length}</span>
+                <span className="text-xs text-gray-400">{currentIndex + 1}/{t.exercicios.length}</span>
                 {grupo && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${grupoColors[grupo] ?? 'badge-gray'}`}>{grupo}</span>}
               </div>
               {state.concluido
@@ -851,7 +1020,7 @@ export default function TreinoAlunoPage() {
         <p className="text-center text-xs text-gray-400">← Deslize para navegar →</p>
 
         {/* Tela de conclusão */}
-        {totalConcluidos === treino.exercicios.length && (
+        {totalConcluidos === t.exercicios.length && (
           <div className="card-base p-6 text-center border-2 border-orange-400 animate-bounce-in">
             <div className="text-5xl mb-3 animate-float">🎉</div>
             <h3 className="text-xl font-black text-gray-900 dark:text-gray-100 mb-1">Treino Concluído!</h3>
