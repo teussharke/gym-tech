@@ -49,8 +49,19 @@ export default function LoginPage() {
       }
 
       if (data.session) {
+        const { data: usuarioRecord } = await supabase
+          .from('usuarios')
+          .select('configuracoes')
+          .eq('id', data.session.user.id)
+          .single()
+
         await new Promise(r => setTimeout(r, 300))
-        router.replace('/dashboard')
+
+        if (usuarioRecord?.configuracoes && (usuarioRecord.configuracoes as any).primeiro_acesso) {
+          router.replace('/primeiro-acesso')
+        } else {
+          router.replace('/dashboard')
+        }
       }
     } catch {
       toast.error('Erro ao fazer login')

@@ -26,8 +26,9 @@ export interface Usuario {
   endereco?: Record<string, string>
   academia_id?: string
   configuracoes?: {
-    tema: 'light' | 'dark'
-    notificacoes: boolean
+    tema?: 'light' | 'dark'
+    notificacoes?: boolean
+    primeiro_acesso?: boolean
   }
   ultimo_login?: string
   created_at: string

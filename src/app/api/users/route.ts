@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       id: userId, nome, email,
       telefone: telefone || null, role, status: 'ativo', academia_id,
       data_nascimento: data_nascimento || null, cpf: cpf || null,
+      configuracoes: { primeiro_acesso: true }
     })
 
     if (usuarioError) {

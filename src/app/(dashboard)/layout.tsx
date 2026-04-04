@@ -176,7 +176,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [pathname, fetchUnread])
 
   useEffect(() => {
-    if (!isLoading && !usuario) router.replace('/login')
+    if (!isLoading) {
+      if (!usuario) {
+        router.replace('/login')
+      } else if (usuario.configuracoes && (usuario.configuracoes as any).primeiro_acesso) {
+        router.replace('/primeiro-acesso')
+      }
+    }
   }, [usuario, isLoading, router])
 
   if (isLoading) return (
