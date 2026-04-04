@@ -32,8 +32,8 @@ export function getYouTubeEmbedUrl(url: string): string | null {
   return id ? `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&autoplay=1` : null
 }
 
-// raw.githubusercontent.com como CDN direto (jsDelivr bloqueou o repo free-exercise-db por excesso de tráfego)
-const BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises'
+// Supabase Storage — hospedado internamente, sem dependência de CDN externo (migrado de raw.githubusercontent.com)
+const BASE = 'https://gmdjlmouthpkwmebttkz.supabase.co/storage/v1/object/public/exercise-images'
 
 // Abre busca do YouTube com o termo do exercício
 export function getYouTubeSearchUrl(termo: string): string {

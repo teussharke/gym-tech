@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { mockExercicios, grupoColors, getYouTubeSearchUrl, getYouTubeEmbedUrl } from '@/lib/mock/exercicios'
 import { AnimatedExerciseImage } from '@/components/UIComponents'
+import LoadEvolutionChart from '@/components/LoadEvolutionChart'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 
@@ -833,6 +834,17 @@ export default function TreinoAlunoPage() {
             </div>
               )
             })()}
+
+            {/* ── Gráfico de evolução de carga ─────────────── */}
+            {alunoId && ex.exercicio?.id && (
+              <div className="border-t border-gray-100 dark:border-gray-700/50 pt-4">
+                <LoadEvolutionChart
+                  alunoId={alunoId}
+                  exercicioId={ex.exercicio.id}
+                  cargaSugerida={ex.carga_sugerida}
+                />
+              </div>
+            )}
           </div>
         </div>
 
