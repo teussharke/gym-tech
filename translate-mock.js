@@ -97,9 +97,8 @@ export function getYouTubeSearchUrl(termo: string): string {
   const query = encodeURIComponent(\`como fazer \${termo} academia execução correta\`)
   return \`https://www.youtube.com/results?search_query=\${query}\`
 }
-
 export const mockExercicios: Exercicio[] = [
-\${exercises.join(',\\n')}
+${exercises.join(',\n')}
 ]
 
 export const gruposMusculares = [
