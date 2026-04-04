@@ -94,7 +94,7 @@ export default function FeedbacksPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   const fetchFeedbacks = useCallback(async () => {
-    if (!usuario?.academia_id) return
+    if (!usuario?.academia_id) { setLoading(false); return }
     setLoading(true)
     try {
       // Buscar feedbacks dos últimos 30 dias

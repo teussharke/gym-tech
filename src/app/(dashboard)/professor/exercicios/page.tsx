@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Plus, Search, Edit, Trash2, Dumbbell, Youtube, Play, X, ExternalLink } from 'lucide-react'
 import { mockExercicios, gruposMusculares, grupoColors, nivelColors, getYouTubeSearchUrl, extractYouTubeId, getYouTubeEmbedUrl } from '@/lib/mock/exercicios'
+import { AnimatedExerciseImage } from '@/components/UIComponents'
 
 const levels = ['Todos', 'Iniciante', 'Intermediário', 'Avançado']
 
@@ -50,7 +51,7 @@ function ExercicioCard({ exercicio, onPlay }: {
       <div className="bg-gray-100 dark:bg-gray-700 h-36 relative overflow-hidden">
         {/* Camada de foto — gif/jpg do exercício */}
         {hasGif ? (
-          <img
+          <AnimatedExerciseImage
             src={exercicio.gif_url!}
             alt={exercicio.nome}
             className="w-full h-full object-cover"

@@ -9,6 +9,7 @@ import {
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { mockExercicios, grupoColors, getYouTubeSearchUrl } from '@/lib/mock/exercicios'
+import { AnimatedExerciseImage } from '@/components/UIComponents'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
@@ -510,7 +511,7 @@ export default function NovoTreinoPage() {
                 <div key={ex.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                   <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden flex-shrink-0">
                     {ex.gif_url
-                      ? <img src={ex.gif_url} alt={ex.nome} className="w-full h-full object-cover" loading="eager" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                      ? <AnimatedExerciseImage src={ex.gif_url} alt={ex.nome} className="w-full h-full object-cover" />
                       : <div className="w-full h-full flex items-center justify-center"><Dumbbell className="w-5 h-5 text-gray-400" /></div>
                     }
                   </div>

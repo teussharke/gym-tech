@@ -5,6 +5,7 @@ import { CheckCircle2, Timer, Dumbbell, Info, X, ChevronLeft, ChevronRight, Zap,
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { grupoColors, getYouTubeSearchUrl, getYouTubeEmbedUrl } from '@/lib/mock/exercicios'
+import { AnimatedExerciseImage } from '@/components/UIComponents'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 
@@ -301,7 +302,7 @@ export default function TreinoAlunoPage() {
   const touchStartY = useRef(0)
 
   const fetchAluno = useCallback(async () => {
-    if (!usuario?.id) return
+    if (!usuario?.id) { setLoading(false); return }
     try {
       // maybeSingle() não lança erro quando não encontra — apenas retorna null
       const { data, error } = await supabase
@@ -663,8 +664,7 @@ export default function TreinoAlunoPage() {
                 <div className="rounded-2xl overflow-hidden relative h-44 bg-gray-100 dark:bg-gray-700 group">
                   {/* Camada de foto: gif > thumbnail YouTube > placeholder */}
                   {hasGif ? (
-                    <img src={gifUrl!} alt={nome} className="w-full h-full object-cover"
-                      onError={() => setImgErr(true)} />
+                    <AnimatedExerciseImage src={gifUrl!} alt={nome} className="w-full h-full object-cover" onError={() => setImgErr(true)} />
                   ) : ytThumbnail ? (
                     /* Thumbnail do YouTube como fallback quando não há gif */
                     <img src={ytThumbnail} alt={nome} className="w-full h-full object-cover" />

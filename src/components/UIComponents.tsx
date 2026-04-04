@@ -137,6 +137,21 @@ export function PWAInstallBanner() {
   )
 }
 
+// ── Animated Exercise Image (GIF Simulation) ─────────────
+export function AnimatedExerciseImage({ src, alt, onError, className }: { src: string; alt: string; onError?: () => void; className?: string }) {
+  const [frame, setFrame] = useState(0)
+  
+  useEffect(() => {
+    if (!src || !src.endsWith('0.jpg')) return
+    const t = setInterval(() => setFrame(f => f === 0 ? 1 : 0), 1000)
+    return () => clearInterval(t)
+  }, [src])
+  
+  const currentSrc = src && src.endsWith('0.jpg') ? src.replace('0.jpg', `${frame}.jpg`) : src
+
+  return <img src={currentSrc || ''} alt={alt} className={className || "w-full h-full object-cover"} onError={onError} />
+}
+
 // ── Skeleton Components ──────────────────────────────────
 export function SkeletonCard({ lines = 3 }: { lines?: number }) {
   return (

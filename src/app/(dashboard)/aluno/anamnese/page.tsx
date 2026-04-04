@@ -114,7 +114,7 @@ export default function AnamnesePage() {
   const set = (k: keyof FormData, v: string) => setForm(p => ({ ...p, [k]: v }))
 
   const fetchDados = useCallback(async () => {
-    if (!usuario?.id) return
+    if (!usuario?.id) { setLoading(false); return }
     setLoading(true)
     try {
       const { data: alunoData } = await supabase

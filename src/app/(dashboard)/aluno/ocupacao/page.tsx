@@ -30,7 +30,7 @@ export default function OcupacaoAlunoPage() {
   const diaAtual = now.getDay()
 
   const fetchDados = useCallback(async () => {
-    if (!usuario?.academia_id) return
+    if (!usuario?.academia_id) { setLoading(false); return }
     setLoading(true)
     try {
       const since = new Date()

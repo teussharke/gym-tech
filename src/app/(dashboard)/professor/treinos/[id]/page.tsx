@@ -9,6 +9,7 @@ import {
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { mockExercicios, grupoColors, getYouTubeSearchUrl } from '@/lib/mock/exercicios'
+import { AnimatedExerciseImage } from '@/components/UIComponents'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
@@ -363,10 +364,9 @@ export default function EditarTreinoPage() {
                   {idx + 1}
                 </div>
                 {ex.gif_url && (
-                  <img src={ex.gif_url} alt={ex.nome}
+                  <AnimatedExerciseImage src={ex.gif_url} alt={ex.nome}
                     className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                    style={{ border: '1px solid var(--border-c)' }}
-                    onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                    onError={() => {}} />
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-1)' }}>{ex.nome}</p>
@@ -520,9 +520,9 @@ export default function EditarTreinoPage() {
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-card-h)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                   {ex.gif_url && (
-                    <img src={ex.gif_url} alt={ex.nome}
+                    <AnimatedExerciseImage src={ex.gif_url} alt={ex.nome}
                       className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                      onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                      onError={() => {}} />
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate" style={{ color: 'var(--text-1)' }}>{ex.nome}</p>
