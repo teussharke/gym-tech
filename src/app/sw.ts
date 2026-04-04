@@ -26,26 +26,16 @@ const serwist = new Serwist({
     ],
   },
   runtimeCaching: [
-    // ── Supabase REST API (dados do treino, exercícios, histórico) ──────────
-    // NetworkFirst: tenta a rede primeiro, se falhar (offline) usa o cache
-    // networkTimeoutSeconds: após 5s sem resposta, serve o cache imediatamente
+    // ── Supabase REST API ─────────────────────────────────────────────────
+    // IMPORTANTE: Supabase usa Bearer token no Authorization header.
+    // NÃO usar credentials:"include" — causaria CORS porque Supabase retorna
+    // Access-Control-Allow-Origin: * (wildcard incompatível com credentials).
+    // NetworkFirst já faz fallback para cache quando a rede falha.
     {
       matcher: ({ url }: { url: URL }) =>
         url.hostname.includes("supabase.co") && url.pathname.includes("/rest/"),
       handler: new NetworkFirst({
         cacheName: "supabase-api-cache",
-        fetchOptions: { credentials: "include" },
-        matchOptions: { ignoreSearch: false },
-        plugins: [
-          {
-            cacheKeyWillBeUsed: async ({ request }: { request: Request }) => request.url,
-            handlerDidError: async ({ request }: { request: Request }) => {
-              // Retorna do cache se disponível, ou undefined para propagar erro
-              const cache = await caches.open("supabase-api-cache");
-              return (await cache.match(request)) ?? Response.error();
-            },
-          },
-        ],
         networkTimeoutSeconds: 5,
       }),
     },
@@ -56,7 +46,6 @@ const serwist = new Serwist({
         url.hostname.includes("supabase.co") && url.pathname.includes("/storage/"),
       handler: new StaleWhileRevalidate({
         cacheName: "supabase-storage-cache",
-        plugins: [],
       }),
     },
     // ── Fontes do Google ──────────────────────────────────────────────────
@@ -65,7 +54,6 @@ const serwist = new Serwist({
         url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com",
       handler: new CacheFirst({
         cacheName: "google-fonts-cache",
-        plugins: [],
       }),
     },
     // Fallback padrão do Serwist para todos os outros recursos
