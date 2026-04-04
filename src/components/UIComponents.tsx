@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 
 interface BeforeInstallPromptEvent extends Event {
@@ -138,25 +138,54 @@ export function PWAInstallBanner() {
 }
 
 // ── Animated Exercise Image ───────────────────────────────
-// Suporta GIFs nativos (JEFIT CDN) e o fallback antigo de frame 0/1 (free-exercise-db)
+// Suporta GIFs nativos e o formato de frame 0/1 (free-exercise-db)
 export function AnimatedExerciseImage({ src, alt, onError, className }: { src: string; alt: string; onError?: () => void; className?: string }) {
   const [frame, setFrame] = useState(0)
+  const [failed, setFailed] = useState(false)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isOldFormat = src?.endsWith('0.jpg')
-  
+
   useEffect(() => {
-    if (!isOldFormat) return
-    const t = setInterval(() => setFrame(f => f === 0 ? 1 : 0), 1000)
-    return () => clearInterval(t)
-  }, [isOldFormat])
-  
+    // Reseta o estado de erro ao trocar de exercício
+    setFailed(false)
+    setFrame(0)
+  }, [src])
+
+  useEffect(() => {
+    if (!isOldFormat || failed) return
+    intervalRef.current = setInterval(() => setFrame(f => f === 0 ? 1 : 0), 1000)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [isOldFormat, failed])
+
+  const handleError = () => {
+    // Para o intervalo imediatamente ao falhar para evitar spam de 403 no console
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+    setFailed(true)
+    onError?.()
+  }
+
   const currentSrc = isOldFormat ? src.replace('0.jpg', `${frame}.jpg`) : (src || '')
+
+  if (failed) {
+    return (
+      <div className={`${className || 'w-full h-full'} flex items-center justify-center bg-gray-100 dark:bg-gray-700`}>
+        <div className="text-center p-4">
+          <span className="text-4xl">💪</span>
+          <p className="text-xs text-gray-400 mt-1">{alt}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <img
       src={currentSrc}
       alt={alt}
       className={className || "w-full h-full object-cover"}
-      onError={onError}
+      onError={handleError}
       loading="lazy"
     />
   )
