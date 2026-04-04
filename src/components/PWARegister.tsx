@@ -47,30 +47,22 @@ export default function PWARegister() {
 
     cleanupBrokenSW()
 
-    // Recarrega APENAS quando um SW novo e saudável assume o controle
-    // Usa um flag para evitar loop: só recarrega uma vez por sessão
-    let reloaded = false
-    const handleControllerChange = () => {
-      if (!reloaded && navigator.serviceWorker.controller) {
-        reloaded = true
+    // Não forçar recarregamento automático da página ao atualizar SW (evita loops infinitos de navegação)
+    // O SW será atualizado de forma síncrona e silenciosa no background.
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'RELOAD_ON_UPDATE') {
         window.location.reload()
       }
-    }
+    })
 
-    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange)
-
-    // Verifica atualizações a cada 5 minutos
+    // Verifica atualizações silenciosamente a cada 60 minutos (aumentado para reduzir hits locais/Vercel)
     navigator.serviceWorker.ready.then((registration) => {
       const interval = setInterval(() => {
         registration.update().catch(() => {})
-      }, 5 * 60 * 1000)
+      }, 60 * 60 * 1000)
 
       return () => clearInterval(interval)
     }).catch(() => {})
-
-    return () => {
-      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange)
-    }
   }, [])
 
   return null
