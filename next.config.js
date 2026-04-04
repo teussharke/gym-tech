@@ -32,6 +32,9 @@ const withSerwist = require('@serwist/next').default({
     /\/api\//,
     /\/manifest\.webmanifest$/,
     /\/_next\/data\//,
+    /_ssgManifest\.js$/,
+    /_buildManifest\.js$/,
+    /\.map$/,
   ],
 });
 
