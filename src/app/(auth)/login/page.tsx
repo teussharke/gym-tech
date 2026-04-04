@@ -69,9 +69,9 @@ export default function LoginPage() {
         await new Promise(r => setTimeout(r, 300))
 
         if (usuarioRecord?.configuracoes && usuarioRecord.configuracoes.primeiro_acesso) {
-          window.location.href = '/primeiro-acesso'
+          setTimeout(() => { window.location.href = '/primeiro-acesso' }, 100)
         } else {
-          window.location.href = '/dashboard'
+          setTimeout(() => { window.location.href = '/dashboard' }, 100)
         }
       }
     } catch {
