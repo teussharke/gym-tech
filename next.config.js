@@ -14,6 +14,12 @@ const nextConfig = {
         port: '',
         pathname: '/assets/img/exercises/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'raw.githubusercontent.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
   experimental: {

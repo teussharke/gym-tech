@@ -16,6 +16,15 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
 
+  // Auto-healing: Limpa caches PWA cheios se voltamos pro login (Evita QuotaExceededError)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      caches.keys().then((names) => {
+        names.forEach(name => caches.delete(name))
+      }).catch(() => {})
+    }
+  }, [])
+
   // Se já está logado, redireciona
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
