@@ -4,17 +4,17 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'placeholder-anon-key'
 
-let supabaseInstance: ReturnType<typeof createClient> | null = null;
+let supabaseInstance: any = null;
 
 if (typeof window === 'undefined') {
   // No servidor, usar instância isolada (mínima)
-  supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+  supabaseInstance = createClient<any, 'public', any>(supabaseUrl, supabaseAnonKey, {
     auth: { persistSession: false },
   })
 } else {
   // No cliente, garantir singleton estrito ignorando hot-reloads violentos
   if (!(window as any).__supabaseInstance) {
-    ;(window as any).__supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+    ;(window as any).__supabaseInstance = createClient<any, 'public', any>(supabaseUrl, supabaseAnonKey, {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
@@ -25,7 +25,7 @@ if (typeof window === 'undefined') {
   supabaseInstance = (window as any).__supabaseInstance
 }
 
-export const supabase = supabaseInstance!
+export const supabase = supabaseInstance as ReturnType<typeof createClient<any, 'public', any>>;
 
 export function createServerSupabaseClient() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? 'placeholder-service-key'
