@@ -262,8 +262,12 @@ export default function DashboardPage() {
       {/* Saudação */}
       <div className="animate-fade-in flex items-start justify-between gap-4">
         <div>
+          <p className="text-xs font-medium uppercase tracking-widest mb-0.5" style={{ color: 'var(--neon)' }}>
+            {greeting()}
+          </p>
           <h1 className="page-title">
-            {greeting()}, {usuario?.nome.split(' ')[0]}! {role === 'aluno' ? '💪' : '👋'}
+            {usuario?.nome.split(' ')[0]}
+            {role === 'aluno' && <span className="text-[var(--neon)]"> .</span>}
           </h1>
           <p className="page-subtitle capitalize">
             {format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })}
@@ -328,99 +332,122 @@ export default function DashboardPage() {
       {/* ── ALUNO STATS ── */}
       {role === 'aluno' && alunoStats && (
         <>
+          {/* Bento stats — block-based layout */}
           <div className="grid grid-cols-2 gap-3 animate-fade-in stagger-1">
-            <GradientStatCard
-              title="Check-ins/Mês"
-              value={`${alunoStats.checkinsMes}/20`}
-              icon={Calendar}
-              gradient="gradient-orange"
-              subtitle={`${Math.round((alunoStats.checkinsMes / 20) * 100)}% da meta`}
-              link="/aluno/frequencia"
-            />
-            <GradientStatCard
-              title="Treinos Feitos"
-              value={alunoStats.totalTreinos}
-              icon={Dumbbell}
-              gradient="gradient-blue"
-              link="/aluno/historico"
-            />
+            {/* Check-ins — large block */}
+            <Link href="/aluno/frequencia" className="card-base p-5 relative overflow-hidden active:scale-95 transition-transform hover-glow-orange">
+              <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-10" style={{ background: 'var(--neon)' }} />
+              <div className="relative z-10">
+                <Calendar className="w-4 h-4 mb-3" style={{ color: 'var(--neon)' }} />
+                <p className="stat-value">{alunoStats.checkinsMes}<span className="text-xl text-[var(--text-3)]">/20</span></p>
+                <p className="stat-label">Check-ins</p>
+                <div className="mt-3 h-1.5 bg-[var(--bg-chip)] rounded-full overflow-hidden">
+                  <div className="h-1.5 rounded-full transition-all duration-700" style={{ width: `${Math.min((alunoStats.checkinsMes / 20) * 100, 100)}%`, background: 'linear-gradient(90deg, var(--neon), var(--neon-secondary))' }} />
+                </div>
+              </div>
+            </Link>
+
+            {/* Treinos feitos */}
+            <Link href="/aluno/historico" className="card-base p-5 relative overflow-hidden active:scale-95 transition-transform" style={{ borderColor: 'rgba(0,128,255,0.2)' }}>
+              <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-10" style={{ background: 'var(--blue)' }} />
+              <div className="relative z-10">
+                <Dumbbell className="w-4 h-4 mb-3" style={{ color: 'var(--blue)' }} />
+                <p className="stat-value" style={{ color: 'var(--text-1)' }}>{alunoStats.totalTreinos}</p>
+                <p className="stat-label">Treinos feitos</p>
+              </div>
+            </Link>
           </div>
 
-          {/* Próxima avaliação */}
-          {alunoStats.proximaAvaliacao && (
-            <div className="card-base p-4 border-l-4 border-l-purple-500 animate-slide-right stagger-2">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Activity className="w-5 h-5 text-purple-500" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Próxima Avaliação</p>
-                  <p className="font-bold text-gray-900 dark:text-gray-100">
-                    {format(new Date(alunoStats.proximaAvaliacao), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Status: <span className={alunoStats.statusAvaliacao === 'aprovado' ? 'text-green-500 font-bold' : 'text-yellow-500 font-bold'}>
-                      {alunoStats.statusAvaliacao === 'aprovado' ? 'Aprovada' : 'Pendente'}
-                    </span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Sequência */}
+          {/* Streak — full-width motivational block */}
           {alunoStats.sequencia > 0 && (
-            <div className="card-base p-4 bg-gradient-to-r from-orange-500/10 to-transparent border-l-4 border-l-orange-500 animate-slide-right stagger-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 gradient-orange rounded-2xl flex items-center justify-center flex-shrink-0 animate-float">
-                  <Flame className="w-6 h-6 text-white" />
+            <div className="card-base p-5 animate-slide-right stagger-2 relative overflow-hidden"
+              style={{ borderColor: 'rgba(255,107,0,0.25)', background: 'linear-gradient(135deg, rgba(255,107,0,0.06) 0%, var(--bg-card) 60%)' }}>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-5">
+                <Flame className="w-24 h-24" style={{ color: 'var(--neon)' }} />
+              </div>
+              <div className="flex items-center gap-4 relative z-10">
+                <div className="w-14 h-14 gradient-orange rounded-2xl flex items-center justify-center flex-shrink-0 neon-glow-sm animate-float">
+                  <Flame className="w-7 h-7 text-white" />
                 </div>
                 <div>
-                  <p className="font-bold text-gray-900 dark:text-gray-100">
-                    🔥 {alunoStats.sequencia} {alunoStats.sequencia === 1 ? 'dia' : 'dias'} seguidos!
+                  <p className="stat-label">Sequência atual</p>
+                  <p className="font-black text-2xl leading-tight" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>
+                    {alunoStats.sequencia} {alunoStats.sequencia === 1 ? 'dia' : 'dias'} seguidos
                   </p>
-                  <p className="text-xs text-gray-500">Continue assim para bater sua meta!</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--neon)' }}>
+                    {alunoStats.sequencia >= 20 ? 'Lenda 🏆' : alunoStats.sequencia >= 10 ? 'Elite 💎' : alunoStats.sequencia >= 5 ? 'Em chama 🔥' : 'Continue assim!'}
+                  </p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Próximo treino */}
+          {/* Próximo treino — CTA principal */}
           {alunoStats.proximoTreino && (
-            <Link href="/aluno/treino" className="block animate-fade-in stagger-4">
-              <div className="card-base p-4 hover:shadow-md transition-all hover-glow-orange group">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 gradient-orange rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+            <Link href="/aluno/treino" className="block animate-fade-in stagger-3">
+              <div className="gradient-orange rounded-2xl p-5 relative overflow-hidden active:scale-[0.98] transition-transform neon-glow">
+                <div className="absolute right-0 top-0 bottom-0 w-24 opacity-10">
+                  <Dumbbell className="w-full h-full" />
+                </div>
+                <div className="flex items-center gap-4 relative z-10">
+                  <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0">
                     <Target className="w-6 h-6 text-white" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Treino do dia</p>
-                    <p className="font-bold text-gray-900 dark:text-gray-100">{alunoStats.proximoTreino}</p>
+                    <p className="text-white/70 text-xs font-medium uppercase tracking-widest">Treino de hoje</p>
+                    <p className="text-white font-black text-lg leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                      {alunoStats.proximoTreino}
+                    </p>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-orange-500 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="w-5 h-5 text-white/70 flex-shrink-0" />
                 </div>
               </div>
             </Link>
           )}
 
           {/* Meta do mês */}
-          <div className="card-base p-5 animate-fade-in stagger-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 text-sm">
-                <Trophy className="w-4 h-4 text-yellow-500" />Meta do Mês
+          <div className="card-base p-5 animate-fade-in stagger-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="section-title mb-0 flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-yellow-400" />Meta do Mês
               </h3>
-              <span className="text-sm font-bold text-orange-500">{alunoStats.checkinsMes}/20</span>
+              <span className="font-black text-sm neon-text" style={{ fontFamily: 'var(--font-display)' }}>
+                {alunoStats.checkinsMes}/20
+              </span>
             </div>
-            <div className="progress-bar h-3 mb-2">
-              <div className="progress-fill h-3" style={{ width: `${Math.min((alunoStats.checkinsMes / 20) * 100, 100)}%` }} />
+            <div className="progress-bar h-2.5 mb-3">
+              <div className="progress-fill h-2.5" style={{ width: `${Math.min((alunoStats.checkinsMes / 20) * 100, 100)}%` }} />
             </div>
-            <p className="text-xs text-gray-400">
-              {alunoStats.checkinsMes >= 20
-                ? '🏆 Meta atingida! Parabéns!'
-                : `Faltam ${20 - alunoStats.checkinsMes} dias para atingir a meta`
-              }
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+                {alunoStats.checkinsMes >= 20 ? 'Meta atingida!' : `Faltam ${20 - alunoStats.checkinsMes} dias`}
+              </p>
+              <p className="text-xs font-semibold" style={{ color: alunoStats.checkinsMes >= 20 ? '#4ade80' : 'var(--text-3)' }}>
+                {Math.round((alunoStats.checkinsMes / 20) * 100)}%
+              </p>
+            </div>
           </div>
+
+          {/* Próxima avaliação */}
+          {alunoStats.proximaAvaliacao && (
+            <div className="card-base p-4 animate-slide-right stagger-5"
+              style={{ borderColor: 'rgba(168,85,247,0.25)', background: 'linear-gradient(135deg, rgba(168,85,247,0.05) 0%, var(--bg-card) 60%)' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(168,85,247,0.15)' }}>
+                  <Activity className="w-5 h-5" style={{ color: '#a855f7' }} />
+                </div>
+                <div className="flex-1">
+                  <p className="stat-label">Próxima Avaliação</p>
+                  <p className="font-bold text-sm" style={{ color: 'var(--text-1)' }}>
+                    {format(new Date(alunoStats.proximaAvaliacao), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                  </p>
+                  <span className={`text-xs font-bold ${alunoStats.statusAvaliacao === 'aprovado' ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {alunoStats.statusAvaliacao === 'aprovado' ? '✓ Aprovada' : '⏳ Pendente'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 

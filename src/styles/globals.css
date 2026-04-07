@@ -8,6 +8,10 @@
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
+  /* ── Typography ── */
+  --font-body:    'Barlow', system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', system-ui, sans-serif;
+
   /* Neon Orange */
   --neon:           #FF6B00;
   --neon-secondary: #FF9A00;
@@ -15,6 +19,11 @@
   --neon-glow-soft: rgba(255, 107, 0, 0.12);
   --neon-glow-ring: rgba(255, 107, 0, 0.25);
   --neon-dim:       rgba(255, 107, 0, 0.15);
+
+  /* Electric Blue — secondary accent */
+  --blue:           #0080FF;
+  --blue-glow:      rgba(0, 128, 255, 0.30);
+  --blue-dim:       rgba(0, 128, 255, 0.12);
 
   /* Surfaces dark */
   --bg-base:        #09090E;
@@ -226,12 +235,46 @@ body {
 /* ── Page headers ── */
 .page-header   { @apply flex items-center justify-between gap-4; }
 .page-title    {
-  @apply text-xl sm:text-2xl font-bold tracking-tight;
+  font-family: var(--font-display);
+  @apply text-2xl sm:text-3xl font-bold tracking-tight uppercase;
   color: var(--text-1);
+  letter-spacing: -0.01em;
 }
 .page-subtitle { @apply text-sm mt-0.5; color: var(--text-2); }
-.section-title { @apply text-base font-semibold mb-4; color: var(--text-1); }
-.timer-display { @apply font-mono font-bold; color: var(--text-1); }
+.section-title {
+  font-family: var(--font-display);
+  @apply text-base font-semibold mb-4 uppercase tracking-wide;
+  color: var(--text-1);
+}
+.timer-display {
+  font-family: var(--font-display);
+  @apply font-bold;
+  color: var(--text-1);
+}
+
+/* ── Fitness stat value — big numbers ── */
+.stat-value {
+  font-family: var(--font-display);
+  @apply text-4xl font-black leading-none;
+  color: var(--text-1);
+  letter-spacing: -0.02em;
+}
+.stat-label {
+  @apply text-xs font-medium uppercase tracking-widest mt-1;
+  color: var(--text-3);
+}
+
+/* ── Electric Blue ── */
+.gradient-blue-electric {
+  background: linear-gradient(135deg, #0080FF 0%, #0050CC 100%);
+  box-shadow: 0 4px 16px rgba(0,128,255,0.3);
+}
+.neon-blue {
+  color: var(--blue);
+  text-shadow: 0 0 20px var(--blue-glow);
+}
+.bg-blue-dim { background-color: var(--blue-dim); }
+.border-blue { border-color: rgba(0,128,255,0.35); }
 
 /* ── Skeleton Loading ── */
 @keyframes shimmer {
@@ -266,7 +309,8 @@ body {
   background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
 }
 .gradient-blue {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #0080FF 0%, #0050CC 100%);
+  box-shadow: 0 4px 16px rgba(0,128,255,0.25);
 }
 .gradient-purple {
   background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);

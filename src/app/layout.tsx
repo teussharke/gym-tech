@@ -1,13 +1,23 @@
 // src/app/layout.tsx
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Barlow, Barlow_Condensed } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from '@/lib/hooks/useAuth'
 import PWARegister from '@/components/PWARegister'
 import '@/styles/globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+const barlow = Barlow({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-body',
+})
+
+const barlowCondensed = Barlow_Condensed({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-display',
+})
 
 export const metadata: Metadata = {
   title: 'i9 Fitness - Sistema de Gestão',
@@ -54,7 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icons/icon-152x152.png" />
         <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
       </head>
-      <body className={inter.className} style={{ background: '#09090E' }}>
+      <body className={`${barlow.variable} ${barlowCondensed.variable} ${barlow.className}`} style={{ background: '#09090E' }}>
         <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
           <AuthProvider>
             {children}
