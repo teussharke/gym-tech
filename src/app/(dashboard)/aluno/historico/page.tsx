@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/hooks/useAuth'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import clsx from 'clsx'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 interface ExercicioRealizado {
   exercicio_id: string
@@ -33,6 +34,11 @@ const DIA_CONFIG: Record<string, { gradient: string; label: string }> = {
   D: { gradient: 'from-orange-500 to-orange-600', label: 'D' },
 }
 
+interface EvolucaoCarga {
+  data: string
+  carga: number
+}
+
 export default function HistoricoPage() {
   const { usuario } = useAuth()
   const [alunoId, setAlunoId] = useState<string | null>(null)
@@ -40,6 +46,10 @@ export default function HistoricoPage() {
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [filtro, setFiltro] = useState<'todos' | 'A' | 'B' | 'C' | 'D'>('todos')
+  const [aba, setAba] = useState<'treinos' | 'evolucao'>('treinos')
+  const [exercicioSelecionado, setExercicioSelecionado] = useState('')
+  const [evolucao, setEvolucao] = useState<EvolucaoCarga[]>([])
+  const [loadingEvolucao, setLoadingEvolucao] = useState(false)
 
   const fetchAlunoId = useCallback(async () => {
     if (!usuario?.id) { setLoading(false); return }
@@ -81,6 +91,47 @@ export default function HistoricoPage() {
     return (h.treino as unknown as { dia_semana: string })?.dia_semana === filtro
   })
 
+  // Lista de exercícios únicos com carga > 0 de todo o histórico
+  const exerciciosUnicos = (() => {
+    const map = new Map<string, string>()
+    historico.forEach(h => {
+      h.exercicios_realizados?.forEach(ex => {
+        if (ex.carga > 0 && !map.has(ex.exercicio_id)) map.set(ex.exercicio_id, ex.nome)
+      })
+    })
+    return Array.from(map.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome))
+  })()
+
+  const fetchEvolucao = useCallback(async (exercicioId: string) => {
+    if (!exercicioId || !alunoId) return
+    setLoadingEvolucao(true)
+    try {
+      const { data } = await supabase
+        .from('historico_treinos')
+        .select('data_treino, exercicios_realizados')
+        .eq('aluno_id', alunoId)
+        .eq('status', 'concluido')
+        .order('data_treino', { ascending: true })
+
+      const pontos: EvolucaoCarga[] = []
+      ;(data ?? []).forEach(h => {
+        const ex = (h.exercicios_realizados as ExercicioRealizado[] | null)?.find(e => e.exercicio_id === exercicioId)
+        if (ex && ex.carga > 0) {
+          pontos.push({
+            data: format(new Date(h.data_treino), 'dd/MM/yy'),
+            carga: ex.carga,
+          })
+        }
+      })
+      setEvolucao(pontos)
+    } catch { setEvolucao([]) }
+    finally { setLoadingEvolucao(false) }
+  }, [alunoId])
+
+  useEffect(() => {
+    if (exercicioSelecionado) fetchEvolucao(exercicioSelecionado)
+  }, [exercicioSelecionado, fetchEvolucao])
+
   const totalTreinos = historico.length
   const mediaDuracao = (() => {
     const comDur = historico.filter(h => h.duracao_min)
@@ -115,6 +166,111 @@ export default function HistoricoPage() {
         <p className="page-subtitle">{totalTreinos} treinos realizados</p>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2 bg-[var(--bg-chip)] p-1 rounded-xl">
+        <button
+          onClick={() => setAba('treinos')}
+          className={clsx('flex-1 py-2 rounded-lg text-sm font-semibold transition-all', aba === 'treinos' ? 'bg-[var(--bg-card)] text-[var(--text-1)] shadow-sm' : 'text-[var(--text-3)]')}
+        >
+          Treinos
+        </button>
+        <button
+          onClick={() => setAba('evolucao')}
+          className={clsx('flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5', aba === 'evolucao' ? 'bg-[var(--bg-card)] text-[var(--text-1)] shadow-sm' : 'text-[var(--text-3)]')}
+        >
+          <TrendingUp className="w-3.5 h-3.5" />Evolução de Carga
+        </button>
+      </div>
+
+      {/* ── ABA EVOLUÇÃO DE CARGA ── */}
+      {aba === 'evolucao' && (
+        <div className="space-y-4">
+          {exerciciosUnicos.length === 0 ? (
+            <div className="card-base p-10 text-center">
+              <TrendingUp className="w-10 h-10 text-[var(--text-3)] mx-auto mb-3" />
+              <p className="text-[var(--text-3)] text-sm">Nenhum exercício com carga registrada ainda.</p>
+            </div>
+          ) : (
+            <>
+              <div className="card-base p-4">
+                <label className="label-base">Selecionar exercício</label>
+                <select
+                  value={exercicioSelecionado}
+                  onChange={e => setExercicioSelecionado(e.target.value)}
+                  className="input-base"
+                >
+                  <option value="">Escolher exercício...</option>
+                  {exerciciosUnicos.map(ex => (
+                    <option key={ex.id} value={ex.id}>{ex.nome}</option>
+                  ))}
+                </select>
+              </div>
+
+              {loadingEvolucao && (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-4 border-[var(--neon)] border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+
+              {!loadingEvolucao && exercicioSelecionado && evolucao.length === 0 && (
+                <div className="card-base p-8 text-center">
+                  <p className="text-[var(--text-3)] text-sm">Nenhum registro de carga encontrado para este exercício.</p>
+                </div>
+              )}
+
+              {!loadingEvolucao && evolucao.length > 0 && (
+                <div className="card-base p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-[var(--text-1)] text-sm">
+                      {exerciciosUnicos.find(e => e.id === exercicioSelecionado)?.nome}
+                    </h3>
+                    <div className="text-right">
+                      <p className="text-xs text-[var(--text-3)]">Máximo</p>
+                      <p className="font-black text-lg" style={{ color: 'var(--neon)' }}>
+                        {Math.max(...evolucao.map(e => e.carga))}kg
+                      </p>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={evolucao} margin={{ left: -10, right: 10, top: 5, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="data" tick={{ fontSize: 10, fill: 'var(--text-3)' }} />
+                      <YAxis tick={{ fontSize: 10, fill: 'var(--text-3)' }} tickFormatter={v => `${v}kg`} />
+                      <Tooltip
+                        contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-1)' }}
+                        formatter={(v: number) => [`${v}kg`, 'Carga']}
+                      />
+                      <Line type="monotone" dataKey="carga" stroke="var(--neon)" strokeWidth={2.5} dot={{ r: 4, fill: 'var(--neon)', strokeWidth: 0 }} activeDot={{ r: 6 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <div className="grid grid-cols-3 gap-3 pt-2 border-t border-[var(--border)]">
+                    <div className="text-center">
+                      <p className="text-xs text-[var(--text-3)]">Inicial</p>
+                      <p className="font-bold text-[var(--text-1)]">{evolucao[0].carga}kg</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-[var(--text-3)]">Sessões</p>
+                      <p className="font-bold text-[var(--text-1)]">{evolucao.length}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-[var(--text-3)]">Progresso</p>
+                      <p className={clsx('font-bold', evolucao[evolucao.length - 1].carga > evolucao[0].carga ? 'text-green-400' : 'text-[var(--text-2)]')}>
+                        {evolucao[evolucao.length - 1].carga > evolucao[0].carga
+                          ? `+${(evolucao[evolucao.length - 1].carga - evolucao[0].carga).toFixed(1)}kg`
+                          : `${(evolucao[evolucao.length - 1].carga - evolucao[0].carga).toFixed(1)}kg`
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── ABA TREINOS ── */}
+      {aba === 'treinos' && <>
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         <div className="stat-card-gradient gradient-orange relative overflow-hidden text-center">
@@ -264,6 +420,7 @@ export default function HistoricoPage() {
           </div>
         )}
       </div>
+      </>}
     </div>
   )
 }

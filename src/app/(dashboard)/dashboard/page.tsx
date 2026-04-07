@@ -42,6 +42,13 @@ interface ProfessorStats {
   proximosHorarios: Array<{ data_hora: string; duracao_min: number }>
 }
 
+interface ProfessorAlerta {
+  tipo: 'sem_treino' | 'sem_avaliacao'
+  nome: string
+  alunoId: string
+  dias: number
+}
+
 function GradientStatCard({
   title, value, icon: Icon, gradient, subtitle, link,
 }: {
@@ -80,6 +87,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [checkingNotifs, setCheckingNotifs] = useState(false)
   const [alunosInadimplentes, setAlunosInadimplentes] = useState<{ nome: string; vencimento: string }[]>([])
+  const [professorAlertas, setProfessorAlertas] = useState<ProfessorAlerta[]>([])
 
   const fetchAdminStats = useCallback(async () => {
     if (!usuario?.academia_id) return
@@ -188,6 +196,49 @@ export default function DashboardPage() {
       totalAlunos: totalAlunos ?? 0, solicitacoesPendentes: solicitacoesPendentes ?? 0,
       proximosHorarios: (proximosHorarios as { data_hora: string; duracao_min: number }[]) ?? [],
     })
+
+    // Alertas inteligentes: alunos sem treino há 7+ dias e sem avaliação há 90+ dias
+    try {
+      const { data: treinos } = await supabase
+        .from('treinos')
+        .select('aluno_id, aluno:alunos!inner (id, usuario:usuarios!inner (id, nome))')
+        .eq('professor_id', prof.id)
+        .eq('ativo', true)
+
+      type TreinoRow = { aluno_id: string; aluno: { id: string; usuario: { id: string; nome: string } } }
+      const alunosDoProf = ((treinos ?? []) as unknown as TreinoRow[])
+        .map(t => ({ id: t.aluno?.id, nome: (t.aluno?.usuario as { nome: string } | null)?.nome ?? '—' }))
+        .filter((a, i, arr) => a.id && arr.findIndex(b => b.id === a.id) === i)
+
+      const limiarTreino = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      const limiarAvaliacao = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+      const alertas: ProfessorAlerta[] = []
+
+      await Promise.all(alunosDoProf.map(async aluno => {
+        const [{ data: ultimoTreino }, { data: ultimaAval }] = await Promise.all([
+          supabase.from('historico_treinos').select('data_treino').eq('aluno_id', aluno.id).order('data_treino', { ascending: false }).limit(1),
+          supabase.from('avaliacoes_fisicas').select('data_avaliacao').eq('aluno_id', aluno.id).order('data_avaliacao', { ascending: false }).limit(1),
+        ])
+
+        const ultimoTreinoDate = ultimoTreino?.[0]?.data_treino
+        if (!ultimoTreinoDate || ultimoTreinoDate < limiarTreino) {
+          const dias = ultimoTreinoDate
+            ? Math.floor((Date.now() - new Date(ultimoTreinoDate).getTime()) / 86400000)
+            : 999
+          alertas.push({ tipo: 'sem_treino', nome: aluno.nome, alunoId: aluno.id!, dias })
+        }
+
+        const ultimaAvalDate = ultimaAval?.[0]?.data_avaliacao
+        if (!ultimaAvalDate || ultimaAvalDate < limiarAvaliacao) {
+          const dias = ultimaAvalDate
+            ? Math.floor((Date.now() - new Date(ultimaAvalDate).getTime()) / 86400000)
+            : 999
+          alertas.push({ tipo: 'sem_avaliacao', nome: aluno.nome, alunoId: aluno.id!, dias })
+        }
+      }))
+
+      setProfessorAlertas(alertas.slice(0, 8))
+    } catch { /* silencioso */ }
   }, [usuario?.id])
 
   const verificarPagamentos = async (silencioso = false) => {
@@ -488,6 +539,47 @@ export default function DashboardPage() {
                         {format(new Date(h.data_hora), 'HH:mm', { locale: ptBR })} · {h.duracao_min}min
                       </p>
                     </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Alertas inteligentes */}
+          {professorAlertas.length > 0 && (
+            <div className="card-base p-5 animate-slide-right stagger-3 border-l-4 border-l-amber-500">
+              <h3 className="section-title flex items-center gap-2 mb-4">
+                <AlertCircle className="w-4 h-4 text-amber-500" />Alertas de Alunos
+              </h3>
+              <div className="space-y-2">
+                {professorAlertas.map((alerta, i) => (
+                  <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-[var(--bg-chip)]">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      alerta.tipo === 'sem_treino' ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-blue-100 dark:bg-blue-900/30'
+                    }`}>
+                      {alerta.tipo === 'sem_treino'
+                        ? <Clock className="w-4 h-4 text-amber-500" />
+                        : <Activity className="w-4 h-4 text-blue-400" />
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[var(--text-1)] truncate">{alerta.nome}</p>
+                      <p className="text-xs text-[var(--text-3)] mt-0.5">
+                        {alerta.tipo === 'sem_treino'
+                          ? alerta.dias >= 999 ? 'Nunca treinou' : `Sem treinar há ${alerta.dias} dias`
+                          : alerta.dias >= 999 ? 'Sem avaliação registrada' : `Sem avaliação há ${alerta.dias} dias`
+                        }
+                      </p>
+                    </div>
+                    <Link
+                      href={alerta.tipo === 'sem_treino'
+                        ? `/professor/alunos`
+                        : `/professor/avaliacoes/nova?aluno=${alerta.alunoId}`
+                      }
+                      className="text-xs font-semibold text-[var(--neon)] hover:underline flex-shrink-0"
+                    >
+                      {alerta.tipo === 'sem_treino' ? 'Ver' : 'Avaliar'}
+                    </Link>
                   </div>
                 ))}
               </div>

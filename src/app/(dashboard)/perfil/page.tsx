@@ -3,15 +3,17 @@
 import { useState, useRef } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { supabase } from '@/lib/supabase/client'
-import { Camera, Save, Eye, EyeOff, Lock, Bell, Moon, Sun, Loader2, Shield, Download, Trash2, ExternalLink, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Camera, Save, Eye, EyeOff, Lock, Bell, Moon, Sun, Loader2, Shield, Download, Trash2, ExternalLink, CheckCircle2, AlertTriangle, BellOff } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import Image from 'next/image'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
+import { usePushNotifications } from '@/lib/hooks/usePushNotifications'
 
 export default function PerfilPage() {
   const { usuario, refreshUser } = useAuth()
   const { theme, setTheme } = useTheme()
+  const { status: pushStatus, subscribing: pushSubscribing, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [activeTab, setActiveTab] = useState<'perfil' | 'senha' | 'aparencia' | 'privacidade'>('perfil')
   const [saving, setSaving] = useState(false)
@@ -28,9 +30,6 @@ export default function PerfilPage() {
 
   const [pwdForm, setPwdForm] = useState({ current: '', novo: '', confirmar: '' })
 
-  const [notifs, setNotifs] = useState({
-    pagamentos: true, treinos: true, avaliacoes: true, checkin: false,
-  })
   const [exportando, setExportando] = useState(false)
   const [excluindoConta, setExcluindoConta] = useState(false)
   const [confirmaExclusao, setConfirmaExclusao] = useState('')
@@ -334,22 +333,61 @@ export default function PerfilPage() {
           </div>
           <p className="text-xs" style={{ color: 'var(--text-3)' }}>A preferência é salva automaticamente no seu dispositivo.</p>
 
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100 pt-2">Notificações</h3>
-          <div className="space-y-0 divide-y divide-gray-100 dark:divide-gray-700">
-            {[
-              { key: 'pagamentos', label: 'Pagamentos', desc: 'Vencimentos e confirmações' },
-              { key: 'treinos', label: 'Treinos', desc: 'Novos treinos e atualizações' },
-              { key: 'avaliacoes', label: 'Avaliações', desc: 'Agendamentos e resultados' },
-              { key: 'checkin', label: 'Check-in', desc: 'Confirmação de presença' },
-            ].map(n => (
-              <div key={n.key} className="flex items-center justify-between py-3">
-                <div><p className="text-sm font-medium text-gray-800 dark:text-gray-200">{n.label}</p><p className="text-xs text-gray-400">{n.desc}</p></div>
-                <button onClick={() => setNotifs(p => ({ ...p, [n.key]: !p[n.key as keyof typeof p] }))}
-                  className={`w-11 h-6 rounded-full transition-all relative flex-shrink-0 ml-4 ${notifs[n.key as keyof typeof notifs] ? 'bg-primary-500' : 'bg-gray-200 dark:bg-gray-600'}`}>
-                  <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform absolute top-1 ${notifs[n.key as keyof typeof notifs] ? 'translate-x-6' : 'translate-x-1'}`} />
+          <h3 className="font-semibold pt-2" style={{ color: 'var(--text-1)' }}>Notificações Push</h3>
+          <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+            {pushStatus === 'unsupported' && (
+              <div className="p-4 flex items-center gap-3">
+                <BellOff className="w-5 h-5 text-[var(--text-3)] flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-[var(--text-1)]">Não suportado</p>
+                  <p className="text-xs text-[var(--text-3)]">Seu navegador não suporta notificações push.</p>
+                </div>
+              </div>
+            )}
+            {pushStatus === 'denied' && (
+              <div className="p-4 flex items-center gap-3">
+                <BellOff className="w-5 h-5 text-red-400 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-[var(--text-1)]">Permissão negada</p>
+                  <p className="text-xs text-[var(--text-3)]">Habilite as notificações nas configurações do navegador.</p>
+                </div>
+              </div>
+            )}
+            {(pushStatus === 'unsubscribed' || pushStatus === 'loading') && (
+              <div className="p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <Bell className="w-5 h-5 text-[var(--text-3)] flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text-1)]">Ativar notificações</p>
+                    <p className="text-xs text-[var(--text-3)]">Receba alertas de treinos, avaliações e comunicados</p>
+                  </div>
+                </div>
+                <button onClick={pushSubscribe} disabled={pushSubscribing || pushStatus === 'loading'}
+                  className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1.5 flex-shrink-0">
+                  {pushSubscribing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+                  Ativar
                 </button>
               </div>
-            ))}
+            )}
+            {pushStatus === 'subscribed' && (
+              <div className="p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(34,197,94,0.15)' }}>
+                    <Bell className="w-4 h-4 text-green-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-green-400">Notificações ativas</p>
+                    <p className="text-xs text-[var(--text-3)]">Este dispositivo receberá alertas</p>
+                  </div>
+                </div>
+                <button onClick={pushUnsubscribe} disabled={pushSubscribing}
+                  className="text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5 flex-shrink-0 transition-colors"
+                  style={{ background: 'var(--bg-chip)', color: 'var(--text-3)' }}>
+                  {pushSubscribing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BellOff className="w-3.5 h-3.5" />}
+                  Desativar
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, memo } from 'react'
-import { Activity, Calendar, Loader2, Plus } from 'lucide-react'
+import { Activity, Calendar, Loader2, Plus, Pencil } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
@@ -205,7 +205,7 @@ export default function AvaliacoesPage() {
                     <div className="w-9 h-9 bg-orange-50 dark:bg-orange-900/20 rounded-xl flex items-center justify-center flex-shrink-0">
                       <Calendar className="w-4 h-4 text-orange-500" />
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
                           {new Date(av.data_avaliacao).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
@@ -225,9 +225,16 @@ export default function AvaliacoesPage() {
                         </div>
                       )}
                       {av.observacoes && (
-                        <p className="text-xs text-gray-500 italic mt-1">"{av.observacoes}"</p>
+                        <p className="text-xs text-gray-500 italic mt-1 truncate">"{av.observacoes}"</p>
                       )}
                     </div>
+                    <Link
+                      href={`/professor/avaliacoes/${av.id}`}
+                      className="flex-shrink-0 p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-500 transition-colors"
+                      title="Editar avaliação"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Link>
                   </div>
                 </div>
               ))}
