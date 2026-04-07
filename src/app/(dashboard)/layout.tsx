@@ -12,6 +12,7 @@ import {
   Trophy, Bell, Menu, X, CalendarDays, Smile, BarChart2, ClipboardCheck, Leaf, ShieldCheck, Megaphone,
 } from 'lucide-react'
 import clsx from 'clsx'
+import LgpdConsentModal from '@/components/LgpdConsentModal'
 
 interface NavItem { href: string; label: string; icon: React.ElementType; roles: string[] }
 
@@ -147,6 +148,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { usuario, user, role, signOut, isLoading } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [showLgpdModal, setShowLgpdModal] = useState(false)
+
+  // Verifica se o usuário já deu consentimento LGPD
+  useEffect(() => {
+    if (!usuario) return
+    const cfg = usuario.configuracoes as Record<string, unknown> | undefined
+    if (!cfg?.lgpd_consent) {
+      setShowLgpdModal(true)
+    }
+  }, [usuario])
 
   const fetchUnread = useCallback(async () => {
     if (!usuario?.id) return
@@ -219,6 +230,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+      {/* Modal LGPD — mostrado uma única vez até o usuário aceitar */}
+      {showLgpdModal && usuario && (
+        <LgpdConsentModal
+          userId={usuario.id}
+          onAccepted={async () => {
+            setShowLgpdModal(false)
+            // Força re-fetch do usuario para ter configuracoes atualizadas
+            const { data } = await supabase.from('usuarios').select('*').eq('id', usuario.id).single()
+            if (data) {
+              // Atualiza o cache local com o novo configuracoes (sem dados sensíveis)
+              const safe = {
+                id: data.id, nome: data.nome, email: data.email,
+                role: data.role, status: data.status, foto_url: data.foto_url,
+                academia_id: data.academia_id, configuracoes: data.configuracoes,
+                ultimo_login: data.ultimo_login, created_at: data.created_at, updated_at: data.updated_at,
+              }
+              try { localStorage.setItem('i9_usuario_v1', JSON.stringify(safe)) } catch {}
+            }
+          }}
+        />
+      )}
 
       {/* ── Desktop Sidebar ── */}
       <aside className="hidden lg:flex flex-col w-60 flex-shrink-0"

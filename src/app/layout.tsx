@@ -5,6 +5,7 @@ import { ThemeProvider } from 'next-themes'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from '@/lib/hooks/useAuth'
 import PWARegister from '@/components/PWARegister'
+import CookieBanner from '@/components/CookieBanner'
 import '@/styles/globals.css'
 
 const barlow = Barlow({
@@ -84,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               }}
             />
             <PWARegister />
+            <CookieBanner />
           </AuthProvider>
         </ThemeProvider>
       </body>

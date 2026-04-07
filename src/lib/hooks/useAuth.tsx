@@ -28,8 +28,24 @@ function readCache(): Usuario | null {
   } catch { return null }
 }
 
+// Cacheia apenas campos não-sensíveis (sem CPF, telefone, endereço, data de nascimento)
 function writeCache(u: Usuario) {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(u)) } catch {}
+  try {
+    const safe = {
+      id: u.id,
+      nome: u.nome,
+      email: u.email,
+      role: u.role,
+      status: u.status,
+      foto_url: u.foto_url,
+      academia_id: u.academia_id,
+      configuracoes: u.configuracoes,
+      ultimo_login: u.ultimo_login,
+      created_at: u.created_at,
+      updated_at: u.updated_at,
+    }
+    localStorage.setItem(CACHE_KEY, JSON.stringify(safe))
+  } catch {}
 }
 
 function clearCache() {

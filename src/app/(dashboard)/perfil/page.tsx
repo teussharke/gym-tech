@@ -3,16 +3,17 @@
 import { useState, useRef } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { supabase } from '@/lib/supabase/client'
-import { Camera, Save, Eye, EyeOff, Lock, Bell, Moon, Sun, Loader2 } from 'lucide-react'
+import { Camera, Save, Eye, EyeOff, Lock, Bell, Moon, Sun, Loader2, Shield, Download, Trash2, ExternalLink, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import Image from 'next/image'
+import Link from 'next/link'
 import toast from 'react-hot-toast'
 
 export default function PerfilPage() {
   const { usuario, refreshUser } = useAuth()
   const { theme, setTheme } = useTheme()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [activeTab, setActiveTab] = useState<'perfil' | 'senha' | 'aparencia'>('perfil')
+  const [activeTab, setActiveTab] = useState<'perfil' | 'senha' | 'aparencia' | 'privacidade'>('perfil')
   const [saving, setSaving] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [showCurrentPwd, setShowCurrentPwd] = useState(false)
@@ -30,6 +31,59 @@ export default function PerfilPage() {
   const [notifs, setNotifs] = useState({
     pagamentos: true, treinos: true, avaliacoes: true, checkin: false,
   })
+  const [exportando, setExportando] = useState(false)
+  const [excluindoConta, setExcluindoConta] = useState(false)
+  const [confirmaExclusao, setConfirmaExclusao] = useState('')
+
+  const handleExportarDados = async () => {
+    if (!usuario) return
+    setExportando(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { toast.error('Sessão expirada, faça login novamente'); return }
+
+      const res = await fetch('/api/export', {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      })
+      if (!res.ok) throw new Error('Erro ao exportar')
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `meus-dados-i9fitness-${new Date().toISOString().split('T')[0]}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Dados exportados com sucesso!')
+    } catch {
+      toast.error('Erro ao exportar dados')
+    } finally {
+      setExportando(false)
+    }
+  }
+
+  const handleExcluirConta = async () => {
+    if (confirmaExclusao !== 'EXCLUIR') { toast.error('Digite EXCLUIR para confirmar'); return }
+    if (!usuario) return
+    setExcluindoConta(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { toast.error('Sessão expirada'); return }
+
+      const res = await fetch('/api/delete-account', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      })
+      if (!res.ok) throw new Error('Erro ao excluir')
+
+      toast.success('Conta excluída. Redirecionando...')
+      setTimeout(() => { window.location.href = '/login' }, 2000)
+    } catch {
+      toast.error('Erro ao excluir conta. Tente novamente ou contate o suporte.')
+    } finally {
+      setExcluindoConta(false)
+    }
+  }
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -99,7 +153,11 @@ export default function PerfilPage() {
     { key: 'perfil', label: 'Perfil' },
     { key: 'senha', label: 'Senha' },
     { key: 'aparencia', label: 'Aparência' },
+    { key: 'privacidade', label: 'Privacidade' },
   ]
+
+  const lgpdConsent = (usuario?.configuracoes as Record<string, unknown> | undefined)?.lgpd_consent as boolean | undefined
+  const lgpdConsentAt = (usuario?.configuracoes as Record<string, unknown> | undefined)?.lgpd_consent_at as string | undefined
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
@@ -243,6 +301,110 @@ export default function PerfilPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* PRIVACIDADE & DADOS */}
+      {activeTab === 'privacidade' && (
+        <div className="space-y-4">
+
+          {/* Status do consentimento */}
+          <div className="card-base p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Shield className="w-5 h-5" style={{ color: 'var(--neon)' }} />
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100">Status LGPD</h3>
+            </div>
+            {lgpdConsent ? (
+              <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(34,197,94,0.1)' }}>
+                <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-green-700 dark:text-green-400">Consentimento registrado</p>
+                  {lgpdConsentAt && (
+                    <p className="text-xs text-green-600 dark:text-green-500 mt-0.5">
+                      Aceito em {new Date(lgpdConsentAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(251,191,36,0.1)' }}>
+                <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                <p className="text-sm text-amber-700 dark:text-amber-400">Consentimento pendente</p>
+              </div>
+            )}
+            <Link href="/privacidade" target="_blank"
+              className="flex items-center gap-2 text-sm transition-opacity hover:opacity-80"
+              style={{ color: 'var(--neon)' }}>
+              <ExternalLink className="w-4 h-4" />
+              Ler Política de Privacidade completa
+            </Link>
+          </div>
+
+          {/* Exportar dados */}
+          <div className="card-base p-5 space-y-3">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">Exportar meus dados</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Baixe uma cópia completa de todos os seus dados pessoais armazenados no sistema, conforme o direito à portabilidade previsto no Art. 18 da LGPD.
+            </p>
+            <div className="text-xs text-gray-400 space-y-0.5">
+              <p>O arquivo JSON incluirá:</p>
+              <p className="ml-2">• Perfil, avaliações físicas e medidas</p>
+              <p className="ml-2">• Histórico de treinos e cargas</p>
+              <p className="ml-2">• Registros de check-in e pagamentos</p>
+              <p className="ml-2">• Anamnese e registros de consentimento</p>
+            </div>
+            <button
+              onClick={handleExportarDados}
+              disabled={exportando}
+              className="btn-secondary flex items-center gap-2 w-full justify-center"
+            >
+              {exportando
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Gerando arquivo...</>
+                : <><Download className="w-4 h-4" />Exportar meus dados (JSON)</>
+              }
+            </button>
+          </div>
+
+          {/* Excluir conta */}
+          <div className="card-base p-5 space-y-3" style={{ borderColor: 'rgba(239,68,68,0.3)', borderWidth: '1px' }}>
+            <div className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-red-500" />
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100">Excluir minha conta</h3>
+            </div>
+            <div className="p-3 rounded-xl text-sm space-y-1" style={{ background: 'rgba(239,68,68,0.08)' }}>
+              <p className="font-medium text-red-600 dark:text-red-400">Atenção: esta ação é irreversível</p>
+              <p className="text-gray-600 dark:text-gray-400 text-xs">
+                Todos os seus dados pessoais serão removidos permanentemente, incluindo histórico de treinos, avaliações físicas e fotos de progresso. Dados financeiros serão anonimizados por obrigação legal.
+              </p>
+            </div>
+            <div>
+              <label className="label-base text-red-500">Digite <strong>EXCLUIR</strong> para confirmar</label>
+              <input
+                type="text"
+                value={confirmaExclusao}
+                onChange={e => setConfirmaExclusao(e.target.value)}
+                className="input-base"
+                placeholder="EXCLUIR"
+                style={{ borderColor: confirmaExclusao === 'EXCLUIR' ? '#ef4444' : undefined }}
+              />
+            </div>
+            <button
+              onClick={handleExcluirConta}
+              disabled={excluindoConta || confirmaExclusao !== 'EXCLUIR'}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all"
+              style={{
+                background: confirmaExclusao === 'EXCLUIR' && !excluindoConta ? '#ef4444' : 'rgba(239,68,68,0.15)',
+                color: confirmaExclusao === 'EXCLUIR' ? '#fff' : '#f87171',
+                cursor: confirmaExclusao !== 'EXCLUIR' ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {excluindoConta
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Excluindo...</>
+                : <><Trash2 className="w-4 h-4" />Excluir minha conta permanentemente</>
+              }
+            </button>
+          </div>
+
         </div>
       )}
     </div>
