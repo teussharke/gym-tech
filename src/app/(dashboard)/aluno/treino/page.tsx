@@ -214,72 +214,86 @@ function StartScreen({ treino, onStart }: { treino: Treino; onStart: () => void 
   const tempoEstimado = treino.duracao_estimada_min ?? Math.round(totalSeries * 2.5)
 
   return (
-    <div className="max-w-lg mx-auto space-y-6 animate-fade-in-up">
-      <div className="gradient-orange rounded-3xl p-6 text-white relative overflow-hidden">
-        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full" />
-        <div className="absolute -right-2 -bottom-10 w-24 h-24 bg-white/5 rounded-full" />
+    <div className="max-w-lg mx-auto space-y-4 animate-fade-in-up">
+      {/* Hero */}
+      <div className="rounded-3xl p-5 relative overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, var(--neon) 0%, #cc5500 100%)' }}>
+        <div className="absolute -right-6 -top-6 w-28 h-28 bg-white/10 rounded-full pointer-events-none" />
+        <div className="absolute right-4 -bottom-8 w-20 h-20 bg-white/5 rounded-full pointer-events-none" />
         <div className="relative z-10">
           {treino.dia_semana && (
-            <span className="inline-block bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full mb-3">
+            <span className="inline-flex items-center bg-white/20 text-white text-xs font-bold px-2.5 py-1 rounded-lg mb-2">
               Treino {treino.dia_semana}
             </span>
           )}
-          <h1 className="text-2xl font-black text-white leading-tight mb-2">{treino.nome}</h1>
-          {treino.descricao && <p className="text-white/70 text-sm">{treino.descricao}</p>}
+          <h1 className="text-xl font-black text-white leading-tight mb-1"
+            style={{ fontFamily: 'var(--font-display)' }}>
+            {treino.nome}
+          </h1>
+          {treino.descricao && (
+            <p className="text-white/70 text-xs leading-relaxed line-clamp-2">{treino.descricao}</p>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="card-base p-4 text-center space-y-1">
-          <Dumbbell className="w-6 h-6 text-orange-500 mx-auto" />
-          <p className="text-2xl font-black text-gray-900 dark:text-gray-100">{treino.exercicios.length}</p>
-          <p className="text-xs text-gray-400">Exercícios</p>
-        </div>
-        <div className="card-base p-4 text-center space-y-1">
-          <Target className="w-6 h-6 text-blue-500 mx-auto" />
-          <p className="text-2xl font-black text-gray-900 dark:text-gray-100">{totalSeries}</p>
-          <p className="text-xs text-gray-400">Séries</p>
-        </div>
-        <div className="card-base p-4 text-center space-y-1">
-          <Clock className="w-6 h-6 text-green-500 mx-auto" />
-          <p className="text-2xl font-black text-gray-900 dark:text-gray-100">~{tempoEstimado}</p>
-          <p className="text-xs text-gray-400">Minutos</p>
-        </div>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { icon: Dumbbell, value: treino.exercicios.length, label: 'Exercícios', color: 'var(--neon)' },
+          { icon: Target,   value: totalSeries,              label: 'Séries',     color: '#60a5fa' },
+          { icon: Clock,    value: `~${tempoEstimado}`,      label: 'Minutos',    color: '#4ade80' },
+        ].map(({ icon: Icon, value, label, color }) => (
+          <div key={label} className="card-base p-3 text-center">
+            <Icon className="w-5 h-5 mx-auto mb-1" style={{ color }} />
+            <p className="text-xl font-black leading-none mb-0.5"
+              style={{ color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>{value}</p>
+            <p className="text-xs" style={{ color: 'var(--text-3)' }}>{label}</p>
+          </div>
+        ))}
       </div>
 
+      {/* Lista de exercícios */}
       <div className="card-base overflow-hidden">
-        <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">Exercícios de hoje</h3>
+        <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+          <p className="text-xs font-black uppercase tracking-wider" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-2)' }}>
+            Exercícios de hoje
+          </p>
         </div>
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+        <div>
           {treino.exercicios.map((ex, i) => {
             const rawNome = ex.exercicio?.nome ?? ex.observacoes ?? `Exercício ${i + 1}`
             const nomeStr = rawNome.includes(' | ') ? rawNome.split(' | ')[0].trim() : rawNome
             const grupo = ex.exercicio?.grupo_muscular?.replace(/_/g, ' ') ?? null
             return (
-              <div key={ex.id} className="flex items-center gap-3 p-3.5">
-                <span className="w-7 h-7 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-xs font-black flex items-center justify-center flex-shrink-0">
+              <div key={ex.id} className="flex items-center gap-3 px-4 py-3"
+                style={{ borderBottom: i < treino.exercicios.length - 1 ? '1px solid var(--border)' : undefined }}>
+                <span className="w-6 h-6 rounded-lg text-xs font-black flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'var(--neon-dim)', color: 'var(--neon)' }}>
                   {i + 1}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{nomeStr}</p>
+                  <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--text-1)' }}>{nomeStr}</p>
                   {grupo && (
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${grupoColors[grupo] ?? 'badge-gray'}`}>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${grupoColors[grupo] ?? 'badge-gray'}`}>
                       {grupo}
                     </span>
                   )}
                 </div>
-                <span className="text-xs text-gray-400 flex-shrink-0">{ex.series}×{ex.repeticoes}</span>
+                <span className="text-xs font-bold flex-shrink-0" style={{ color: 'var(--text-3)' }}>
+                  {ex.series}×{ex.repeticoes}
+                </span>
               </div>
             )
           })}
         </div>
       </div>
 
+      {/* Botão iniciar */}
       <button onClick={onStart}
-        className="w-full py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 gradient-orange text-white shadow-xl shadow-orange-500/30 active:scale-95 transition-all hover:shadow-orange-500/40 animate-bounce-in">
-        <Zap className="w-6 h-6" />
-        Iniciar Treino
+        className="w-full py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2 gradient-orange text-white active:scale-95 transition-all animate-bounce-in"
+        style={{ fontFamily: 'var(--font-display)', boxShadow: '0 8px 32px var(--neon-glow)' }}>
+        <Zap className="w-5 h-5" />
+        INICIAR TREINO
       </button>
     </div>
   )
@@ -293,78 +307,107 @@ function TreinoSelectorScreen({ treinos, recomendadoIdx, isOffline, onSelect }: 
   onSelect: (t: Treino) => void
 }) {
   const labels = ['A', 'B', 'C', 'D', 'E', 'F']
+  const diaColors: Record<string, string> = {
+    A: '#3b82f6', B: '#22c55e', C: '#a855f7', D: '#f97316', E: '#ec4899', F: '#14b8a6'
+  }
+
   return (
-    <div className="max-w-lg mx-auto space-y-5 animate-fade-in-up">
-      <div className="text-center space-y-1 pt-2">
-        <h1 className="text-2xl font-black text-gray-900 dark:text-gray-100">Qual treino hoje?</h1>
-        <p className="text-sm text-gray-500">Escolha a ficha que deseja executar</p>
+    <div className="max-w-lg mx-auto space-y-4 animate-fade-in-up">
+      {/* Header */}
+      <div className="pt-1">
+        <h1 className="text-2xl font-black uppercase leading-tight"
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>
+          Qual treino hoje?
+        </h1>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--text-3)' }}>Escolha a ficha que deseja executar</p>
         {isOffline && (
-          <div className="flex items-center justify-center gap-1.5 mt-2">
-            <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2.5 py-1 rounded-full font-medium">
-              📴 Modo offline — cache local
-            </span>
+          <div className="flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-xl w-fit"
+            style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+            <WifiOff className="w-3 h-3 text-amber-400" />
+            <span className="text-xs text-amber-300 font-medium">Modo offline — cache local</span>
           </div>
         )}
       </div>
 
+      {/* Cards de treino */}
       <div className="space-y-3">
         {treinos.map((t, i) => {
           const isRecomendado = i === recomendadoIdx
           const totalSeries = t.exercicios.reduce((s, e) => s + e.series, 0)
           const tempoEstimado = t.duracao_estimada_min ?? Math.round(totalSeries * 2.5)
-          const label = t.dia_semana ?? labels[i] ?? `Treino ${i + 1}`
+          const label = t.dia_semana ?? labels[i] ?? String(i + 1)
+          const accentColor = diaColors[label] ?? 'var(--neon)'
 
           return (
-            <button
-              key={t.id}
-              onClick={() => onSelect(t)}
-              className={clsx(
-                'w-full text-left rounded-2xl p-5 transition-all active:scale-[0.98] border-2',
-                isRecomendado
-                  ? 'gradient-orange text-white border-orange-400 shadow-xl shadow-orange-500/30'
-                  : 'card-base border-transparent hover:border-orange-200 dark:hover:border-orange-800'
+            <button key={t.id} onClick={() => onSelect(t)}
+              className="w-full text-left rounded-2xl transition-all duration-200 active:scale-[0.98] overflow-hidden"
+              style={{
+                background: isRecomendado
+                  ? `linear-gradient(135deg, var(--neon) 0%, #cc5500 100%)`
+                  : 'var(--bg-card)',
+                border: isRecomendado
+                  ? '2px solid transparent'
+                  : `1px solid var(--border)`,
+                boxShadow: isRecomendado ? '0 8px 32px var(--neon-glow)' : undefined,
+              }}>
+
+              {/* Faixa superior do card */}
+              {!isRecomendado && (
+                <div className="h-1 w-full" style={{ background: accentColor, opacity: 0.6 }} />
               )}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <span className={clsx(
-                    'w-10 h-10 rounded-xl font-black text-lg flex items-center justify-center flex-shrink-0',
-                    isRecomendado ? 'bg-white/20 text-white' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-600'
-                  )}>
+
+              <div className="p-4">
+                {/* Linha principal: badge + nome + chevron */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 font-black text-lg"
+                    style={{
+                      background: isRecomendado ? 'rgba(255,255,255,0.2)' : `${accentColor}22`,
+                      color: isRecomendado ? 'white' : accentColor,
+                      fontFamily: 'var(--font-display)',
+                    }}>
                     {label}
-                  </span>
-                  <div>
-                    <p className={clsx('font-black text-base', isRecomendado ? 'text-white' : 'text-gray-900 dark:text-gray-100')}>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-base leading-tight truncate"
+                      style={{ color: isRecomendado ? 'white' : 'var(--text-1)', fontFamily: 'var(--font-display)' }}>
                       {t.nome}
                     </p>
                     {isRecomendado && (
-                      <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-medium">
+                      <span className="text-xs font-semibold" style={{ color: 'rgba(255,255,255,0.8)' }}>
                         ⭐ Recomendado para hoje
                       </span>
                     )}
+                    {t.descricao && !isRecomendado && (
+                      <p className="text-xs mt-0.5 line-clamp-1" style={{ color: 'var(--text-3)' }}>{t.descricao}</p>
+                    )}
                   </div>
+                  <ChevronArrow className="w-4 h-4 flex-shrink-0"
+                    style={{ color: isRecomendado ? 'rgba(255,255,255,0.6)' : 'var(--text-3)' }} />
                 </div>
-                <ChevronArrow className={clsx('w-5 h-5 flex-shrink-0', isRecomendado ? 'text-white/70' : 'text-gray-400')} />
-              </div>
 
-              <div className="flex gap-4">
-                {[
-                  { v: t.exercicios.length, l: 'exercícios' },
-                  { v: totalSeries, l: 'séries' },
-                  { v: `~${tempoEstimado}min`, l: 'duração' },
-                ].map(({ v, l }) => (
-                  <div key={l}>
-                    <p className={clsx('font-black text-sm', isRecomendado ? 'text-white' : 'text-gray-900 dark:text-gray-100')}>{v}</p>
-                    <p className={clsx('text-xs', isRecomendado ? 'text-white/70' : 'text-gray-400')}>{l}</p>
-                  </div>
-                ))}
+                {/* Stats */}
+                <div className="flex items-center gap-2">
+                  {[
+                    { v: t.exercicios.length, l: 'exerc.' },
+                    { v: totalSeries,          l: 'séries' },
+                    { v: `~${tempoEstimado}min`, l: 'duração' },
+                  ].map(({ v, l }) => (
+                    <div key={l} className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl"
+                      style={{
+                        background: isRecomendado ? 'rgba(255,255,255,0.15)' : 'var(--bg-chip)',
+                      }}>
+                      <span className="text-sm font-black"
+                        style={{ color: isRecomendado ? 'white' : 'var(--text-1)', fontFamily: 'var(--font-display)' }}>
+                        {v}
+                      </span>
+                      <span className="text-xs"
+                        style={{ color: isRecomendado ? 'rgba(255,255,255,0.7)' : 'var(--text-3)' }}>
+                        {l}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-
-              {t.descricao && (
-                <p className={clsx('text-xs mt-3 line-clamp-1', isRecomendado ? 'text-white/80' : 'text-gray-500')}>
-                  {t.descricao}
-                </p>
-              )}
             </button>
           )
         })}
@@ -741,6 +784,25 @@ export default function TreinoAlunoPage() {
   }
   const seriesFeitas = state.series.filter(s => s.done).length
 
+  // ── Prepara dados do GIF fora do JSX ──────────────────────────
+  const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
+  const nName = normalize(nome)
+  const words = nName.split(' ').filter(w => w.length > 3)
+  const mockEx = mockExercicios.find(m => normalize(m.nome) === nName)
+    || mockExercicios.find(m => normalize(m.nome).includes(nName) || nName.includes(normalize(m.nome)))
+    || (words.length > 0 && mockExercicios.find(m => words.every(w => normalize(m.nome).includes(w))))
+    || (words.length > 0 && mockExercicios.find(m => words.some(w => w.length > 5 && normalize(m.nome).includes(w))))
+    || null
+  const gifUrl = ex.exercicio?.gif_url || mockEx?.gif_url || null
+  const imgErr = imgErrs[ex.id] ?? false
+  const hasGif = !!gifUrl && !imgErr
+  const youtubeUrl = ex.exercicio?.youtube_url ?? null
+  const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`como fazer ${nome} academia execução correta`)}`
+  const ytIdMatch = youtubeUrl?.match(/(?:v=|youtu\.be\/)([^&?\s]{11})/)
+  const ytThumbnail = ytIdMatch ? `https://img.youtube.com/vi/${ytIdMatch[1]}/mqdefault.jpg` : null
+  const exercicioId = ex.exercicio?.id
+  const ultimaCarga = exercicioId ? (ultimasCargas[exercicioId] ?? null) : null
+
   return (
     <>
       {youtubeModal && (
@@ -758,346 +820,294 @@ export default function TreinoAlunoPage() {
         />
       )}
 
-      <div className="max-w-lg mx-auto space-y-3 page-enter">
+      {/* ── Layout sem max-w para o hero de imagem ── */}
+      <div className="page-enter -mx-4 sm:-mx-6">
 
-        {/* ── Barra de progresso topo ── */}
-        <div>
-          {isOfflineCache && (
-            <div className="flex items-center gap-2 rounded-xl px-3 py-2 mb-2"
-              style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
-              <WifiOff className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-              <p className="text-xs text-amber-300 font-medium">Modo offline — treino do cache</p>
+        {/* ══ HERO: GIF full-bleed ══════════════════════════ */}
+        <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
+          className="relative group" style={{ height: '52vw', minHeight: '200px', maxHeight: '280px' }}>
+
+          {/* Imagem / GIF */}
+          {hasGif ? (
+            <AnimatedExerciseImage src={gifUrl!} alt={nome}
+              className="w-full h-full object-cover"
+              onError={() => setImgErrs(prev => ({ ...prev, [ex.id]: true }))} />
+          ) : ytThumbnail ? (
+            <img src={ytThumbnail} alt={nome} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-3"
+              style={{ background: 'linear-gradient(160deg, #1a1a24 0%, #0d0d14 100%)' }}>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                style={{ background: 'var(--neon-dim)' }}>
+                <Dumbbell className="w-8 h-8" style={{ color: 'var(--neon)' }} />
+              </div>
             </div>
           )}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1.5">
-                {t.dia_semana && (
-                  <span className="text-xs font-black uppercase px-2 py-0.5 rounded-lg flex-shrink-0"
-                    style={{ background: 'var(--neon-dim)', color: 'var(--neon)' }}>
-                    {t.dia_semana}
-                  </span>
-                )}
-                <span className="text-sm font-semibold truncate" style={{ color: 'var(--text-2)' }}>{t.nome}</span>
+
+          {/* Gradientes de overlay */}
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 40%, transparent 50%, rgba(0,0,0,0.75) 100%)' }} />
+
+          {/* ── Barra de progresso topo ── */}
+          <div className="absolute top-0 inset-x-0 px-4 pt-3 pb-2">
+            {isOfflineCache && (
+              <div className="flex items-center gap-1.5 mb-2">
+                <WifiOff className="w-3 h-3 text-amber-400" />
+                <span className="text-xs text-amber-300 font-medium">Offline</span>
               </div>
-              <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-chip)' }}>
-                <div className="h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${progress}%`, background: progress === 100 ? '#22c55e' : 'var(--neon)' }} />
+            )}
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  {t.dia_semana && (
+                    <span className="text-xs font-black uppercase px-2 py-0.5 rounded-md"
+                      style={{ background: 'rgba(255,107,0,0.3)', color: 'var(--neon)' }}>
+                      {t.dia_semana}
+                    </span>
+                  )}
+                  <span className="text-xs font-medium truncate text-white/70">{t.nome}</span>
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.15)' }}>
+                  <div className="h-1.5 rounded-full transition-all duration-500"
+                    style={{ width: `${progress}%`, background: progress === 100 ? '#22c55e' : 'var(--neon)' }} />
+                </div>
               </div>
-            </div>
-            <div className="text-right flex-shrink-0">
-              <p className="text-2xl font-black leading-none"
-                style={{ color: 'var(--neon)', fontFamily: 'var(--font-display)' }}>
+              <span className="text-white font-black text-lg leading-none flex-shrink-0"
+                style={{ fontFamily: 'var(--font-display)', textShadow: '0 1px 8px rgba(0,0,0,0.8)' }}>
                 {totalConcluidos}/{t.exercicios.length}
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>exercícios</p>
+              </span>
             </div>
           </div>
-        </div>
 
-        {/* ── Dots de navegação ── */}
-        <div className="flex items-center justify-between px-1">
-          <button onClick={() => goTo(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}
-            className="btn-ghost p-2 disabled:opacity-30">
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <div className="flex gap-1.5 flex-wrap justify-center">
-            {t.exercicios.map((e, i) => (
-              <button key={e.id} onClick={() => goTo(i)}
-                className="rounded-full transition-all duration-300"
-                style={{
-                  width: i === currentIndex ? '24px' : '10px',
-                  height: '10px',
-                  background: i === currentIndex
-                    ? 'var(--neon)'
-                    : states[e.id]?.concluido
-                      ? '#22c55e'
-                      : 'var(--border)'
-                }} />
-            ))}
+          {/* ── Badges (grupo muscular, vídeo) ── */}
+          <div className="absolute left-4 bottom-3 flex gap-2">
+            {grupo && (
+              <span className={`text-xs px-2 py-1 rounded-lg font-semibold shadow ${grupoColors[grupo] ?? 'badge-gray'}`}>
+                {grupo}
+              </span>
+            )}
+            {youtubeUrl && (
+              <span className="flex items-center gap-1 bg-red-600 text-white text-xs px-2 py-1 rounded-lg font-bold shadow">
+                <Youtube className="w-3 h-3" /> Vídeo
+              </span>
+            )}
           </div>
-          <button onClick={() => goTo(Math.min(t.exercicios.length - 1, currentIndex + 1))}
-            disabled={currentIndex === t.exercicios.length - 1}
-            className="btn-ghost p-2 disabled:opacity-30">
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
 
-        {/* ── Card principal do exercício ── */}
-        <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
-          className="card-base overflow-hidden animate-scale-in">
+          {/* ── Botão YouTube play ── */}
+          {youtubeUrl && !state.concluido && (
+            <button onClick={() => setYoutubeModal({ url: youtubeUrl, nome })}
+              className="absolute inset-0 flex items-center justify-center" aria-label="Assistir vídeo">
+              <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110 active:scale-95"
+                style={{ background: 'rgba(220,38,38,0.9)' }}>
+                <Play className="w-6 h-6 text-white ml-0.5" fill="white" />
+              </div>
+            </button>
+          )}
 
-          {/* Barra de progresso séries */}
-          <div className="h-1" style={{ background: 'var(--bg-chip)' }}>
+          {/* Overlay concluído */}
+          {state.concluido && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              style={{ background: 'rgba(34,197,94,0.18)' }}>
+              <div className="w-16 h-16 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(34,197,94,0.9)' }}>
+                <CheckCircle2 className="w-8 h-8 text-white" />
+              </div>
+            </div>
+          )}
+
+          {/* Link busca YouTube (canto inferior direito) */}
+          {!youtubeUrl && (
+            <a href={searchUrl} target="_blank" rel="noopener noreferrer"
+              className="absolute bottom-3 right-4 flex items-center gap-1.5 text-white text-xs px-2.5 py-1.5 rounded-lg font-medium active:scale-95 transition-all"
+              style={{ background: 'rgba(0,0,0,0.6)' }}>
+              <Youtube className="w-3.5 h-3.5" /> YouTube
+            </a>
+          )}
+
+          {/* Série progress bar na borda inferior do hero */}
+          <div className="absolute bottom-0 inset-x-0 h-1" style={{ background: 'rgba(255,255,255,0.1)' }}>
             <div className="h-1 transition-all duration-500"
               style={{
                 width: `${ex.series > 0 ? (seriesFeitas / ex.series) * 100 : 0}%`,
                 background: seriesFeitas === ex.series ? '#22c55e' : 'var(--neon)'
               }} />
           </div>
-
-          {/* ── GIF / Imagem ── */}
-          {(() => {
-            const youtubeUrl = ex.exercicio?.youtube_url ?? null
-            const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
-            const nName = normalize(nome)
-            const words = nName.split(' ').filter(w => w.length > 3)
-
-            const mockEx = mockExercicios.find(m => normalize(m.nome) === nName)
-              || mockExercicios.find(m => normalize(m.nome).includes(nName) || nName.includes(normalize(m.nome)))
-              || (words.length > 0 && mockExercicios.find(m => words.every(w => normalize(m.nome).includes(w))))
-              || (words.length > 0 && mockExercicios.find(m => words.some(w => w.length > 5 && normalize(m.nome).includes(w))))
-              || null
-
-            const gifUrl = ex.exercicio?.gif_url || mockEx?.gif_url || null
-            const imgErr = imgErrs[ex.id] ?? false
-            const hasGif = !!gifUrl && !imgErr
-            const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`como fazer ${nome} academia execução correta`)}`
-            const ytIdMatch = youtubeUrl?.match(/(?:v=|youtu\.be\/)([^&?\s]{11})/)
-            const ytThumbnail = ytIdMatch ? `https://img.youtube.com/vi/${ytIdMatch[1]}/mqdefault.jpg` : null
-
-            return (
-              <div className="relative group" style={{ height: '220px', background: 'var(--bg-base)' }}>
-                {hasGif ? (
-                  <AnimatedExerciseImage
-                    src={gifUrl!} alt={nome}
-                    className="w-full h-full object-cover"
-                    onError={() => setImgErrs(prev => ({ ...prev, [ex.id]: true }))}
-                  />
-                ) : ytThumbnail ? (
-                  <img src={ytThumbnail} alt={nome} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center gap-3"
-                    style={{ background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--bg-chip) 100%)' }}>
-                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                      style={{ background: 'var(--neon-dim)' }}>
-                      <Dumbbell className="w-8 h-8" style={{ color: 'var(--neon)' }} />
-                    </div>
-                    <p className="text-xs font-medium text-center px-4" style={{ color: 'var(--text-3)' }}>{nome}</p>
-                  </div>
-                )}
-
-                {/* Overlay gradiente */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
-
-                {/* Overlay concluído */}
-                {state.concluido && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                    style={{ background: 'rgba(34,197,94,0.15)' }}>
-                    <div className="w-16 h-16 rounded-full flex items-center justify-center"
-                      style={{ background: 'rgba(34,197,94,0.9)' }}>
-                      <CheckCircle2 className="w-8 h-8 text-white" />
-                    </div>
-                  </div>
-                )}
-
-                {/* Botão YouTube play */}
-                {youtubeUrl && !state.concluido && (
-                  <button onClick={() => setYoutubeModal({ url: youtubeUrl, nome })}
-                    className="absolute inset-0 flex items-center justify-center" aria-label="Assistir vídeo">
-                    <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-transform group-hover:scale-110 active:scale-95"
-                      style={{ background: 'rgba(220,38,38,0.9)' }}>
-                      <Play className="w-6 h-6 text-white ml-0.5" fill="white" />
-                    </div>
-                  </button>
-                )}
-
-                {/* Badges top-left */}
-                <div className="absolute top-3 left-3 flex gap-2">
-                  {youtubeUrl && (
-                    <div className="flex items-center gap-1 bg-red-600 text-white text-xs px-2 py-1 rounded-lg font-bold shadow">
-                      <Youtube className="w-3 h-3" /> Vídeo
-                    </div>
-                  )}
-                  {grupo && (
-                    <span className={`text-xs px-2 py-1 rounded-lg font-medium ${grupoColors[grupo] ?? 'badge-gray'}`}>{grupo}</span>
-                  )}
-                </div>
-
-                {/* Contador exercício */}
-                <div className="absolute top-3 right-3">
-                  <span className="text-white text-xs font-bold px-2 py-1 rounded-lg"
-                    style={{ background: 'rgba(0,0,0,0.5)' }}>
-                    {currentIndex + 1}/{t.exercicios.length}
-                  </span>
-                </div>
-
-                {/* Link busca YouTube */}
-                {!youtubeUrl && (
-                  <a href={searchUrl} target="_blank" rel="noopener noreferrer"
-                    className="absolute bottom-3 right-3 flex items-center gap-1.5 text-white text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all active:scale-95"
-                    style={{ background: 'rgba(0,0,0,0.6)' }}>
-                    <Youtube className="w-3.5 h-3.5" /> Ver no YouTube
-                  </a>
-                )}
-              </div>
-            )
-          })()}
-
-          <div className="p-4 space-y-4">
-            {/* ── Nome + meta-info ── */}
-            <div>
-              <h2 className={clsx(
-                'text-2xl font-black uppercase leading-tight',
-                state.concluido && 'line-through opacity-40'
-              )} style={{ fontFamily: 'var(--font-display)', color: 'var(--text-1)', letterSpacing: '-0.01em' }}>
-                {nome}
-              </h2>
-              <div className="flex items-center gap-3 mt-2 flex-wrap">
-                <span className="flex items-center gap-1.5 text-sm font-bold" style={{ color: 'var(--neon)' }}>
-                  <Dumbbell className="w-3.5 h-3.5" />{ex.repeticoes} reps
-                </span>
-                {ex.carga_sugerida ? (
-                  <span className="text-sm font-semibold" style={{ color: 'var(--text-3)' }}>
-                    ~{ex.carga_sugerida}kg sugerido
-                  </span>
-                ) : null}
-                <button onClick={() => startTimer(ex.tempo_descanso_seg)}
-                  className="flex items-center gap-1 text-sm font-medium active:scale-95 transition-all"
-                  style={{ color: 'var(--text-3)' }}>
-                  <Timer className="w-3.5 h-3.5" />{ex.tempo_descanso_seg}s descanso
-                </button>
-                {state.concluido && (
-                  <span className="badge-success text-xs flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" />Concluído
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Observações */}
-            {(ex.observacoes || observacoes) && (
-              <div className="flex gap-2 rounded-xl p-3"
-                style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.15)' }}>
-                <Info className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-300">{ex.observacoes || observacoes}</p>
-              </div>
-            )}
-
-            {/* ── Séries ── */}
-            {(() => {
-              const exercicioId = ex.exercicio?.id
-              const ultimaCarga = exercicioId ? (ultimasCargas[exercicioId] ?? null) : null
-              return (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-black uppercase tracking-wide"
-                      style={{ fontFamily: 'var(--font-display)', color: 'var(--text-2)' }}>
-                      Séries — {ex.repeticoes} reps
-                    </p>
-                    {ultimaCarga !== null && (
-                      <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg font-semibold"
-                        style={{ background: 'rgba(96,165,250,0.15)', color: '#60a5fa' }}>
-                        <TrendingUp className="w-3 h-3" />
-                        Última: {ultimaCarga}kg
-                      </span>
-                    )}
-                  </div>
-
-                  {state.series.map((serie, si) => {
-                    const isActive = si === seriesFeitas && !serie.done
-                    return (
-                      <div key={si} className="flex items-center gap-3 p-3 rounded-2xl transition-all duration-200"
-                        style={{
-                          background: serie.done
-                            ? 'rgba(34,197,94,0.08)'
-                            : isActive
-                              ? 'var(--neon-dim)'
-                              : 'var(--bg-chip)',
-                          border: isActive
-                            ? '1px solid rgba(255,107,0,0.25)'
-                            : serie.done
-                              ? '1px solid rgba(34,197,94,0.15)'
-                              : '1px solid transparent'
-                        }}>
-
-                        {/* Badge número */}
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 font-black text-sm"
-                          style={{
-                            background: serie.done ? '#22c55e' : isActive ? 'var(--neon)' : 'var(--border)',
-                            color: serie.done || isActive ? 'white' : 'var(--text-3)'
-                          }}>
-                          {serie.done ? '✓' : si + 1}
-                        </div>
-
-                        {/* Input carga */}
-                        <input
-                          type="number" inputMode="decimal"
-                          value={serie.carga}
-                          onChange={e => handleCarga(ex.id, si, e.target.value)}
-                          placeholder={ultimaCarga !== null ? ultimaCarga.toString() : (ex.carga_sugerida?.toString() ?? '0')}
-                          className="w-20 text-center font-black text-base rounded-xl px-2 py-2.5 transition-all focus:outline-none focus:ring-2 flex-shrink-0"
-                          style={{
-                            background: 'var(--bg-base)',
-                            color: 'var(--text-1)',
-                            border: '1.5px solid var(--border)',
-                            opacity: serie.done ? 0.5 : 1,
-                          }}
-                          min="0" step="0.5"
-                          disabled={serie.done}
-                        />
-
-                        <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-3)' }}>kg</span>
-
-                        {/* Botão fazer */}
-                        <button
-                          onClick={() => handleSerie(ex.id, si, ex.tempo_descanso_seg)}
-                          className="flex-1 py-3 rounded-xl text-sm font-black active:scale-95 transition-all"
-                          style={{
-                            background: serie.done
-                              ? 'rgba(34,197,94,0.12)'
-                              : isActive
-                                ? 'var(--neon)'
-                                : 'var(--border)',
-                            color: serie.done
-                              ? '#86efac'
-                              : isActive
-                                ? 'white'
-                                : 'var(--text-3)'
-                          }}>
-                          {serie.done ? '✓ Feita' : 'Fazer →'}
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })()}
-
-            {/* Gráfico evolução */}
-            {alunoId && ex.exercicio?.id && (
-              <div className="pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-                <LoadEvolutionChart
-                  alunoId={alunoId}
-                  exercicioId={ex.exercicio.id}
-                  cargaSugerida={ex.carga_sugerida}
-                />
-              </div>
-            )}
-          </div>
         </div>
 
-        <p className="text-center text-xs" style={{ color: 'var(--text-3)' }}>← Deslize para navegar →</p>
+        {/* ══ CORPO DO CARD ════════════════════════════════ */}
+        <div className="px-4 sm:px-6 max-w-lg mx-auto space-y-4 pt-4 pb-6">
 
-        {/* ── Tela de conclusão ── */}
-        {totalConcluidos === t.exercicios.length && (
-          <div className="card-base p-6 text-center animate-bounce-in"
-            style={{ border: '2px solid var(--neon)', boxShadow: '0 0 30px var(--neon-glow)' }}>
-            <div className="text-5xl mb-3 animate-float">🎉</div>
-            <h3 className="text-xl font-black mb-1 uppercase"
-              style={{ fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>
-              Treino Concluído!
-            </h3>
-            <p className="text-sm mb-5" style={{ color: 'var(--text-3)' }}>
-              Parabéns! Você completou todos os exercícios.
-            </p>
-            <button onClick={finalizarTreino} disabled={saving}
-              className="btn-primary w-full py-4 rounded-2xl text-base font-black"
-              style={{ fontFamily: 'var(--font-display)' }}>
-              {saving ? 'Registrando...' : '🏆 Finalizar e Registrar'}
+          {/* ── Navegação dots ── */}
+          <div className="flex items-center justify-between">
+            <button onClick={() => goTo(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}
+              className="btn-ghost p-2 rounded-xl disabled:opacity-25 active:scale-90 transition-all">
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="flex gap-1.5 flex-wrap justify-center px-2">
+              {t.exercicios.map((e, i) => (
+                <button key={e.id} onClick={() => goTo(i)}
+                  className="rounded-full transition-all duration-300"
+                  style={{
+                    width: i === currentIndex ? '22px' : '8px',
+                    height: '8px',
+                    background: i === currentIndex
+                      ? 'var(--neon)'
+                      : states[e.id]?.concluido ? '#22c55e' : 'var(--border)'
+                  }} />
+              ))}
+            </div>
+            <button onClick={() => goTo(Math.min(t.exercicios.length - 1, currentIndex + 1))}
+              disabled={currentIndex === t.exercicios.length - 1}
+              className="btn-ghost p-2 rounded-xl disabled:opacity-25 active:scale-90 transition-all">
+              <ChevronRight className="w-5 h-5" />
             </button>
           </div>
-        )}
+
+          {/* ── Nome do exercício ── */}
+          <div>
+            <h2 className={clsx('font-black uppercase leading-tight', state.concluido && 'line-through opacity-40')}
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--text-1)', fontSize: 'clamp(1.35rem, 5vw, 1.75rem)', letterSpacing: '-0.01em' }}>
+              {nome}
+            </h2>
+
+            {/* Chips de info */}
+            <div className="flex flex-wrap gap-2 mt-2.5">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl"
+                style={{ background: 'var(--neon-dim)' }}>
+                <Dumbbell className="w-3.5 h-3.5" style={{ color: 'var(--neon)' }} />
+                <span className="text-sm font-black" style={{ color: 'var(--neon)' }}>{ex.repeticoes} reps</span>
+              </div>
+              <button onClick={() => startTimer(ex.tempo_descanso_seg)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl active:scale-95 transition-all"
+                style={{ background: 'var(--bg-chip)' }}>
+                <Timer className="w-3.5 h-3.5" style={{ color: 'var(--text-3)' }} />
+                <span className="text-sm font-semibold" style={{ color: 'var(--text-2)' }}>{ex.tempo_descanso_seg}s</span>
+              </button>
+              {ex.carga_sugerida ? (
+                <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl"
+                  style={{ background: 'var(--bg-chip)' }}>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--text-3)' }}>~{ex.carga_sugerida}kg sugerido</span>
+                </div>
+              ) : null}
+              {ultimaCarga !== null && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl"
+                  style={{ background: 'rgba(96,165,250,0.12)' }}>
+                  <TrendingUp className="w-3.5 h-3.5" style={{ color: '#60a5fa' }} />
+                  <span className="text-sm font-semibold" style={{ color: '#60a5fa' }}>Última: {ultimaCarga}kg</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Observações */}
+          {(ex.observacoes || observacoes) && (
+            <div className="flex gap-2.5 rounded-2xl p-3.5"
+              style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.18)' }}>
+              <Info className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-300 leading-relaxed">{ex.observacoes || observacoes}</p>
+            </div>
+          )}
+
+          {/* ── Séries ── */}
+          <div className="space-y-2.5">
+            <p className="text-xs font-black uppercase tracking-widest"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--text-3)' }}>
+              Séries — {ex.series}× {ex.repeticoes} reps
+            </p>
+
+            {state.series.map((serie, si) => {
+              const isActive = si === seriesFeitas && !serie.done
+              return (
+                <div key={si}
+                  className="flex items-center gap-3 rounded-2xl transition-all duration-200"
+                  style={{
+                    padding: '10px 12px',
+                    background: serie.done
+                      ? 'rgba(34,197,94,0.07)'
+                      : isActive ? 'var(--neon-dim)' : 'var(--bg-chip)',
+                    border: isActive
+                      ? '1.5px solid rgba(255,107,0,0.3)'
+                      : serie.done
+                        ? '1.5px solid rgba(34,197,94,0.2)'
+                        : '1.5px solid transparent',
+                  }}>
+
+                  {/* Número da série */}
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 font-black text-sm"
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      background: serie.done ? '#22c55e' : isActive ? 'var(--neon)' : 'var(--border)',
+                      color: serie.done || isActive ? 'white' : 'var(--text-3)',
+                    }}>
+                    {serie.done ? '✓' : si + 1}
+                  </div>
+
+                  {/* Input carga + label */}
+                  <div className="flex items-center gap-1 flex-shrink-0"
+                    style={{ background: 'var(--bg-base)', borderRadius: '10px', border: '1.5px solid var(--border)', overflow: 'hidden', opacity: serie.done ? 0.5 : 1 }}>
+                    <input
+                      type="number" inputMode="decimal"
+                      value={serie.carga}
+                      onChange={e => handleCarga(ex.id, si, e.target.value)}
+                      placeholder={ultimaCarga !== null ? ultimaCarga.toString() : (ex.carga_sugerida?.toString() ?? '0')}
+                      className="w-16 text-center font-black text-base focus:outline-none bg-transparent"
+                      style={{ color: 'var(--text-1)', padding: '8px 4px' }}
+                      min="0" step="0.5"
+                      disabled={serie.done}
+                    />
+                    <span className="text-xs pr-2 font-semibold" style={{ color: 'var(--text-3)' }}>kg</span>
+                  </div>
+
+                  {/* Botão FAZER */}
+                  <button
+                    onClick={() => handleSerie(ex.id, si, ex.tempo_descanso_seg)}
+                    className="flex-1 rounded-xl font-black text-sm active:scale-95 transition-all"
+                    style={{
+                      minHeight: '44px',
+                      fontFamily: 'var(--font-display)',
+                      background: serie.done
+                        ? 'rgba(34,197,94,0.12)'
+                        : isActive ? 'var(--neon)' : 'var(--border)',
+                      color: serie.done ? '#86efac' : isActive ? 'white' : 'var(--text-3)',
+                    }}>
+                    {serie.done ? '✓ Feita' : 'FAZER'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Gráfico evolução */}
+          {alunoId && ex.exercicio?.id && (
+            <div className="pt-1" style={{ borderTop: '1px solid var(--border)' }}>
+              <LoadEvolutionChart
+                alunoId={alunoId}
+                exercicioId={ex.exercicio.id}
+                cargaSugerida={ex.carga_sugerida}
+              />
+            </div>
+          )}
+
+          {/* ── Tela de conclusão ── */}
+          {totalConcluidos === t.exercicios.length && (
+            <div className="rounded-3xl p-6 text-center animate-bounce-in"
+              style={{ border: '2px solid var(--neon)', background: 'var(--bg-card)', boxShadow: '0 0 40px var(--neon-glow)' }}>
+              <div className="text-5xl mb-3 animate-float">🎉</div>
+              <h3 className="text-2xl font-black uppercase mb-1"
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>
+                Treino Concluído!
+              </h3>
+              <p className="text-sm mb-5" style={{ color: 'var(--text-3)' }}>
+                Parabéns! Você completou todos os exercícios.
+              </p>
+              <button onClick={finalizarTreino} disabled={saving}
+                className="btn-primary w-full py-4 rounded-2xl text-base font-black"
+                style={{ fontFamily: 'var(--font-display)', boxShadow: '0 4px 24px var(--neon-glow)' }}>
+                {saving ? 'Registrando...' : '🏆 Finalizar e Registrar'}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </>
   )

@@ -79,6 +79,12 @@ export default function CheckinPage() {
         body: JSON.stringify({ aluno_id: alunoId, academia_id: usuario.academia_id }),
       })
       const data = await res.json()
+      if (res.status === 409) {
+        // Já fez check-in hoje — atualiza UI para refletir isso
+        setCheckinHoje(true)
+        toast('Você já fez check-in hoje! ✅', { icon: '📋' })
+        return
+      }
       if (!res.ok) throw new Error(data.error)
       setCheckinHoje(true)
       setStreak(s => s + 1)
