@@ -209,7 +209,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </div>
   )
 
-  if (!usuario) return null
+  if (!usuario) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-base)' }}>
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-12 h-12 rounded-full border-4 border-transparent animate-spin"
+          style={{ borderTopColor: 'var(--neon)', boxShadow: '0 0 20px var(--neon-glow)' }} />
+        <p className="text-sm" style={{ color: 'var(--text-2)' }}>Redirecionando...</p>
+      </div>
+    </div>
+  )
 
   const filteredNav = navItems.filter(item => item.roles.includes(role ?? ''))
   const mobileNav   = mobileNavByRole[role ?? ''] ?? mobileNavByRole.aluno
