@@ -393,7 +393,7 @@ export default function TreinoAlunoPage() {
   const [timerTotal, setTimerTotal] = useState(0)
   const [timerActive, setTimerActive] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [imgErr, setImgErr] = useState(false)
+  const [imgErrs, setImgErrs] = useState<Record<string, boolean>>({})
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedbackSaving, setFeedbackSaving] = useState(false)
   const [historicoId, setHistoricoId] = useState<string | null>(null)
@@ -573,7 +573,7 @@ export default function TreinoAlunoPage() {
     setTimerActive(true)
   }
 
-  const goTo = (i: number) => { setCurrentIndex(i); setImgErr(false) }
+  const goTo = (i: number) => { setCurrentIndex(i) }
 
   // Marca/desmarca uma série individual
   const handleSerie = (exId: string, serieIdx: number, descanso: number) => {
@@ -707,7 +707,7 @@ export default function TreinoAlunoPage() {
         setTreinoSelecionado(t)
         initStates(t)
         setCurrentIndex(0)
-        setImgErr(false)
+        setImgErrs({})
       }}
     />
   )
@@ -743,7 +743,6 @@ export default function TreinoAlunoPage() {
 
   return (
     <>
-      {/* Modal YouTube */}
       {youtubeModal && (
         <YouTubeModal url={youtubeModal.url} nome={youtubeModal.nome} onClose={() => setYoutubeModal(null)} />
       )}
@@ -759,262 +758,315 @@ export default function TreinoAlunoPage() {
         />
       )}
 
-      <div className="max-w-lg mx-auto space-y-4 page-enter">
-        {/* Header progresso */}
-        <div className="card-base p-4 space-y-3">
-          {/* Banner modo offline */}
+      <div className="max-w-lg mx-auto space-y-3 page-enter">
+
+        {/* ── Barra de progresso topo ── */}
+        <div>
           {isOfflineCache && (
-            <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-3 py-2 -mb-1">
-              <WifiOff className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-              <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">Modo offline — treino carregado do cache</p>
+            <div className="flex items-center gap-2 rounded-xl px-3 py-2 mb-2"
+              style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <WifiOff className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+              <p className="text-xs text-amber-300 font-medium">Modo offline — treino do cache</p>
             </div>
           )}
-          <div className="flex items-center justify-between">
-            <div className="flex-1 min-w-0 mr-3">
-              <div className="flex items-center gap-2">
-                {t.dia_semana && <span className="badge-info flex-shrink-0">{t.dia_semana}</span>}
-                <h1 className="font-bold text-gray-900 dark:text-gray-100 text-sm truncate">{t.nome}</h1>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                {t.dia_semana && (
+                  <span className="text-xs font-black uppercase px-2 py-0.5 rounded-lg flex-shrink-0"
+                    style={{ background: 'var(--neon-dim)', color: 'var(--neon)' }}>
+                    {t.dia_semana}
+                  </span>
+                )}
+                <span className="text-sm font-semibold truncate" style={{ color: 'var(--text-2)' }}>{t.nome}</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-chip)' }}>
+                <div className="h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${progress}%`, background: progress === 100 ? '#22c55e' : 'var(--neon)' }} />
               </div>
             </div>
             <div className="text-right flex-shrink-0">
-              <p className="text-2xl font-black text-orange-500">{totalConcluidos}/{t.exercicios.length}</p>
-              <p className="text-xs text-gray-400">exercícios</p>
+              <p className="text-2xl font-black leading-none"
+                style={{ color: 'var(--neon)', fontFamily: 'var(--font-display)' }}>
+                {totalConcluidos}/{t.exercicios.length}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>exercícios</p>
             </div>
-          </div>
-          <div className="progress-bar h-2.5">
-            <div className="progress-fill h-2.5" style={{ width: `${progress}%` }} />
           </div>
         </div>
 
-        {/* Navegação dots */}
+        {/* ── Dots de navegação ── */}
         <div className="flex items-center justify-between px-1">
           <button onClick={() => goTo(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}
-            className="btn-ghost p-2 disabled:opacity-30"><ChevronLeft className="w-5 h-5" /></button>
+            className="btn-ghost p-2 disabled:opacity-30">
+            <ChevronLeft className="w-5 h-5" />
+          </button>
           <div className="flex gap-1.5 flex-wrap justify-center">
             {t.exercicios.map((e, i) => (
               <button key={e.id} onClick={() => goTo(i)}
-                className={clsx('rounded-full transition-all duration-300',
-                  i === currentIndex ? 'w-6 h-2.5 bg-orange-500' :
-                  states[e.id]?.concluido ? 'w-2.5 h-2.5 bg-green-500' :
-                  'w-2.5 h-2.5 bg-gray-300 dark:bg-gray-600')} />
+                className="rounded-full transition-all duration-300"
+                style={{
+                  width: i === currentIndex ? '24px' : '10px',
+                  height: '10px',
+                  background: i === currentIndex
+                    ? 'var(--neon)'
+                    : states[e.id]?.concluido
+                      ? '#22c55e'
+                      : 'var(--border)'
+                }} />
             ))}
           </div>
           <button onClick={() => goTo(Math.min(t.exercicios.length - 1, currentIndex + 1))}
             disabled={currentIndex === t.exercicios.length - 1}
-            className="btn-ghost p-2 disabled:opacity-30"><ChevronRight className="w-5 h-5" /></button>
+            className="btn-ghost p-2 disabled:opacity-30">
+            <ChevronRight className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* Card exercício */}
-        <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} key={ex.id}
-          className={clsx('card-base overflow-hidden animate-scale-in', state.concluido && 'opacity-80')}>
-          <div className="h-1 bg-gray-100 dark:bg-gray-700">
-            <div className="h-1 gradient-orange transition-all"
-              style={{ width: `${ex.series > 0 ? (seriesFeitas / ex.series) * 100 : 0}%` }} />
+        {/* ── Card principal do exercício ── */}
+        <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
+          className="card-base overflow-hidden animate-scale-in">
+
+          {/* Barra de progresso séries */}
+          <div className="h-1" style={{ background: 'var(--bg-chip)' }}>
+            <div className="h-1 transition-all duration-500"
+              style={{
+                width: `${ex.series > 0 ? (seriesFeitas / ex.series) * 100 : 0}%`,
+                background: seriesFeitas === ex.series ? '#22c55e' : 'var(--neon)'
+              }} />
           </div>
-          <div className="p-5 space-y-4">
-            {/* Cabeçalho */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">{currentIndex + 1}/{t.exercicios.length}</span>
-                {grupo && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${grupoColors[grupo] ?? 'badge-gray'}`}>{grupo}</span>}
-              </div>
-              {state.concluido
-                ? <span className="badge-success text-xs flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Concluído</span>
-                : <span className="text-xs text-gray-400">{seriesFeitas}/{ex.series} séries</span>
-              }
-            </div>
 
-            <h2 className={clsx('text-xl font-black', state.concluido ? 'text-gray-400 line-through' : 'text-gray-900 dark:text-gray-100')}>
-              {nome}
-            </h2>
+          {/* ── GIF / Imagem ── */}
+          {(() => {
+            const youtubeUrl = ex.exercicio?.youtube_url ?? null
+            const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
+            const nName = normalize(nome)
+            const words = nName.split(' ').filter(w => w.length > 3)
 
-            {/* Foto do exercício — sempre visível, com overlay de vídeo/busca */}
-            {(() => {
-              const youtubeUrl = ex.exercicio?.youtube_url ?? null
-              // Fallback fuzzy para mock caso os nomes variem entre a versão antiga e a traduzida
-              const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-              const nName = normalize(nome)
-              
-              const mockEx = mockExercicios.find(m => normalize(m.nome) === nName) 
-                || mockExercicios.find(m => normalize(m.nome).includes(nName) || nName.includes(normalize(m.nome)))
-                
-              const gifUrl = ex.exercicio?.gif_url || mockEx?.gif_url || null
-              const hasGif = !!gifUrl && !imgErr
-              const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`como fazer ${nome} academia execução correta`)}`
+            const mockEx = mockExercicios.find(m => normalize(m.nome) === nName)
+              || mockExercicios.find(m => normalize(m.nome).includes(nName) || nName.includes(normalize(m.nome)))
+              || (words.length > 0 && mockExercicios.find(m => words.every(w => normalize(m.nome).includes(w))))
+              || (words.length > 0 && mockExercicios.find(m => words.some(w => w.length > 5 && normalize(m.nome).includes(w))))
+              || null
 
-              // Extrai ID do vídeo para usar a thumbnail como fallback
-              const ytIdMatch = youtubeUrl?.match(/(?:v=|youtu\.be\/)([^&?\s]{11})/)
-              const ytThumbnail = ytIdMatch ? `https://img.youtube.com/vi/${ytIdMatch[1]}/mqdefault.jpg` : null
+            const gifUrl = ex.exercicio?.gif_url || mockEx?.gif_url || null
+            const imgErr = imgErrs[ex.id] ?? false
+            const hasGif = !!gifUrl && !imgErr
+            const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`como fazer ${nome} academia execução correta`)}`
+            const ytIdMatch = youtubeUrl?.match(/(?:v=|youtu\.be\/)([^&?\s]{11})/)
+            const ytThumbnail = ytIdMatch ? `https://img.youtube.com/vi/${ytIdMatch[1]}/mqdefault.jpg` : null
 
-              return (
-                <div className="rounded-2xl overflow-hidden relative h-44 bg-gray-100 dark:bg-gray-700 group">
-                  {/* Camada de foto: gif > thumbnail YouTube > placeholder */}
-                  {hasGif ? (
-                    <AnimatedExerciseImage src={gifUrl!} alt={nome} className="w-full h-full object-cover" onError={() => setImgErr(true)} />
-                  ) : ytThumbnail ? (
-                    /* Thumbnail do YouTube como fallback quando não há gif */
-                    <img src={ytThumbnail} alt={nome} className="w-full h-full object-cover" />
-                  ) : (
-                    /* Placeholder com gradiente quando não tem foto nem vídeo */
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900">
-                      <Dumbbell className="w-12 h-12 text-gray-300 dark:text-gray-600" />
-                      <p className="text-xs text-gray-400">{nome}</p>
+            return (
+              <div className="relative group" style={{ height: '220px', background: 'var(--bg-base)' }}>
+                {hasGif ? (
+                  <AnimatedExerciseImage
+                    src={gifUrl!} alt={nome}
+                    className="w-full h-full object-cover"
+                    onError={() => setImgErrs(prev => ({ ...prev, [ex.id]: true }))}
+                  />
+                ) : ytThumbnail ? (
+                  <img src={ytThumbnail} alt={nome} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-3"
+                    style={{ background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--bg-chip) 100%)' }}>
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                      style={{ background: 'var(--neon-dim)' }}>
+                      <Dumbbell className="w-8 h-8" style={{ color: 'var(--neon)' }} />
                     </div>
-                  )}
+                    <p className="text-xs font-medium text-center px-4" style={{ color: 'var(--text-3)' }}>{nome}</p>
+                  </div>
+                )}
 
-                  {/* Overlay escuro suave sempre presente */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                {/* Overlay gradiente */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
 
-                  {/* Botão de play YouTube — quando há URL de vídeo */}
+                {/* Overlay concluído */}
+                {state.concluido && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                    style={{ background: 'rgba(34,197,94,0.15)' }}>
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center"
+                      style={{ background: 'rgba(34,197,94,0.9)' }}>
+                      <CheckCircle2 className="w-8 h-8 text-white" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Botão YouTube play */}
+                {youtubeUrl && !state.concluido && (
+                  <button onClick={() => setYoutubeModal({ url: youtubeUrl, nome })}
+                    className="absolute inset-0 flex items-center justify-center" aria-label="Assistir vídeo">
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-transform group-hover:scale-110 active:scale-95"
+                      style={{ background: 'rgba(220,38,38,0.9)' }}>
+                      <Play className="w-6 h-6 text-white ml-0.5" fill="white" />
+                    </div>
+                  </button>
+                )}
+
+                {/* Badges top-left */}
+                <div className="absolute top-3 left-3 flex gap-2">
                   {youtubeUrl && (
-                    <button
-                      onClick={() => setYoutubeModal({ url: youtubeUrl, nome })}
-                      className="absolute inset-0 flex items-center justify-center focus:outline-none"
-                      aria-label="Assistir vídeo"
-                    >
-                      <div className="w-16 h-16 bg-red-600/90 hover:bg-red-500 rounded-full flex items-center justify-center shadow-xl transition-transform group-hover:scale-110 active:scale-95">
-                        <Play className="w-7 h-7 text-white ml-1" fill="white" />
-                      </div>
-                    </button>
-                  )}
-
-                  {/* Badge YouTube no canto quando tem vídeo */}
-                  {youtubeUrl && (
-                    <div className="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded-md font-bold flex items-center gap-1 shadow">
+                    <div className="flex items-center gap-1 bg-red-600 text-white text-xs px-2 py-1 rounded-lg font-bold shadow">
                       <Youtube className="w-3 h-3" /> Vídeo
                     </div>
                   )}
-
-                  {/* Botão de busca YouTube no canto — quando NÃO tem vídeo cadastrado */}
-                  {!youtubeUrl && (
-                    <a
-                      href={searchUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="absolute bottom-2 right-2 flex items-center gap-1.5 bg-black/60 hover:bg-red-600 text-white text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors shadow"
-                    >
-                      <Youtube className="w-3.5 h-3.5" /> Ver no YouTube
-                    </a>
+                  {grupo && (
+                    <span className={`text-xs px-2 py-1 rounded-lg font-medium ${grupoColors[grupo] ?? 'badge-gray'}`}>{grupo}</span>
                   )}
                 </div>
-              )
-            })()}
 
-            {/* Info rápida */}
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { l: 'Reps',     v: ex.repeticoes,                                bg: 'bg-blue-50 dark:bg-blue-900/20',   t: 'text-blue-600 dark:text-blue-400' },
-                { l: 'Sugerido', v: ex.carga_sugerida ? `${ex.carga_sugerida}kg` : '—', bg: 'bg-purple-50 dark:bg-purple-900/20', t: 'text-purple-600 dark:text-purple-400' },
-                { l: 'Descanso', v: `${ex.tempo_descanso_seg}s`,                bg: 'bg-green-50 dark:bg-green-900/20',  t: 'text-green-600 dark:text-green-400' },
-              ].map(({ l, v, bg, t }) => (
-                <div key={l} className={`${bg} rounded-xl p-2.5 text-center`}>
-                  <p className={`text-base font-black ${t}`}>{v}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{l}</p>
+                {/* Contador exercício */}
+                <div className="absolute top-3 right-3">
+                  <span className="text-white text-xs font-bold px-2 py-1 rounded-lg"
+                    style={{ background: 'rgba(0,0,0,0.5)' }}>
+                    {currentIndex + 1}/{t.exercicios.length}
+                  </span>
                 </div>
-              ))}
+
+                {/* Link busca YouTube */}
+                {!youtubeUrl && (
+                  <a href={searchUrl} target="_blank" rel="noopener noreferrer"
+                    className="absolute bottom-3 right-3 flex items-center gap-1.5 text-white text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all active:scale-95"
+                    style={{ background: 'rgba(0,0,0,0.6)' }}>
+                    <Youtube className="w-3.5 h-3.5" /> Ver no YouTube
+                  </a>
+                )}
+              </div>
+            )
+          })()}
+
+          <div className="p-4 space-y-4">
+            {/* ── Nome + meta-info ── */}
+            <div>
+              <h2 className={clsx(
+                'text-2xl font-black uppercase leading-tight',
+                state.concluido && 'line-through opacity-40'
+              )} style={{ fontFamily: 'var(--font-display)', color: 'var(--text-1)', letterSpacing: '-0.01em' }}>
+                {nome}
+              </h2>
+              <div className="flex items-center gap-3 mt-2 flex-wrap">
+                <span className="flex items-center gap-1.5 text-sm font-bold" style={{ color: 'var(--neon)' }}>
+                  <Dumbbell className="w-3.5 h-3.5" />{ex.repeticoes} reps
+                </span>
+                {ex.carga_sugerida ? (
+                  <span className="text-sm font-semibold" style={{ color: 'var(--text-3)' }}>
+                    ~{ex.carga_sugerida}kg sugerido
+                  </span>
+                ) : null}
+                <button onClick={() => startTimer(ex.tempo_descanso_seg)}
+                  className="flex items-center gap-1 text-sm font-medium active:scale-95 transition-all"
+                  style={{ color: 'var(--text-3)' }}>
+                  <Timer className="w-3.5 h-3.5" />{ex.tempo_descanso_seg}s descanso
+                </button>
+                {state.concluido && (
+                  <span className="badge-success text-xs flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />Concluído
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Observações */}
-            {ex.observacoes && (
-              <div className="flex gap-2 bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
-                <Info className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-700 dark:text-amber-400">{ex.observacoes}</p>
+            {(ex.observacoes || observacoes) && (
+              <div className="flex gap-2 rounded-xl p-3"
+                style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.15)' }}>
+                <Info className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-300">{ex.observacoes || observacoes}</p>
               </div>
             )}
 
-            {/* ── SÉRIES INDIVIDUAIS ─────────────────────── */}
+            {/* ── Séries ── */}
             {(() => {
               const exercicioId = ex.exercicio?.id
               const ultimaCarga = exercicioId ? (ultimasCargas[exercicioId] ?? null) : null
               return (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-orange-500" />
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Registrar séries — {ex.repeticoes} reps cada
-                  </p>
-                </div>
-                {/* Badge última carga */}
-                {ultimaCarga !== null && (
-                  <span className="flex items-center gap-1 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-lg font-semibold">
-                    <TrendingUp className="w-3 h-3" />
-                    Última: {ultimaCarga}kg
-                  </span>
-                )}
-              </div>
-
-              {/* Cabeçalho colunas */}
-              <div className="flex items-center gap-2 px-1 mb-1">
-                <span className="w-8 text-xs text-gray-400 text-center">Série</span>
-                <span className="w-20 text-xs text-gray-400 text-center">Carga (kg)</span>
-                <span className="flex-1 text-xs text-gray-400 text-center">Ação</span>
-                <button
-                  onClick={() => startTimer(ex.tempo_descanso_seg)}
-                  className="flex items-center gap-1 text-xs text-orange-500 hover:text-orange-600 font-medium active:scale-95 transition-all">
-                  <Timer className="w-3.5 h-3.5" />{ex.tempo_descanso_seg}s
-                </button>
-              </div>
-
-              {state.series.map((serie, si) => (
-                <div key={si} className={clsx(
-                  'flex items-center gap-2 p-2 rounded-xl transition-all',
-                  serie.done
-                    ? 'bg-green-50 dark:bg-green-900/20'
-                    : si === seriesFeitas
-                      ? 'bg-orange-50 dark:bg-orange-900/10 ring-1 ring-orange-200 dark:ring-orange-800'
-                      : 'bg-gray-50 dark:bg-gray-700/30'
-                )}>
-                  {/* Número */}
-                  <span className={clsx(
-                    'w-8 h-8 rounded-full text-xs font-black flex items-center justify-center flex-shrink-0',
-                    serie.done
-                      ? 'bg-green-500 text-white'
-                      : si === seriesFeitas
-                        ? 'bg-orange-500 text-white'
-                        : 'bg-gray-200 dark:bg-gray-600 text-gray-500'
-                  )}>
-                    {serie.done ? '✓' : si + 1}
-                  </span>
-
-                  {/* Input carga */}
-                  <input
-                    type="number" inputMode="decimal"
-                    value={serie.carga}
-                    onChange={e => handleCarga(ex.id, si, e.target.value)}
-                    placeholder={ultimaCarga !== null ? ultimaCarga.toString() : (ex.carga_sugerida?.toString() ?? '0')}
-                    className={clsx(
-                      'w-20 text-center font-black text-sm rounded-lg border px-2 py-2 transition-all',
-                      'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600',
-                      'focus:outline-none focus:ring-2 focus:ring-orange-400',
-                      serie.done && 'opacity-60'
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-black uppercase tracking-wide"
+                      style={{ fontFamily: 'var(--font-display)', color: 'var(--text-2)' }}>
+                      Séries — {ex.repeticoes} reps
+                    </p>
+                    {ultimaCarga !== null && (
+                      <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg font-semibold"
+                        style={{ background: 'rgba(96,165,250,0.15)', color: '#60a5fa' }}>
+                        <TrendingUp className="w-3 h-3" />
+                        Última: {ultimaCarga}kg
+                      </span>
                     )}
-                    min="0" step="0.5"
-                    disabled={serie.done}
-                  />
+                  </div>
 
-                  {/* Botão fazer/desfazer */}
-                  <button
-                    onClick={() => handleSerie(ex.id, si, ex.tempo_descanso_seg)}
-                    className={clsx(
-                      'flex-1 py-2 rounded-xl text-sm font-bold active:scale-95 transition-all',
-                      serie.done
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                        : si === seriesFeitas
-                          ? 'gradient-orange text-white shadow-sm shadow-orange-500/30'
-                          : 'bg-gray-200 dark:bg-gray-600 text-gray-500'
-                    )}>
-                    {serie.done ? '✓ Feita' : 'Fazer →'}
-                  </button>
+                  {state.series.map((serie, si) => {
+                    const isActive = si === seriesFeitas && !serie.done
+                    return (
+                      <div key={si} className="flex items-center gap-3 p-3 rounded-2xl transition-all duration-200"
+                        style={{
+                          background: serie.done
+                            ? 'rgba(34,197,94,0.08)'
+                            : isActive
+                              ? 'var(--neon-dim)'
+                              : 'var(--bg-chip)',
+                          border: isActive
+                            ? '1px solid rgba(255,107,0,0.25)'
+                            : serie.done
+                              ? '1px solid rgba(34,197,94,0.15)'
+                              : '1px solid transparent'
+                        }}>
+
+                        {/* Badge número */}
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 font-black text-sm"
+                          style={{
+                            background: serie.done ? '#22c55e' : isActive ? 'var(--neon)' : 'var(--border)',
+                            color: serie.done || isActive ? 'white' : 'var(--text-3)'
+                          }}>
+                          {serie.done ? '✓' : si + 1}
+                        </div>
+
+                        {/* Input carga */}
+                        <input
+                          type="number" inputMode="decimal"
+                          value={serie.carga}
+                          onChange={e => handleCarga(ex.id, si, e.target.value)}
+                          placeholder={ultimaCarga !== null ? ultimaCarga.toString() : (ex.carga_sugerida?.toString() ?? '0')}
+                          className="w-20 text-center font-black text-base rounded-xl px-2 py-2.5 transition-all focus:outline-none focus:ring-2 flex-shrink-0"
+                          style={{
+                            background: 'var(--bg-base)',
+                            color: 'var(--text-1)',
+                            border: '1.5px solid var(--border)',
+                            opacity: serie.done ? 0.5 : 1,
+                          }}
+                          min="0" step="0.5"
+                          disabled={serie.done}
+                        />
+
+                        <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-3)' }}>kg</span>
+
+                        {/* Botão fazer */}
+                        <button
+                          onClick={() => handleSerie(ex.id, si, ex.tempo_descanso_seg)}
+                          className="flex-1 py-3 rounded-xl text-sm font-black active:scale-95 transition-all"
+                          style={{
+                            background: serie.done
+                              ? 'rgba(34,197,94,0.12)'
+                              : isActive
+                                ? 'var(--neon)'
+                                : 'var(--border)',
+                            color: serie.done
+                              ? '#86efac'
+                              : isActive
+                                ? 'white'
+                                : 'var(--text-3)'
+                          }}>
+                          {serie.done ? '✓ Feita' : 'Fazer →'}
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
-            </div>
               )
             })()}
 
-            {/* ── Gráfico de evolução de carga ─────────────── */}
+            {/* Gráfico evolução */}
             {alunoId && ex.exercicio?.id && (
-              <div className="border-t border-gray-100 dark:border-gray-700/50 pt-4">
+              <div className="pt-3" style={{ borderTop: '1px solid var(--border)' }}>
                 <LoadEvolutionChart
                   alunoId={alunoId}
                   exercicioId={ex.exercicio.id}
@@ -1025,16 +1077,23 @@ export default function TreinoAlunoPage() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-400">← Deslize para navegar →</p>
+        <p className="text-center text-xs" style={{ color: 'var(--text-3)' }}>← Deslize para navegar →</p>
 
-        {/* Tela de conclusão */}
+        {/* ── Tela de conclusão ── */}
         {totalConcluidos === t.exercicios.length && (
-          <div className="card-base p-6 text-center border-2 border-orange-400 animate-bounce-in">
+          <div className="card-base p-6 text-center animate-bounce-in"
+            style={{ border: '2px solid var(--neon)', boxShadow: '0 0 30px var(--neon-glow)' }}>
             <div className="text-5xl mb-3 animate-float">🎉</div>
-            <h3 className="text-xl font-black text-gray-900 dark:text-gray-100 mb-1">Treino Concluído!</h3>
-            <p className="text-sm text-gray-500 mb-5">Parabéns! Você completou todos os exercícios.</p>
+            <h3 className="text-xl font-black mb-1 uppercase"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>
+              Treino Concluído!
+            </h3>
+            <p className="text-sm mb-5" style={{ color: 'var(--text-3)' }}>
+              Parabéns! Você completou todos os exercícios.
+            </p>
             <button onClick={finalizarTreino} disabled={saving}
-              className="btn-primary w-full py-4 rounded-2xl text-base font-black">
+              className="btn-primary w-full py-4 rounded-2xl text-base font-black"
+              style={{ fontFamily: 'var(--font-display)' }}>
               {saving ? 'Registrando...' : '🏆 Finalizar e Registrar'}
             </button>
           </div>
