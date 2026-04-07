@@ -25,28 +25,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   const fetchUsuario = useCallback(async (userId: string) => {
-    // Retry com backoff — protege contra falhas transitórias de rede/lock
-    const MAX_RETRIES = 3
+    const MAX_RETRIES = 2
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
+        // AbortController garante que a query nunca trave por mais de 6s
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 6000)
+
         const { data, error } = await supabase
           .from('usuarios')
           .select('*')
           .eq('id', userId)
+          .abortSignal(controller.signal)
           .single()
+
+        clearTimeout(timer)
         if (error) throw error
         if (data) {
           setUsuario(data)
-          return // sucesso
+          return
         }
-      } catch (err) {
-        console.warn(`[useAuth] fetchUsuario tentativa ${attempt + 1}/${MAX_RETRIES} falhou:`, err)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : ''
+        const isAbort = msg.includes('AbortError') || msg.includes('abort') || (err as { name?: string })?.name === 'AbortError'
+        console.warn(`[useAuth] fetchUsuario tentativa ${attempt + 1}/${MAX_RETRIES}${isAbort ? ' (timeout)' : ''}:`, msg)
         if (attempt < MAX_RETRIES - 1) {
-          await new Promise(r => setTimeout(r, 500 * (attempt + 1)))
+          await new Promise(r => setTimeout(r, 600))
         }
       }
     }
-    // Todas as tentativas falharam — mantém null
     console.error('[useAuth] fetchUsuario falhou após todas as tentativas')
     setUsuario(null)
   }, [])
@@ -55,14 +62,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user?.id) await fetchUsuario(user.id)
   }, [user?.id, fetchUsuario])
 
+  // ── Detecta volta do background (tela desbloqueada / app reaberto) ──────
+  useEffect(() => {
+    let hiddenAt = 0
+    const RELOAD_THRESHOLD = 3 * 60_000   // > 3 min → recarrega a página
+    const REFRESH_THRESHOLD = 15_000       // > 15s  → renova a sessão
+
+    const handleVisibility = async () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now()
+        return
+      }
+      if (document.visibilityState !== 'visible' || hiddenAt === 0) return
+
+      const awayMs = Date.now() - hiddenAt
+      hiddenAt = 0
+
+      if (awayMs > RELOAD_THRESHOLD) {
+        // Ficou muito tempo em background — reload garante sessão/conexão frescos
+        window.location.reload()
+        return
+      }
+
+      if (awayMs > REFRESH_THRESHOLD) {
+        // Ficou alguns segundos — renova token silenciosamente
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.user) await fetchUsuario(session.user.id)
+        } catch { /* ignora falha silenciosa */ }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [fetchUsuario])
+
   useEffect(() => {
     let mounted = true
 
     // Timeout de segurança: garante que isLoading sempre vira false
-    // mesmo se a rede falhar completamente
     const safetyTimeout = setTimeout(() => {
       if (mounted) setIsLoading(false)
-    }, 8000)
+    }, 4000)
 
     // onAuthStateChange dispara INITIAL_SESSION imediatamente com a sessão
     // atual do storage — mais confiável que getSession() isolado

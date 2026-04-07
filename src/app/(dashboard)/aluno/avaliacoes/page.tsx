@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Activity, TrendingDown, TrendingUp, ChevronDown, ChevronUp, Sparkles, Loader2, Star, Plus, Calendar, Camera, Trash2, ImageOff } from 'lucide-react'
+import { Activity, TrendingDown, TrendingUp, ChevronDown, ChevronUp, Loader2, Plus, Calendar, Camera, Trash2, ImageOff } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
@@ -43,16 +43,6 @@ function getMedidas(av: Avaliacao): MedidasCorporais | null {
   return null
 }
 
-interface AnaliseIA {
-  resumo: string
-  pontos_positivos: string[]
-  pontos_atencao: string[]
-  recomendacoes: string[]
-  ajustes_treino: string
-  meta_proximos_30_dias: string
-  nota_evolucao: number
-}
-
 function getIMCLabel(imc: number) {
   if (imc < 18.5) return { label: 'Abaixo do peso', color: 'text-blue-500' }
   if (imc < 25)   return { label: 'Normal',         color: 'text-green-500' }
@@ -60,7 +50,7 @@ function getIMCLabel(imc: number) {
   return              { label: 'Obesidade',          color: 'text-red-500' }
 }
 
-type Tab = 'resumo' | 'graficos' | 'historico' | 'ia' | 'fotos'
+type Tab = 'resumo' | 'graficos' | 'historico' | 'fotos'
 
 interface FotoProgresso {
   id: string
@@ -86,15 +76,13 @@ interface SolicitacaoAvaliacao {
 }
 
 export default function AvaliacoesAlunoPage() {
-  const { usuario, session } = useAuth()
+  const { usuario } = useAuth()
   const [alunoId, setAlunoId] = useState<string | null>(null)
   const [academiaId, setAcademiaId] = useState<string | null>(null)
   const [avaliacoes, setAvaliacoes] = useState<Avaliacao[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('resumo')
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [analiseIA, setAnaliseIA] = useState<AnaliseIA | null>(null)
-  const [loadingIA, setLoadingIA] = useState(false)
   const [objetivoAluno, setObjetivoAluno] = useState('')
   const [showModalSolicitacao, setShowModalSolicitacao] = useState(false)
   const [horarios, setHorarios] = useState<HorarioDisponivel[]>([])
@@ -259,51 +247,6 @@ export default function AvaliacoesAlunoPage() {
     }
   }, [alunoId, fetchAvaliacoes, fetchSolicitacoes, fetchFotos])
   useEffect(() => { if (showModalSolicitacao) fetchHorarios() }, [showModalSolicitacao, fetchHorarios])
-
-  const analisarComIA = async () => {
-    if (avaliacoes.length === 0) return
-    setLoadingIA(true)
-    setActiveTab('ia')
-    try {
-      const { data: historico } = await supabase
-        .from('historico_treinos')
-        .select('data_treino, status, duracao_min')
-        .eq('aluno_id', alunoId!)
-        .order('data_treino', { ascending: false })
-        .limit(20)
-
-      const avalDados = avaliacoes.slice(0, 5).map(a => {
-        const m = getMedidas(a)
-        return {
-          data: a.data_avaliacao,
-          peso: a.peso_kg,
-          imc: a.imc,
-          gordura: a.percentual_gordura,
-          cintura: m?.cintura ?? null,
-        }
-      })
-
-      const res = await fetch('/api/ia', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-        body: JSON.stringify({
-          tipo: 'analisar_evolucao',
-          dados: {
-            aluno: { nome: usuario?.nome, objetivo: objetivoAluno },
-            avaliacoes: avalDados,
-            historico: (historico ?? []).slice(0, 10),
-          },
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setAnaliseIA(data.data)
-    } catch (err) {
-      console.error('Erro IA:', err)
-    } finally {
-      setLoadingIA(false)
-    }
-  }
 
   const handleSolicitarAvaliacao = async () => {
     if (!selectedHorario || !alunoId || !academiaId) {
@@ -525,7 +468,6 @@ export default function AvaliacoesAlunoPage() {
     { key: 'graficos',  label: 'Evolução'  },
     { key: 'historico', label: 'Histórico' },
     { key: 'fotos',     label: '📸 Fotos'  },
-    { key: 'ia',        label: '🤖 IA'     },
   ]
 
   const TIPOS_FOTO = [
@@ -551,15 +493,9 @@ export default function AvaliacoesAlunoPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-5 animate-fade-in">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="page-title">Minhas Avaliações</h1>
-          <p className="page-subtitle">{avaliacoes.length} avaliação{avaliacoes.length !== 1 ? 'ões' : ''}</p>
-        </div>
-        <button onClick={analisarComIA} disabled={loadingIA}
-          className="btn-primary flex items-center gap-2 text-sm bg-gradient-to-r from-orange-500 to-purple-600">
-          {loadingIA ? <><Loader2 className="w-4 h-4 animate-spin" />Analisando...</> : <><Sparkles className="w-4 h-4" />Analisar com IA</>}
-        </button>
+      <div>
+        <h1 className="page-title">Minhas Avaliações</h1>
+        <p className="page-subtitle">{avaliacoes.length} avaliação{avaliacoes.length !== 1 ? 'ões' : ''}</p>
       </div>
 
       {/* Card de solicitar nova avaliação */}
@@ -960,88 +896,6 @@ export default function AvaliacoesAlunoPage() {
         </div>
       )}
 
-      {/* ── IA ── */}
-      {activeTab === 'ia' && (
-        <div className="space-y-4">
-          {loadingIA ? (
-            <div className="card-base p-12 text-center space-y-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto animate-pulse">
-                <Sparkles className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <p className="font-bold text-gray-900 dark:text-gray-100">Analisando sua evolução...</p>
-                <p className="text-sm text-gray-400 mt-1">A IA está processando seus dados</p>
-              </div>
-            </div>
-          ) : analiseIA ? (
-            <div className="space-y-4 animate-fade-in">
-              <div className="card-base p-5 bg-gradient-to-br from-orange-50 to-purple-50 dark:from-orange-900/20 dark:to-purple-900/20">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-purple-500" />Análise da IA
-                  </h3>
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: 10 }, (_, i) => (
-                      <Star key={i} className={`w-3 h-3 ${i < analiseIA.nota_evolucao ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
-                    ))}
-                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">{analiseIA.nota_evolucao}/10</span>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{analiseIA.resumo}</p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="card-base p-4 space-y-2">
-                  <h4 className="font-semibold text-green-700 dark:text-green-400 text-sm">✅ Pontos positivos</h4>
-                  <ul className="space-y-1.5">
-                    {analiseIA.pontos_positivos?.map((p, i) => (
-                      <li key={i} className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
-                        <span className="text-green-500 mt-0.5 flex-shrink-0">•</span>{p}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="card-base p-4 space-y-2">
-                  <h4 className="font-semibold text-amber-700 dark:text-amber-400 text-sm">⚠️ Pontos de atenção</h4>
-                  <ul className="space-y-1.5">
-                    {analiseIA.pontos_atencao?.map((p, i) => (
-                      <li key={i} className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
-                        <span className="text-amber-500 mt-0.5 flex-shrink-0">•</span>{p}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
-              {analiseIA.ajustes_treino && (
-                <div className="card-base p-4 bg-orange-50 dark:bg-orange-900/20">
-                  <h4 className="font-semibold text-orange-700 dark:text-orange-400 text-sm mb-2">🏋️ Ajustes no Treino</h4>
-                  <p className="text-sm text-orange-800 dark:text-orange-300">{analiseIA.ajustes_treino}</p>
-                </div>
-              )}
-
-              {analiseIA.meta_proximos_30_dias && (
-                <div className="card-base p-4 bg-purple-50 dark:bg-purple-900/20">
-                  <h4 className="font-semibold text-purple-700 dark:text-purple-400 text-sm mb-2">🎯 Meta dos próximos 30 dias</h4>
-                  <p className="text-sm text-purple-800 dark:text-purple-300">{analiseIA.meta_proximos_30_dias}</p>
-                </div>
-              )}
-
-              <button onClick={analisarComIA} disabled={loadingIA} className="btn-secondary w-full flex items-center justify-center gap-2 text-sm">
-                <Sparkles className="w-4 h-4" />Reanalisar
-              </button>
-            </div>
-          ) : (
-            <div className="card-base p-12 text-center space-y-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto">
-                <Sparkles className="w-8 h-8 text-white" />
-              </div>
-              <p className="font-bold text-gray-900 dark:text-gray-100">Análise com Inteligência Artificial</p>
-              <p className="text-sm text-gray-400">Clique em "Analisar com IA" para ver sua análise personalizada</p>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }

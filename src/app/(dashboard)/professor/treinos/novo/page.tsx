@@ -155,7 +155,7 @@ export default function NovoTreinoPage() {
     <div className="max-w-2xl mx-auto space-y-5 animate-fade-in">
       <div className="flex items-center gap-3">
         <button onClick={() => router.back()} className="btn-ghost p-2"><ArrowLeft className="w-5 h-5" /></button>
-        <div><h1 className="page-title">Criar Treino</h1><p className="page-subtitle">Manual ou com IA</p></div>
+        <div><h1 className="page-title">Criar Treino</h1><p className="page-subtitle">Nova ficha de treino</p></div>
       </div>
 
       {/* Steps */}

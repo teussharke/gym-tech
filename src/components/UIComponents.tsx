@@ -158,10 +158,15 @@ export function AnimatedExerciseImage({ src, alt, onError, className }: { src: s
   }, [isOldFormat, failed])
 
   const handleError = () => {
-    // Para o intervalo imediatamente ao falhar para evitar spam de 403 no console
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
+    }
+    // Se o frame 1 falhou, mas o frame 0 carregou, mantém imagem estática (0.jpg)
+    // Muitos exercícios do free-exercise-db têm apenas 0.jpg
+    if (isOldFormat && currentSrc.endsWith('1.jpg')) {
+      setFrame(0)
+      return
     }
     setFailed(true)
     onError?.()
