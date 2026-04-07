@@ -180,9 +180,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     if (!usuario) {
       if (user) {
-        // Sessão auth existe mas usuario (DB) ainda não carregou — aguarda
-        // sem redirecionar. O spinner abaixo é exibido enquanto isso.
-        return
+        // Sessão auth existe mas perfil DB ainda não carregou (ou falhou).
+        // Aguarda mais 6s — se ainda não chegou, desconecta e vai ao login.
+        const t = setTimeout(async () => {
+          await supabase.auth.signOut()
+          router.replace('/login')
+        }, 6000)
+        return () => clearTimeout(t)
       }
       // Sem sessão alguma → redireciona para login após breve delay
       const t = setTimeout(() => router.replace('/login'), 500)

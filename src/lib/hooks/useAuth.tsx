@@ -25,12 +25,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   const fetchUsuario = useCallback(async (userId: string) => {
-    const MAX_RETRIES = 2
+    const MAX_RETRIES = 3
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        // AbortController garante que a query nunca trave por mais de 6s
         const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), 6000)
+        const timer = setTimeout(() => controller.abort(), 8000)
 
         const { data, error } = await supabase
           .from('usuarios')
@@ -40,21 +39,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single()
 
         clearTimeout(timer)
-        if (error) throw error
+
+        if (error) {
+          // PGRST116 = row not found — não adianta tentar de novo
+          if (error.code === 'PGRST116') {
+            console.error('[useAuth] Usuário não encontrado na tabela usuarios para id:', userId)
+            setUsuario(null)
+            return
+          }
+          throw error
+        }
         if (data) {
           setUsuario(data)
           return
         }
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : ''
+        const msg = err instanceof Error ? err.message : String(err)
         const isAbort = msg.includes('AbortError') || msg.includes('abort') || (err as { name?: string })?.name === 'AbortError'
         console.warn(`[useAuth] fetchUsuario tentativa ${attempt + 1}/${MAX_RETRIES}${isAbort ? ' (timeout)' : ''}:`, msg)
         if (attempt < MAX_RETRIES - 1) {
-          await new Promise(r => setTimeout(r, 600))
+          await new Promise(r => setTimeout(r, 800))
         }
       }
     }
-    console.error('[useAuth] fetchUsuario falhou após todas as tentativas')
+    console.error('[useAuth] fetchUsuario falhou após todas as tentativas — userId:', userId)
     setUsuario(null)
   }, [])
 
@@ -103,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Timeout de segurança: garante que isLoading sempre vira false
     const safetyTimeout = setTimeout(() => {
       if (mounted) setIsLoading(false)
-    }, 4000)
+    }, 6000)
 
     // onAuthStateChange dispara INITIAL_SESSION imediatamente com a sessão
     // atual do storage — mais confiável que getSession() isolado
