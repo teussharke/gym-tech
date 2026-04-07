@@ -143,7 +143,7 @@ const SidebarContent = memo(function SidebarContent({
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter()
   const pathname = usePathname()
-  const { usuario, role, signOut, isLoading } = useAuth()
+  const { usuario, user, role, signOut, isLoading } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
 
@@ -176,28 +176,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [pathname, fetchUnread])
 
   useEffect(() => {
-    if (!isLoading) {
-      if (!usuario) {
-        // Delay de segurança: dá tempo pro retry do fetchUsuario completar
-        // antes de redirecionar (evita loop de login)
-        const redirectTimer = setTimeout(() => {
-          // Verifica novamente se realmente não há sessão ativa
-          supabase.auth.getSession().then(({ data: { session } }) => {
-            if (!session) {
-              router.replace('/login')
-            } else {
-              // Há sessão mas não há usuario — força um refresh da página
-              console.warn('[Dashboard] Sessão ativa mas usuario null — recarregando...')
-              window.location.reload()
-            }
-          })
-        }, 2000)
-        return () => clearTimeout(redirectTimer)
-      } else if (usuario.configuracoes && (usuario.configuracoes as any).primeiro_acesso) {
-        router.replace('/primeiro-acesso')
+    if (isLoading) return
+
+    if (!usuario) {
+      if (user) {
+        // Sessão auth existe mas usuario (DB) ainda não carregou — aguarda
+        // sem redirecionar. O spinner abaixo é exibido enquanto isso.
+        return
       }
+      // Sem sessão alguma → redireciona para login após breve delay
+      const t = setTimeout(() => router.replace('/login'), 500)
+      return () => clearTimeout(t)
     }
-  }, [usuario, isLoading, router])
+
+    if (usuario.configuracoes && (usuario.configuracoes as any).primeiro_acesso) {
+      router.replace('/primeiro-acesso')
+    }
+  }, [usuario, user, isLoading, router])
 
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-base)' }}>
@@ -214,7 +209,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex flex-col items-center gap-3">
         <div className="w-12 h-12 rounded-full border-4 border-transparent animate-spin"
           style={{ borderTopColor: 'var(--neon)', boxShadow: '0 0 20px var(--neon-glow)' }} />
-        <p className="text-sm" style={{ color: 'var(--text-2)' }}>Redirecionando...</p>
+        <p className="text-sm" style={{ color: 'var(--text-2)' }}>
+          {user ? 'Carregando perfil...' : 'Redirecionando...'}
+        </p>
       </div>
     </div>
   )
