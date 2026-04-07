@@ -29,6 +29,10 @@ interface Avaliacao {
   altura_cm: number | null
   imc: number | null
   percentual_gordura: number | null
+  massa_magra_kg: number | null
+  massa_gorda_kg: number | null
+  metabolismo_basal: number | null
+  agua_corporal: number | null
   observacoes: string | null
   // medidas vem como array do join
   medidas_corporais: MedidasCorporais[] | null
@@ -118,7 +122,9 @@ export default function AvaliacoesAlunoPage() {
       const { data, error } = await supabase
         .from('avaliacoes_fisicas')
         .select(`
-          id, data_avaliacao, peso_kg, altura_cm, imc, percentual_gordura, observacoes,
+          id, data_avaliacao, peso_kg, altura_cm, imc, percentual_gordura,
+          massa_magra_kg, massa_gorda_kg, metabolismo_basal, agua_corporal,
+          observacoes,
           medidas_corporais (
             cintura, abdomen, quadril, coxa_direita, coxa_esquerda,
             braco_direito, braco_esquerdo, panturrilha_direita, ombro, peito
@@ -451,6 +457,8 @@ export default function AvaliacoesAlunoPage() {
     peso: a.peso_kg,
     gordura: a.percentual_gordura,
     imc: a.imc,
+    massaMagra: a.massa_magra_kg,
+    massaGorda: a.massa_gorda_kg,
   }))
 
   const medidasGrafico = avaliacoes.slice().reverse().map(a => {
@@ -648,6 +656,54 @@ export default function AvaliacoesAlunoPage() {
               </div>
             )}
 
+            {/* Composição corporal */}
+            {(ultima.massa_magra_kg || ultima.massa_gorda_kg || ultima.metabolismo_basal) && (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Composição Corporal</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Massa Magra', value: ultima.massa_magra_kg ? `${ultima.massa_magra_kg}kg` : null, color: 'text-green-500', delta: diff(ultima.massa_magra_kg, penultima?.massa_magra_kg), invertDelta: true },
+                    { label: 'Massa Gorda', value: ultima.massa_gorda_kg ? `${ultima.massa_gorda_kg}kg` : null, color: 'text-red-400', delta: diff(ultima.massa_gorda_kg, penultima?.massa_gorda_kg), invertDelta: false },
+                    { label: 'TMB', value: ultima.metabolismo_basal ? `${ultima.metabolismo_basal}kcal` : null, color: 'text-blue-400', delta: diff(ultima.metabolismo_basal, penultima?.metabolismo_basal), invertDelta: true },
+                    { label: 'Água Corporal', value: ultima.agua_corporal ? `${ultima.agua_corporal}kg` : null, color: 'text-cyan-400', delta: diff(ultima.agua_corporal, penultima?.agua_corporal), invertDelta: true },
+                  ].filter(x => x.value).map(item => (
+                    <div key={item.label} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 text-center">
+                      <p className={`text-lg font-bold ${item.color}`}>{item.value}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{item.label}</p>
+                      {item.delta != null && item.delta !== 0 && (
+                        <p className={`text-xs font-medium mt-1 flex items-center justify-center gap-0.5 ${
+                          (item.invertDelta ? item.delta > 0 : item.delta < 0) ? 'text-green-500' : 'text-red-500'
+                        }`}>
+                          {item.delta > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                          {Math.abs(item.delta)}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Barra visual de composição */}
+                {ultima.massa_magra_kg && ultima.massa_gorda_kg && ultima.peso_kg && (
+                  <div className="space-y-1.5">
+                    <div className="flex rounded-full overflow-hidden h-4">
+                      <div className="bg-green-500 flex items-center justify-center"
+                        style={{ width: `${(ultima.massa_magra_kg / ultima.peso_kg) * 100}%` }}>
+                        <span className="text-[9px] font-bold text-white">{((ultima.massa_magra_kg / ultima.peso_kg) * 100).toFixed(0)}%</span>
+                      </div>
+                      <div className="bg-red-400 flex items-center justify-center"
+                        style={{ width: `${(ultima.massa_gorda_kg / ultima.peso_kg) * 100}%` }}>
+                        <span className="text-[9px] font-bold text-white">{((ultima.massa_gorda_kg / ultima.peso_kg) * 100).toFixed(0)}%</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-400">
+                      <span>Massa Magra</span>
+                      <span>Massa Gorda</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {ultima.observacoes && (
               <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-3">
                 <p className="text-xs font-semibold text-orange-700 dark:text-orange-400 mb-1">Observações do Professor</p>
@@ -706,6 +762,23 @@ export default function AvaliacoesAlunoPage() {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
+
+              {graficoData.some(d => d.massaMagra || d.massaGorda) && (
+                <div className="card-base p-5">
+                  <h3 className="section-title">Composição Corporal</h3>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={graficoData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="data" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${v}kg`} />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none' }} />
+                      <Legend />
+                      <Line type="monotone" dataKey="massaMagra" stroke="#22c55e" strokeWidth={2.5} dot={{ r: 4 }} name="Massa Magra (kg)" />
+                      <Line type="monotone" dataKey="massaGorda" stroke="#f87171" strokeWidth={2.5} dot={{ r: 4 }} name="Massa Gorda (kg)" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
 
               {medidasGrafico.some(m => m.cintura || m.braco || m.coxa) && (
                 <div className="card-base p-5">
@@ -776,6 +849,10 @@ export default function AvaliacoesAlunoPage() {
                         { label: 'Altura',    value: av.altura_cm ? `${av.altura_cm}cm` : null },
                         { label: 'IMC',       value: av.imc ? String(av.imc) : null },
                         { label: '% Gordura', value: av.percentual_gordura ? `${av.percentual_gordura}%` : null },
+                        { label: 'M. Magra',  value: av.massa_magra_kg ? `${av.massa_magra_kg}kg` : null },
+                        { label: 'M. Gorda',  value: av.massa_gorda_kg ? `${av.massa_gorda_kg}kg` : null },
+                        { label: 'TMB',       value: av.metabolismo_basal ? `${av.metabolismo_basal}kcal` : null },
+                        { label: 'Água',      value: av.agua_corporal ? `${av.agua_corporal}kg` : null },
                       ].filter(x => x.value).map(({ label, value }) => (
                         <div key={label} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-2.5 text-center">
                           <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{value}</p>

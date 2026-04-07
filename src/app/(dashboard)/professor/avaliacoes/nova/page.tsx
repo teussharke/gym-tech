@@ -53,8 +53,30 @@ export default function NovaAvaliacaoPage() {
 
   const up = (f: string, v: string) => setForm(p => ({ ...p, [f]: v }))
 
-  const imc = form.peso && form.altura && Number(form.altura) > 0
-    ? (Number(form.peso) / Math.pow(Number(form.altura) / 100, 2)).toFixed(1)
+  const peso = Number(form.peso) || 0
+  const altura = Number(form.altura) || 0
+  const gordura = Number(form.percentual_gordura) || 0
+
+  const imc = peso > 0 && altura > 0
+    ? (peso / Math.pow(altura / 100, 2)).toFixed(1)
+    : null
+
+  const massaGorda = peso > 0 && gordura > 0
+    ? (peso * gordura / 100).toFixed(1)
+    : null
+
+  const massaMagra = peso > 0 && gordura > 0
+    ? (peso - peso * gordura / 100).toFixed(1)
+    : null
+
+  // Katch-McArdle: TMB = 370 + (21.6 × massa magra em kg)
+  const metabolismoBasal = massaMagra
+    ? Math.round(370 + 21.6 * Number(massaMagra))
+    : null
+
+  // Água corporal estimada (~73% da massa magra)
+  const aguaCorporal = massaMagra
+    ? (Number(massaMagra) * 0.73).toFixed(1)
     : null
 
   // Pré-seleciona aluno vindo da URL (?aluno=uuid)
@@ -86,13 +108,52 @@ export default function NovaAvaliacaoPage() {
 
   useEffect(() => { fetchAlunos() }, [fetchAlunos])
 
+  // Comprime imagem no frontend antes do upload (max 1200px, JPEG 70%)
+  const compressImage = (file: File, maxWidth = 1200, quality = 0.7): Promise<File> => {
+    return new Promise((resolve) => {
+      // Se já é pequena (<300KB), não comprimir
+      if (file.size < 300_000) { resolve(file); return }
+
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        const scale = img.width > maxWidth ? maxWidth / img.width : 1
+        const w = Math.round(img.width * scale)
+        const h = Math.round(img.height * scale)
+
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, w, h)
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressed = new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' })
+              resolve(compressed)
+            } else {
+              resolve(file)
+            }
+          },
+          'image/jpeg',
+          quality
+        )
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+      img.src = url
+    })
+  }
+
   // Adiciona foto ao preview local (substitui se mesmo tipo)
-  const handleFotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    const compressed = await compressImage(file)
     setFotos(prev => {
       const semEsseTipo = prev.filter(f => f.tipo !== fotoTipo)
-      return [...semEsseTipo, { file, url: URL.createObjectURL(file), tipo: fotoTipo }]
+      return [...semEsseTipo, { file: compressed, url: URL.createObjectURL(compressed), tipo: fotoTipo }]
     })
     e.target.value = ''
   }
@@ -126,6 +187,10 @@ export default function NovaAvaliacaoPage() {
           altura_cm: form.altura ? Number(form.altura) : null,
           imc: imc ? Number(imc) : null,
           percentual_gordura: form.percentual_gordura ? Number(form.percentual_gordura) : null,
+          massa_magra_kg: massaMagra ? Number(massaMagra) : null,
+          massa_gorda_kg: massaGorda ? Number(massaGorda) : null,
+          metabolismo_basal: metabolismoBasal ?? null,
+          agua_corporal: aguaCorporal ? Number(aguaCorporal) : null,
           observacoes: form.observacoes || null,
         })
         .select().single()
@@ -251,10 +316,47 @@ export default function NovaAvaliacaoPage() {
             <input type="number" step="0.1" value={form.percentual_gordura} onChange={e => up('percentual_gordura', e.target.value)} className="input-base" placeholder="22.1" />
           </div>
         </div>
-        {imc && (
-          <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-3 flex items-center justify-between">
-            <span className="text-sm font-medium text-orange-700 dark:text-orange-400">IMC calculado</span>
-            <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">{imc}</span>
+        {/* Cálculos automáticos */}
+        {(imc || massaGorda) && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Cálculos automáticos</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {imc && (
+                <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-chip)' }}>
+                  <p className="text-xl font-bold" style={{ color: 'var(--neon)' }}>{imc}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>IMC</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-3)' }}>
+                    {Number(imc) < 18.5 ? 'Abaixo' : Number(imc) < 25 ? 'Normal' : Number(imc) < 30 ? 'Sobrepeso' : 'Obesidade'}
+                  </p>
+                </div>
+              )}
+              {massaMagra && (
+                <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-chip)' }}>
+                  <p className="text-xl font-bold text-green-500">{massaMagra}<span className="text-sm">kg</span></p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>Massa Magra</p>
+                </div>
+              )}
+              {massaGorda && (
+                <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-chip)' }}>
+                  <p className="text-xl font-bold text-red-400">{massaGorda}<span className="text-sm">kg</span></p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>Massa Gorda</p>
+                </div>
+              )}
+              {metabolismoBasal && (
+                <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-chip)' }}>
+                  <p className="text-xl font-bold text-blue-400">{metabolismoBasal}<span className="text-sm">kcal</span></p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>TMB</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-3)' }}>Katch-McArdle</p>
+                </div>
+              )}
+              {aguaCorporal && (
+                <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-chip)' }}>
+                  <p className="text-xl font-bold text-cyan-400">{aguaCorporal}<span className="text-sm">kg</span></p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>Água Corporal</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-3)' }}>~73% massa magra</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

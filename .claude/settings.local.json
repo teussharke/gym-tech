@@ -14,7 +14,9 @@
       "Bash(cmd:*)",
       "Bash(xargs grep:*)",
       "Bash(node scripts/fix-exercise-names.js)",
-      "Bash(node scripts/fix-exercise-names-2.js)"
+      "Bash(node scripts/fix-exercise-names-2.js)",
+      "Bash(ls:*)",
+      "Bash(xargs wc:*)"
     ]
   }
 }

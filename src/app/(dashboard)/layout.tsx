@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Users, GraduationCap, Dumbbell, ClipboardList,
   BarChart3, CreditCard, CheckSquare, Settings, LogOut,
   ChevronRight, Activity, UserCircle, TrendingUp, Calendar,
-  Trophy, Bell, Menu, X, CalendarDays, Smile, BarChart2, ClipboardCheck, Leaf, ShieldCheck,
+  Trophy, Bell, Menu, X, CalendarDays, Smile, BarChart2, ClipboardCheck, Leaf, ShieldCheck, Megaphone,
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -38,6 +38,7 @@ const navItems: NavItem[] = [
   { href: '/aluno/anamnese',        label: 'Anamnese',    icon: ClipboardCheck,  roles: ['aluno'] },
   { href: '/aluno/checkin',         label: 'Check-in',    icon: CheckSquare,     roles: ['aluno'] },
   { href: '/aluno/frequencia',      label: 'Frequência',  icon: Trophy,          roles: ['aluno'] },
+  { href: '/novidades',             label: 'Novidades',   icon: Megaphone,       roles: ['admin','professor','aluno'] },
 ]
 
 const mobileNavByRole: Record<string, NavItem[]> = {
