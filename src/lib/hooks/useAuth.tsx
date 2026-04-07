@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import type { Usuario, UserRole } from '@/lib/types'
@@ -18,65 +18,150 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const CACHE_KEY = 'i9_usuario_v1'
+
+function readCache(): Usuario | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as Usuario
+  } catch { return null }
+}
+
+function writeCache(u: Usuario) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(u)) } catch {}
+}
+
+function clearCache() {
+  try { localStorage.removeItem(CACHE_KEY) } catch {}
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [usuario, setUsuario] = useState<Usuario | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const mountedRef = useRef(true)
 
-  const fetchUsuario = useCallback(async (userId: string) => {
-    const MAX_RETRIES = 5
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      try {
-        const controller = new AbortController()
-        // Timeout curto por tentativa para que retries caibam dentro do safety timeout
-        const abortMs = attempt === 0 ? 5000 : 4000
-        const timer = setTimeout(() => controller.abort(), abortMs)
+  // ── Busca usuario da tabela — simples, sem AbortController ──────────────
+  const fetchUsuario = useCallback(async (userId: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('*')
+        .eq('id', userId)
+        .single()
 
-        const { data, error } = await supabase
-          .from('usuarios')
-          .select('*')
-          .eq('id', userId)
-          .abortSignal(controller.signal)
-          .single()
-
-        clearTimeout(timer)
-
-        if (error) {
-          // PGRST116 = row not found — não adianta tentar de novo
-          if (error.code === 'PGRST116') {
-            console.error('[useAuth] Usuário não encontrado na tabela usuarios para id:', userId)
-            setUsuario(null)
-            return
-          }
-          throw error
+      if (error) {
+        if (error.code === 'PGRST116') {
+          console.error('[useAuth] Usuário não encontrado na tabela usuarios:', userId)
+          setUsuario(null)
+          clearCache()
+          return false
         }
-        if (data) {
-          setUsuario(data)
-          return
-        }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        const isAbort = msg.includes('AbortError') || msg.includes('abort') || (err as { name?: string })?.name === 'AbortError'
-        console.warn(`[useAuth] fetchUsuario tentativa ${attempt + 1}/${MAX_RETRIES}${isAbort ? ' (timeout)' : ''}:`, msg)
-        if (attempt < MAX_RETRIES - 1) {
-          await new Promise(r => setTimeout(r, 500))
-        }
+        throw error
       }
+
+      if (data && mountedRef.current) {
+        setUsuario(data)
+        writeCache(data)
+        return true
+      }
+    } catch (err) {
+      console.warn('[useAuth] fetchUsuario erro:', err instanceof Error ? err.message : err)
+      // NÃO limpa usuario se já temos cache — a app continua funcionando
     }
-    console.error('[useAuth] fetchUsuario falhou após todas as tentativas — userId:', userId)
-    setUsuario(null)
+    return false
   }, [])
 
   const refreshUser = useCallback(async () => {
     if (user?.id) await fetchUsuario(user.id)
   }, [user?.id, fetchUsuario])
 
-  // ── Detecta volta do background (tela desbloqueada / app reaberto) ──────
+  // ── Inicialização: cache → auth state → DB ──────────────────────────────
+  useEffect(() => {
+    mountedRef.current = true
+
+    // 1) Tenta carregar do cache INSTANTANEAMENTE
+    const cached = readCache()
+    if (cached) {
+      setUsuario(cached)
+      // Não seta isLoading=false aqui porque precisamos confirmar a sessão auth
+    }
+
+    // 2) Safety timeout — apenas para caso onAuthStateChange nunca dispare
+    const safetyTimeout = setTimeout(() => {
+      if (mountedRef.current) {
+        // Se temos cache, pode liberar a tela mesmo sem confirmação do DB
+        if (readCache()) {
+          setIsLoading(false)
+        } else {
+          // Sem cache e sem resposta — libera pra layout decidir (redirect)
+          setIsLoading(false)
+        }
+      }
+    }, 5000)
+
+    // 3) onAuthStateChange — fonte de verdade para sessão
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, sess) => {
+        if (!mountedRef.current) return
+
+        setSession(sess)
+        setUser(sess?.user ?? null)
+
+        if (sess?.user) {
+          // Se já temos cache do mesmo user, libera a tela imediatamente
+          const cachedNow = readCache()
+          if (cachedNow && cachedNow.id === sess.user.id) {
+            setUsuario(cachedNow)
+            setIsLoading(false)
+            clearTimeout(safetyTimeout)
+            // Refresh em background — atualiza dados sem bloquear
+            fetchUsuario(sess.user.id)
+          } else {
+            // Sem cache válido — precisa esperar o fetch
+            const ok = await fetchUsuario(sess.user.id)
+            if (!ok && mountedRef.current) {
+              // Fetch falhou e sem cache — tenta mais uma vez após 1s
+              await new Promise(r => setTimeout(r, 1000))
+              await fetchUsuario(sess.user.id)
+            }
+            if (mountedRef.current) {
+              clearTimeout(safetyTimeout)
+              setIsLoading(false)
+            }
+          }
+
+          // Atualiza último login em background
+          if (event === 'SIGNED_IN') {
+            void supabase
+              .from('usuarios')
+              .update({ ultimo_login: new Date().toISOString() })
+              .eq('id', sess.user.id)
+          }
+        } else {
+          // Sem sessão — limpa tudo
+          setUsuario(null)
+          clearCache()
+          if (mountedRef.current) {
+            clearTimeout(safetyTimeout)
+            setIsLoading(false)
+          }
+        }
+      }
+    )
+
+    return () => {
+      mountedRef.current = false
+      clearTimeout(safetyTimeout)
+      subscription.unsubscribe()
+    }
+  }, [fetchUsuario])
+
+  // ── Detecta volta do background ─────────────────────────────────────────
   useEffect(() => {
     let hiddenAt = 0
-    const RELOAD_THRESHOLD = 3 * 60_000   // > 3 min → recarrega a página
-    const REFRESH_THRESHOLD = 15_000       // > 15s  → renova a sessão
 
     const handleVisibility = async () => {
       if (document.visibilityState === 'hidden') {
@@ -88,76 +173,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const awayMs = Date.now() - hiddenAt
       hiddenAt = 0
 
-      if (awayMs > RELOAD_THRESHOLD) {
-        // Ficou muito tempo em background — reload garante sessão/conexão frescos
-        window.location.reload()
-        return
-      }
-
-      if (awayMs > REFRESH_THRESHOLD) {
-        // Ficou alguns segundos — renova token silenciosamente
-        try {
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session?.user) await fetchUsuario(session.user.id)
-        } catch { /* ignora falha silenciosa */ }
+      // Sempre tenta refrescar a sessão quando volta do background
+      try {
+        const { data: { session: freshSession } } = await supabase.auth.getSession()
+        if (freshSession?.user) {
+          // Refresh silencioso — se falhar, cache segura a interface
+          fetchUsuario(freshSession.user.id)
+        } else if (awayMs > 3 * 60_000) {
+          // Sem sessão e ficou muito tempo fora — reload
+          window.location.reload()
+        }
+      } catch {
+        // Offline ou erro — não faz nada, cache segura
       }
     }
 
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [fetchUsuario])
-
-  useEffect(() => {
-    let mounted = true
-
-    // Timeout de segurança: deve ser > tempo máximo de fetchUsuario
-    // 5 tentativas × 5s + 4 × 500ms gap = ~27s → usamos 30s
-    const safetyTimeout = setTimeout(() => {
-      if (mounted) setIsLoading(false)
-    }, 30000)
-
-    // onAuthStateChange dispara INITIAL_SESSION imediatamente com a sessão
-    // atual do storage — mais confiável que getSession() isolado
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return
-        console.log('[useAuth] onAuthStateChange:', event, !!session)
-
-        try {
-          setSession(session)
-          setUser(session?.user ?? null)
-
-          if (session?.user) {
-            await fetchUsuario(session.user.id)
-
-            // Atualiza último login em background — ignora falha
-            if (event === 'SIGNED_IN') {
-              void supabase
-                .from('usuarios')
-                .update({ ultimo_login: new Date().toISOString() })
-                .eq('id', session.user.id)
-            }
-          } else {
-            setUsuario(null)
-          }
-        } catch (err) {
-          console.error('[useAuth] Erro no onAuthStateChange:', err)
-          // NÃO limpa o usuário se já existia — evita loop de redirect
-          if (mounted && !usuario) setUsuario(null)
-        } finally {
-          if (mounted) {
-            clearTimeout(safetyTimeout)
-            setIsLoading(false)
-          }
-        }
-      }
-    )
-
-    return () => {
-      mounted = false
-      clearTimeout(safetyTimeout)
-      subscription.unsubscribe()
-    }
   }, [fetchUsuario])
 
   const signIn = async (email: string, password: string) => {
@@ -170,10 +202,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    clearCache()
     setUser(null)
     setSession(null)
     setUsuario(null)
+    await supabase.auth.signOut()
   }
 
   return (
