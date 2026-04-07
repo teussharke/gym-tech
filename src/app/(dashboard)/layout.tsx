@@ -143,7 +143,7 @@ const SidebarContent = memo(function SidebarContent({
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter()
   const pathname = usePathname()
-  const { usuario, user, role, signOut, isLoading } = useAuth()
+  const { usuario, user, role, signOut, isLoading, refreshUser } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
 
@@ -180,13 +180,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     if (!usuario) {
       if (user) {
-        // Sessão auth existe mas perfil DB ainda não carregou (ou falhou).
-        // Aguarda mais 6s — se ainda não chegou, desconecta e vai ao login.
-        const t = setTimeout(async () => {
+        // Sessão auth existe mas perfil DB não chegou ainda.
+        // Tenta buscar de novo após 2s. Se após 15s ainda não veio, desconecta.
+        const retryTimer = setTimeout(() => { refreshUser() }, 2000)
+        const bailTimer  = setTimeout(async () => {
           await supabase.auth.signOut()
           router.replace('/login')
-        }, 6000)
-        return () => clearTimeout(t)
+        }, 15000)
+        return () => { clearTimeout(retryTimer); clearTimeout(bailTimer) }
       }
       // Sem sessão alguma → redireciona para login após breve delay
       const t = setTimeout(() => router.replace('/login'), 500)
@@ -196,7 +197,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (usuario.configuracoes && (usuario.configuracoes as any).primeiro_acesso) {
       router.replace('/primeiro-acesso')
     }
-  }, [usuario, user, isLoading, router])
+  }, [usuario, user, isLoading, router, refreshUser])
 
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-base)' }}>

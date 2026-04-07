@@ -25,11 +25,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   const fetchUsuario = useCallback(async (userId: string) => {
-    const MAX_RETRIES = 3
+    const MAX_RETRIES = 5
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), 8000)
+        // Timeout curto por tentativa para que retries caibam dentro do safety timeout
+        const abortMs = attempt === 0 ? 5000 : 4000
+        const timer = setTimeout(() => controller.abort(), abortMs)
 
         const { data, error } = await supabase
           .from('usuarios')
@@ -58,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const isAbort = msg.includes('AbortError') || msg.includes('abort') || (err as { name?: string })?.name === 'AbortError'
         console.warn(`[useAuth] fetchUsuario tentativa ${attempt + 1}/${MAX_RETRIES}${isAbort ? ' (timeout)' : ''}:`, msg)
         if (attempt < MAX_RETRIES - 1) {
-          await new Promise(r => setTimeout(r, 800))
+          await new Promise(r => setTimeout(r, 500))
         }
       }
     }
@@ -108,10 +110,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true
 
-    // Timeout de segurança: garante que isLoading sempre vira false
+    // Timeout de segurança: deve ser > tempo máximo de fetchUsuario
+    // 5 tentativas × 5s + 4 × 500ms gap = ~27s → usamos 30s
     const safetyTimeout = setTimeout(() => {
       if (mounted) setIsLoading(false)
-    }, 6000)
+    }, 30000)
 
     // onAuthStateChange dispara INITIAL_SESSION imediatamente com a sessão
     // atual do storage — mais confiável que getSession() isolado
