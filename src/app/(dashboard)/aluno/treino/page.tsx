@@ -785,14 +785,43 @@ export default function TreinoAlunoPage() {
   const seriesFeitas = state.series.filter(s => s.done).length
 
   // ── Prepara dados do GIF fora do JSX ──────────────────────────
-  const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
+  const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, '').trim()
   const nName = normalize(nome)
-  const words = nName.split(' ').filter(w => w.length > 3)
-  const mockEx = mockExercicios.find(m => normalize(m.nome) === nName)
-    || mockExercicios.find(m => normalize(m.nome).includes(nName) || nName.includes(normalize(m.nome)))
-    || (words.length > 0 && mockExercicios.find(m => words.every(w => normalize(m.nome).includes(w))))
-    || (words.length > 0 && mockExercicios.find(m => words.some(w => w.length > 5 && normalize(m.nome).includes(w))))
-    || null
+
+  // Matching por score para evitar GIFs de exercícios errados
+  const mockEx = (() => {
+    // 1. Match exato
+    const exact = mockExercicios.find(m => normalize(m.nome) === nName)
+    if (exact) return exact
+
+    // 2. Um contém o outro inteiramente
+    const contains = mockExercicios.find(m => {
+      const mNorm = normalize(m.nome)
+      return mNorm.includes(nName) || nName.includes(mNorm)
+    })
+    if (contains) return contains
+
+    // 3. Score baseado em palavras significativas em comum
+    // Só aceita se > 50% das palavras do nome do exercício fazem match
+    const words = nName.split(' ').filter(w => w.length > 2)
+    if (words.length === 0) return null
+
+    let bestMatch: typeof mockExercicios[0] | null = null
+    let bestScore = 0
+
+    for (const m of mockExercicios) {
+      const mNorm = normalize(m.nome)
+      const mWords = mNorm.split(' ').filter(w => w.length > 2)
+      // Conta quantas palavras do nome buscado existem no mock
+      const matchedWords = words.filter(w => mWords.some(mw => mw === w || (w.length > 5 && mw.includes(w)) || (mw.length > 5 && w.includes(mw))))
+      const score = matchedWords.length / Math.max(words.length, mWords.length)
+      if (score > bestScore && score >= 0.5) {
+        bestScore = score
+        bestMatch = m
+      }
+    }
+    return bestMatch
+  })()
   const gifUrl = ex.exercicio?.gif_url || mockEx?.gif_url || null
   const imgErr = imgErrs[ex.id] ?? false
   const hasGif = !!gifUrl && !imgErr
