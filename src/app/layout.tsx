@@ -2,10 +2,10 @@
 import type { Metadata, Viewport } from 'next'
 import { Barlow, Barlow_Condensed } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
-import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from '@/lib/hooks/useAuth'
 import PWARegister from '@/components/PWARegister'
 import CookieBanner from '@/components/CookieBanner'
+import ToasterProvider from '@/components/ToasterProvider'
 import '@/styles/globals.css'
 
 const barlow = Barlow({
@@ -55,7 +55,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className="dark" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -65,25 +65,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icons/icon-152x152.png" />
         <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
       </head>
-      <body className={`${barlow.variable} ${barlowCondensed.variable} ${barlow.className}`} style={{ background: '#09090E' }}>
-        <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
+      <body className={`${barlow.variable} ${barlowCondensed.variable} ${barlow.className}`}>
+        <ThemeProvider attribute="class" defaultTheme="dark" themes={['light', 'dark']}>
           <AuthProvider>
             {children}
-            <Toaster
-              position="top-center"
-              toastOptions={{
-                duration: 3000,
-                style: {
-                  background: '#14141C',
-                  color: '#F0F0F8',
-                  borderRadius: '14px',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                },
-                success: { iconTheme: { primary: '#FF6B00', secondary: '#000' } },
-                error:   { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
-              }}
-            />
+            <ToasterProvider />
             <PWARegister />
             <CookieBanner />
           </AuthProvider>

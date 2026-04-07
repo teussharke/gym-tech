@@ -272,17 +272,67 @@ export default function PerfilPage() {
       {/* APARÊNCIA */}
       {activeTab === 'aparencia' && (
         <div className="card-base p-5 space-y-4">
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Tema</h3>
+          <h3 className="font-semibold" style={{ color: 'var(--text-1)' }}>Tema do aplicativo</h3>
           <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => setTheme('light')} className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === 'light' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-600'}`}>
-              <Sun className="w-5 h-5 text-amber-500" />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Claro</span>
+            {/* Claro */}
+            <button
+              onClick={() => setTheme('light')}
+              className="relative flex flex-col items-center gap-2.5 p-4 rounded-2xl border-2 transition-all overflow-hidden"
+              style={{
+                borderColor: theme === 'light' ? 'var(--neon)' : 'var(--border-c)',
+                background: theme === 'light' ? 'var(--bg-chip-active)' : 'var(--bg-chip)',
+                boxShadow: theme === 'light' ? '0 0 16px var(--neon-glow)' : 'none',
+              }}
+            >
+              {/* Preview miniatura */}
+              <div className="w-full h-12 rounded-xl overflow-hidden flex" style={{ background: '#F2F2F7', border: '1px solid rgba(0,0,0,0.07)' }}>
+                <div className="w-8 h-full" style={{ background: '#FFFFFF', borderRight: '1px solid rgba(0,0,0,0.06)' }} />
+                <div className="flex-1 p-1.5 space-y-1">
+                  <div className="h-1.5 rounded-full w-3/4" style={{ background: '#0A0A14', opacity: 0.15 }} />
+                  <div className="h-1.5 rounded-full w-1/2" style={{ background: '#0A0A14', opacity: 0.08 }} />
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Sun className="w-4 h-4 text-amber-500" />
+                <span className="text-sm font-semibold" style={{ color: theme === 'light' ? 'var(--neon)' : 'var(--text-2)' }}>Claro</span>
+              </div>
+              {theme === 'light' && (
+                <div className="absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: 'var(--neon)' }}>
+                  <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                </div>
+              )}
             </button>
-            <button onClick={() => setTheme('dark')} className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === 'dark' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-600'}`}>
-              <Moon className="w-5 h-5 text-blue-500" />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Escuro</span>
+
+            {/* Escuro */}
+            <button
+              onClick={() => setTheme('dark')}
+              className="relative flex flex-col items-center gap-2.5 p-4 rounded-2xl border-2 transition-all overflow-hidden"
+              style={{
+                borderColor: theme === 'dark' ? 'var(--neon)' : 'var(--border-c)',
+                background: theme === 'dark' ? 'var(--bg-chip-active)' : 'var(--bg-chip)',
+                boxShadow: theme === 'dark' ? '0 0 16px var(--neon-glow)' : 'none',
+              }}
+            >
+              {/* Preview miniatura */}
+              <div className="w-full h-12 rounded-xl overflow-hidden flex" style={{ background: '#09090E', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="w-8 h-full" style={{ background: '#111118', borderRight: '1px solid rgba(255,255,255,0.06)' }} />
+                <div className="flex-1 p-1.5 space-y-1">
+                  <div className="h-1.5 rounded-full w-3/4" style={{ background: '#FF6B00', opacity: 0.8 }} />
+                  <div className="h-1.5 rounded-full w-1/2" style={{ background: '#F0F0F8', opacity: 0.15 }} />
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Moon className="w-4 h-4 text-blue-400" />
+                <span className="text-sm font-semibold" style={{ color: theme === 'dark' ? 'var(--neon)' : 'var(--text-2)' }}>Escuro</span>
+              </div>
+              {theme === 'dark' && (
+                <div className="absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: 'var(--neon)' }}>
+                  <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                </div>
+              )}
             </button>
           </div>
+          <p className="text-xs" style={{ color: 'var(--text-3)' }}>A preferência é salva automaticamente no seu dispositivo.</p>
 
           <h3 className="font-semibold text-gray-900 dark:text-gray-100 pt-2">Notificações</h3>
           <div className="space-y-0 divide-y divide-gray-100 dark:divide-gray-700">

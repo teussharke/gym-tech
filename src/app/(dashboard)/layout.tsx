@@ -337,11 +337,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* ── Bottom Nav Mobile ── */}
         <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 safe-bottom"
           style={{
-            background: 'rgba(9, 9, 14, 0.92)',
+            background: 'color-mix(in srgb, var(--bg-surface) 92%, transparent)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
             borderTop: '1px solid var(--border)',
-            boxShadow: '0 -20px 40px rgba(0,0,0,0.5)',
+            boxShadow: '0 -8px 32px rgba(0,0,0,0.15)',
           }}>
           <div className="flex items-stretch justify-around px-2 py-1">
             {mobileNav.map(item => {
