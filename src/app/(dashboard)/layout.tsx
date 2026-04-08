@@ -39,6 +39,7 @@ const navItems: NavItem[] = [
   { href: '/aluno/anamnese',        label: 'Anamnese',    icon: ClipboardCheck,  roles: ['aluno'] },
   { href: '/aluno/checkin',         label: 'Check-in',    icon: CheckSquare,     roles: ['aluno'] },
   { href: '/aluno/frequencia',      label: 'Frequência',  icon: Trophy,          roles: ['aluno'] },
+  { href: '/aluno/pagamentos',      label: 'Pagamentos',  icon: CreditCard,      roles: ['aluno'] },
   { href: '/novidades',             label: 'Novidades',   icon: Megaphone,       roles: ['admin','professor','aluno'] },
 ]
 

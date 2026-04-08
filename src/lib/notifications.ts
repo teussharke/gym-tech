@@ -85,7 +85,7 @@ export async function gerarNotificacoesVencimento(
         titulo,
         mensagem,
         tipo,
-        link: '/aluno/perfil',
+        link: '/aluno/pagamentos',
       })
       if (error) erros++
       else { criadas++; notifSet.add(keyAluno) }

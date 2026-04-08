@@ -1,11 +1,17 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, Plus, Search, Download } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import {
+  DollarSign, TrendingUp, AlertCircle, CheckCircle2,
+  Plus, Search, X, Loader2, AlertTriangle, Clock,
+  ChevronRight,
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
-import { format } from 'date-fns'
+import { format, differenceInDays, parseISO } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import toast from 'react-hot-toast'
+import clsx from 'clsx'
 
 interface Pagamento {
   id: string
@@ -16,7 +22,7 @@ interface Pagamento {
   data_vencimento: string
   data_pagamento: string | null
   observacoes: string | null
-  aluno: { matricula: string; usuario: { nome: string } } | null
+  aluno: { id: string; matricula: string; usuario: { nome: string } } | null
   plano: { nome: string } | null
 }
 
@@ -29,13 +35,6 @@ interface NovoPagamentoForm {
   observacoes: string
 }
 
-const statusConfig: Record<string, { label: string; class: string }> = {
-  pago:      { label: 'Pago',      class: 'badge-success' },
-  pendente:  { label: 'Pendente',  class: 'badge-warning' },
-  vencido:   { label: 'Vencido',   class: 'badge-danger'  },
-  cancelado: { label: 'Cancelado', class: 'badge-gray'    },
-}
-
 const formaLabel: Record<string, string> = {
   pix:            'PIX',
   cartao_credito: 'Cartão Crédito',
@@ -45,26 +44,48 @@ const formaLabel: Record<string, string> = {
   transferencia:  'Transferência',
 }
 
+type TabKey = 'todos' | 'vencidos' | 'a_vencer' | 'pagos'
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'todos',    label: 'Todos'     },
+  { key: 'vencidos', label: 'Vencidos'  },
+  { key: 'a_vencer', label: 'A vencer'  },
+  { key: 'pagos',    label: 'Pagos'     },
+]
+
+function diasParaVencer(dataVencimento: string): number {
+  return differenceInDays(parseISO(dataVencimento), new Date())
+}
+
+function isAVencer(p: Pagamento): boolean {
+  if (p.status === 'pago' || p.status === 'cancelado') return false
+  const dias = diasParaVencer(p.data_vencimento)
+  return dias >= 0 && dias <= 7
+}
+
+function isVencido(p: Pagamento): boolean {
+  if (p.status === 'pago' || p.status === 'cancelado') return false
+  return p.status === 'vencido' || diasParaVencer(p.data_vencimento) < 0
+}
+
 export default function FinanceiroPage() {
   const { usuario } = useAuth()
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [statusFiltro, setStatusFiltro] = useState('todos')
+  const [tab, setTab] = useState<TabKey>('todos')
   const [showForm, setShowForm] = useState(false)
   const [alunos, setAlunos] = useState<{ id: string; usuario: { nome: string } }[]>([])
   const [planos, setPlanos] = useState<{ id: string; nome: string; valor: number }[]>([])
   const [saving, setSaving] = useState(false)
+  const [confirmandoPagamento, setConfirmandoPagamento] = useState<string | null>(null)
   const [form, setForm] = useState<NovoPagamentoForm>({
     aluno_id: '', plano_id: '', valor: '', forma_pagamento: 'pix',
     data_vencimento: new Date().toISOString().split('T')[0], observacoes: '',
   })
 
   const fetchPagamentos = useCallback(async () => {
-    if (!usuario?.academia_id) {
-      setLoading(false)
-      return
-    }
+    if (!usuario?.academia_id) { setLoading(false); return }
     setLoading(true)
     try {
       const { data, error } = await supabase
@@ -72,12 +93,12 @@ export default function FinanceiroPage() {
         .select(`
           id, valor, valor_desconto, forma_pagamento, status,
           data_vencimento, data_pagamento, observacoes,
-          aluno:alunos (matricula, usuario:usuarios!alunos_usuario_id_fkey (nome)),
+          aluno:alunos (id, matricula, usuario:usuarios!alunos_usuario_id_fkey (nome)),
           plano:planos (nome)
         `)
         .eq('academia_id', usuario.academia_id)
-        .order('data_vencimento', { ascending: false })
-        .limit(100)
+        .order('data_vencimento', { ascending: true })
+        .limit(200)
 
       if (error) throw error
       setPagamentos((data as unknown as Pagamento[]) ?? [])
@@ -89,9 +110,7 @@ export default function FinanceiroPage() {
   }, [usuario?.academia_id])
 
   const fetchAlunosPlanos = useCallback(async () => {
-    if (!usuario?.academia_id) {
-      return
-    }
+    if (!usuario?.academia_id) return
     const [{ data: a }, { data: p }] = await Promise.all([
       supabase.from('alunos').select('id, usuario:usuarios!alunos_usuario_id_fkey (nome)').eq('academia_id', usuario.academia_id),
       supabase.from('planos').select('id, nome, valor').eq('academia_id', usuario.academia_id).eq('ativo', true),
@@ -103,10 +122,12 @@ export default function FinanceiroPage() {
   useEffect(() => { fetchPagamentos(); fetchAlunosPlanos() }, [fetchPagamentos, fetchAlunosPlanos])
 
   const registrarPagamento = async (id: string) => {
+    setConfirmandoPagamento(id)
     const { error } = await supabase
       .from('pagamentos')
       .update({ status: 'pago', data_pagamento: new Date().toISOString().split('T')[0] })
       .eq('id', id)
+    setConfirmandoPagamento(null)
     if (error) { toast.error('Erro ao registrar pagamento'); return }
     toast.success('Pagamento registrado!')
     fetchPagamentos()
@@ -132,6 +153,7 @@ export default function FinanceiroPage() {
       if (error) throw error
       toast.success('Pagamento criado!')
       setShowForm(false)
+      setForm({ aluno_id: '', plano_id: '', valor: '', forma_pagamento: 'pix', data_vencimento: new Date().toISOString().split('T')[0], observacoes: '' })
       fetchPagamentos()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erro ao salvar')
@@ -140,138 +162,317 @@ export default function FinanceiroPage() {
     }
   }
 
-  const filtered = pagamentos.filter(p => {
-    const nome = (p.aluno as unknown as { usuario: { nome: string } })?.usuario?.nome ?? ''
-    const matchSearch = nome.toLowerCase().includes(search.toLowerCase())
-    const matchStatus = statusFiltro === 'todos' || p.status === statusFiltro
-    return matchSearch && matchStatus
-  })
+  // ── Computed ──────────────────────────────────────────────────────
+  const stats = useMemo(() => {
+    const vencidos  = pagamentos.filter(isVencido)
+    const aVencer   = pagamentos.filter(isAVencer)
+    const pagos     = pagamentos.filter(p => p.status === 'pago')
+    const recebido  = pagos.reduce((s, p) => s + (p.valor - (p.valor_desconto || 0)), 0)
+    const emAberto  = [...vencidos, ...aVencer].reduce((s, p) => s + p.valor, 0)
+    return { vencidos, aVencer, pagos, recebido, emAberto }
+  }, [pagamentos])
 
-  const totalMes    = pagamentos.filter(p => p.status === 'pago').reduce((s, p) => s + (p.valor - (p.valor_desconto || 0)), 0)
-  const totalPendente = pagamentos.filter(p => p.status === 'pendente').reduce((s, p) => s + p.valor, 0)
-  const totalVencido  = pagamentos.filter(p => p.status === 'vencido').reduce((s, p) => s + p.valor, 0)
+  const filtered = useMemo(() => {
+    let list = pagamentos
+    if (tab === 'vencidos') list = pagamentos.filter(isVencido)
+    if (tab === 'a_vencer') list = pagamentos.filter(isAVencer)
+    if (tab === 'pagos')    list = pagamentos.filter(p => p.status === 'pago')
+
+    if (search) {
+      const q = search.toLowerCase()
+      list = list.filter(p => {
+        const nome = (p.aluno as unknown as { usuario: { nome: string } })?.usuario?.nome ?? ''
+        return nome.toLowerCase().includes(q)
+      })
+    }
+    return list
+  }, [pagamentos, tab, search])
+
+  const tabCounts: Record<TabKey, number> = {
+    todos:    pagamentos.length,
+    vencidos: stats.vencidos.length,
+    a_vencer: stats.aVencer.length,
+    pagos:    stats.pagos.length,
+  }
+
+  function getRowStyle(p: Pagamento) {
+    if (isVencido(p))  return { borderLeft: '3px solid #ef4444' }
+    if (isAVencer(p))  return { borderLeft: '3px solid #f59e0b' }
+    if (p.status === 'pago') return { borderLeft: '3px solid #22c55e' }
+    return {}
+  }
+
+  function getStatusBadge(p: Pagamento) {
+    if (isVencido(p)) {
+      const dias = Math.abs(diasParaVencer(p.data_vencimento))
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+          style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444' }}>
+          <AlertCircle className="w-3 h-3" />
+          {dias}d atraso
+        </span>
+      )
+    }
+    if (isAVencer(p)) {
+      const dias = diasParaVencer(p.data_vencimento)
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+          style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>
+          <Clock className="w-3 h-3" />
+          {dias === 0 ? 'Hoje' : `${dias}d`}
+        </span>
+      )
+    }
+    if (p.status === 'pago') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+          style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e' }}>
+          <CheckCircle2 className="w-3 h-3" />
+          Pago
+        </span>
+      )
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
+        style={{ background: 'var(--bg-chip)', color: 'var(--text-3)' }}>
+        Pendente
+      </span>
+    )
+  }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="page-header">
+    <div className="space-y-5 animate-fade-in">
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title">Financeiro</h1>
           <p className="page-subtitle">Gestão de mensalidades e pagamentos</p>
         </div>
         <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2 text-sm">
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Novo Pagamento</span>
+          <span className="hidden sm:inline">Novo Lançamento</span>
         </button>
       </div>
 
+      {/* Alertas críticos */}
+      {!loading && (stats.vencidos.length > 0 || stats.aVencer.length > 0) && (
+        <div className="grid sm:grid-cols-2 gap-3">
+          {stats.vencidos.length > 0 && (
+            <button
+              onClick={() => setTab('vencidos')}
+              className="flex items-center gap-4 p-4 rounded-2xl text-left transition-opacity hover:opacity-80 active:scale-[0.98]"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}
+            >
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(239,68,68,0.15)' }}>
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-red-500">{stats.vencidos.length} em atraso</p>
+                <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+                  R$ {stats.vencidos.reduce((s, p) => s + p.valor, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em aberto
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-red-400 flex-shrink-0" />
+            </button>
+          )}
+          {stats.aVencer.length > 0 && (
+            <button
+              onClick={() => setTab('a_vencer')}
+              className="flex items-center gap-4 p-4 rounded-2xl text-left transition-opacity hover:opacity-80 active:scale-[0.98]"
+              style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}
+            >
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(245,158,11,0.15)' }}>
+                <Clock className="w-5 h-5 text-amber-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-amber-500">{stats.aVencer.length} vencem em 7 dias</p>
+                <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+                  R$ {stats.aVencer.reduce((s, p) => s + p.valor, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} a receber
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Recebido/Mês', value: `R$ ${totalMes.toLocaleString('pt-BR')}`, icon: DollarSign, color: 'bg-green-500' },
-          { label: 'A Receber',    value: `R$ ${totalPendente.toLocaleString('pt-BR')}`, icon: TrendingUp, color: 'bg-amber-500' },
-          { label: 'Inadimplência',value: `R$ ${totalVencido.toLocaleString('pt-BR')}`, icon: AlertCircle, color: 'bg-red-500' },
-          { label: 'Pagamentos',   value: pagamentos.filter(p => p.status === 'pago').length, icon: CheckCircle2, color: 'bg-blue-500' },
+          { label: 'Recebido',      value: `R$ ${stats.recebido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: CheckCircle2, color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
+          { label: 'Em aberto',     value: `R$ ${stats.emAberto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: TrendingUp,   color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+          { label: 'Inadimplentes', value: stats.vencidos.length,  icon: AlertCircle, color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+          { label: 'Pagos/mês',     value: stats.pagos.length,     icon: DollarSign,  color: 'var(--neon)', bg: 'rgba(255,107,0,0.12)' },
         ].map(s => {
           const Icon = s.icon
           return (
-            <div key={s.label} className="stat-card">
+            <div key={s.label} className="p-4 rounded-2xl space-y-2"
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
               <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-500 dark:text-gray-400">{s.label}</p>
-                <div className={`w-10 h-10 ${s.color} rounded-xl flex items-center justify-center`}>
-                  <Icon className="w-5 h-5 text-white" />
+                <p className="text-xs" style={{ color: 'var(--text-3)' }}>{s.label}</p>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: s.bg }}>
+                  <Icon className="w-4 h-4" style={{ color: s.color }} />
                 </div>
               </div>
-              <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{s.value}</p>
+              <p className="text-lg font-black" style={{ color: 'var(--text-1)' }}>{s.value}</p>
             </div>
           )
         })}
       </div>
 
-      {/* Filtros */}
-      <div className="card-base p-4 space-y-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="text" placeholder="Buscar aluno..." value={search} onChange={e => setSearch(e.target.value)} className="input-base pl-9" />
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          {['todos', 'pago', 'pendente', 'vencido'].map(s => (
-            <button key={s} onClick={() => setStatusFiltro(s)}
-              className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors capitalize ${
-                statusFiltro === s ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-              }`}>
-              {s === 'todos' ? 'Todos' : s.charAt(0).toUpperCase() + s.slice(1)}
+      {/* Tabs + Search */}
+      <div className="space-y-3">
+        <div className="flex gap-1 overflow-x-auto scrollbar-hide pb-1">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={clsx(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all',
+              )}
+              style={tab === t.key
+                ? { background: 'var(--neon)', color: '#000' }
+                : { background: 'var(--bg-chip)', color: 'var(--text-3)' }
+              }
+            >
+              {t.label}
+              {tabCounts[t.key] > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                  style={tab === t.key
+                    ? { background: 'rgba(0,0,0,0.2)', color: '#000' }
+                    : { background: 'var(--bg-base)', color: 'var(--text-2)' }
+                  }>
+                  {tabCounts[t.key]}
+                </span>
+              )}
             </button>
           ))}
         </div>
+
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-3)' }} />
+          <input
+            type="text"
+            placeholder="Buscar aluno..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="input-base pl-9 w-full"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2">
+              <X className="w-4 h-4" style={{ color: 'var(--text-3)' }} />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Tabela */}
+      {/* Lista */}
       {loading ? (
-        <div className="card-base p-8 text-center">
-          <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-gray-400 text-sm">Carregando...</p>
+        <div className="flex items-center justify-center py-20">
+          <div className="w-8 h-8 rounded-full border-4 border-transparent animate-spin"
+            style={{ borderTopColor: 'var(--neon)' }} />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16" style={{ color: 'var(--text-3)' }}>
+          <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className="text-sm">{search ? 'Nenhum resultado.' : 'Nenhum pagamento nesta categoria.'}</p>
         </div>
       ) : (
-        <div className="card-base overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="table-base">
-              <thead className="table-header">
-                <tr>
-                  <th className="table-th">Aluno</th>
-                  <th className="table-th">Plano</th>
-                  <th className="table-th">Valor</th>
-                  <th className="table-th">Forma</th>
-                  <th className="table-th">Vencimento</th>
-                  <th className="table-th">Status</th>
-                  <th className="table-th">Ação</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
-                {filtered.map(p => (
-                  <tr key={p.id} className="table-row">
-                    <td className="table-td font-medium">
-                      {(p.aluno as unknown as { usuario: { nome: string } })?.usuario?.nome ?? '—'}
-                    </td>
-                    <td className="table-td">
-                      {p.plano ? <span className="badge-info">{p.plano.nome}</span> : <span className="text-gray-400">—</span>}
-                    </td>
-                    <td className="table-td font-semibold">R$ {(p.valor - (p.valor_desconto || 0)).toLocaleString('pt-BR')}</td>
-                    <td className="table-td text-xs">{formaLabel[p.forma_pagamento] ?? p.forma_pagamento}</td>
-                    <td className="table-td text-xs">{format(new Date(p.data_vencimento), 'dd/MM/yyyy')}</td>
-                    <td className="table-td">
-                      <span className={statusConfig[p.status]?.class ?? 'badge-gray'}>
-                        {statusConfig[p.status]?.label ?? p.status}
+        <div className="space-y-2">
+          {filtered.map(p => {
+            const nome = (p.aluno as unknown as { usuario: { nome: string } })?.usuario?.nome ?? '—'
+            const vencido = isVencido(p)
+            const aVencer = isAVencer(p)
+            return (
+              <div
+                key={p.id}
+                className="rounded-2xl p-4 transition-all"
+                style={{
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
+                  ...getRowStyle(p),
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  {/* Avatar inicial */}
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-sm"
+                    style={{
+                      background: vencido ? 'rgba(239,68,68,0.12)' : aVencer ? 'rgba(245,158,11,0.12)' : 'var(--bg-chip)',
+                      color: vencido ? '#ef4444' : aVencer ? '#f59e0b' : 'var(--text-2)',
+                    }}
+                  >
+                    {nome.charAt(0).toUpperCase()}
+                  </div>
+
+                  {/* Info principal */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold truncate" style={{ color: 'var(--text-1)' }}>
+                        {nome}
                       </span>
-                    </td>
-                    <td className="table-td">
-                      {p.status !== 'pago' && (
-                        <button onClick={() => registrarPagamento(p.id)} className="text-xs text-primary-600 hover:text-primary-700 font-medium">
-                          Registrar
-                        </button>
+                      {p.plano && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                          style={{ background: 'var(--bg-chip)', color: 'var(--text-3)' }}>
+                          {p.plano.nome}
+                        </span>
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {filtered.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-gray-400">{pagamentos.length === 0 ? 'Nenhum pagamento cadastrado.' : 'Nenhum resultado.'}</p>
-            </div>
-          )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                      <span className="text-xs" style={{ color: 'var(--text-3)' }}>
+                        Venc. {format(parseISO(p.data_vencimento), "dd/MM/yyyy", { locale: ptBR })}
+                      </span>
+                      <span className="text-xs" style={{ color: 'var(--text-3)' }}>
+                        {formaLabel[p.forma_pagamento] ?? p.forma_pagamento}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Direita: valor + status + ação */}
+                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <span className="text-sm font-black" style={{ color: 'var(--text-1)' }}>
+                      R$ {(p.valor - (p.valor_desconto || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                    {getStatusBadge(p)}
+                    {p.status !== 'pago' && p.status !== 'cancelado' && (
+                      <button
+                        onClick={() => registrarPagamento(p.id)}
+                        disabled={confirmandoPagamento === p.id}
+                        className="text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all"
+                        style={{ background: 'var(--neon)', color: '#000' }}
+                      >
+                        {confirmandoPagamento === p.id
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : 'Receber'
+                        }
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
       {/* Modal novo pagamento */}
       {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="font-bold text-gray-900 dark:text-gray-100">Novo Pagamento</h3>
-              <button onClick={() => setShowForm(false)} className="btn-ghost p-1.5">✕</button>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="p-5 flex items-center justify-between"
+              style={{ borderBottom: '1px solid var(--border)' }}>
+              <h3 className="font-bold" style={{ color: 'var(--text-1)' }}>Novo Lançamento</h3>
+              <button onClick={() => setShowForm(false)} className="btn-ghost p-1.5">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <div className="p-5 space-y-3">
+
+            <div className="p-5 space-y-3 max-h-[70vh] overflow-y-auto">
               <div>
                 <label className="label-base">Aluno *</label>
                 <select value={form.aluno_id} onChange={e => setForm(p => ({ ...p, aluno_id: e.target.value }))} className="input-base">
@@ -292,7 +493,7 @@ export default function FinanceiroPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label-base">Valor (R$) *</label>
-                  <input type="number" value={form.valor} onChange={e => setForm(p => ({ ...p, valor: e.target.value }))} className="input-base" />
+                  <input type="number" value={form.valor} onChange={e => setForm(p => ({ ...p, valor: e.target.value }))} className="input-base" placeholder="0,00" />
                 </div>
                 <div>
                   <label className="label-base">Forma</label>
@@ -307,13 +508,14 @@ export default function FinanceiroPage() {
               </div>
               <div>
                 <label className="label-base">Observações</label>
-                <input type="text" value={form.observacoes} onChange={e => setForm(p => ({ ...p, observacoes: e.target.value }))} className="input-base" />
+                <input type="text" value={form.observacoes} onChange={e => setForm(p => ({ ...p, observacoes: e.target.value }))} className="input-base" placeholder="Opcional" />
               </div>
             </div>
-            <div className="p-5 border-t border-gray-100 dark:border-gray-700 flex gap-3">
+
+            <div className="p-5 flex gap-3" style={{ borderTop: '1px solid var(--border)' }}>
               <button onClick={() => setShowForm(false)} className="btn-secondary flex-1">Cancelar</button>
-              <button onClick={salvarNovoPagamento} disabled={saving} className="btn-primary flex-1">
-                {saving ? 'Salvando...' : 'Criar Pagamento'}
+              <button onClick={salvarNovoPagamento} disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Salvando...</> : 'Criar Lançamento'}
               </button>
             </div>
           </div>

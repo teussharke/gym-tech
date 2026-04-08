@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { UserPlus, Search, Ban, CheckCircle, Trash2, Phone, Mail, Calendar, RefreshCw, AlertTriangle, Edit3, X, Save, Loader2 } from 'lucide-react'
+import { UserPlus, Search, Ban, CheckCircle, Trash2, Phone, Mail, Calendar, RefreshCw, AlertTriangle, Edit3, X, Save, Loader2, CreditCard, CheckCircle2, Clock } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
-import { format } from 'date-fns'
+import { format, differenceInDays, parseISO } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 
 interface Aluno {
@@ -20,6 +21,17 @@ interface Aluno {
   status_usuario: string
   plano_nome: string | null
   objetivos: string | null
+}
+
+interface HistPag {
+  id: string
+  valor: number
+  valor_desconto: number
+  status: string
+  data_vencimento: string
+  data_pagamento: string | null
+  forma_pagamento: string
+  plano: { nome: string } | null
 }
 
 interface EditAdminForm {
@@ -56,6 +68,8 @@ export default function AlunosPage() {
   const [editAluno, setEditAluno] = useState<Aluno | null>(null)
   const [editForm, setEditForm] = useState<EditAdminForm>({ nome: '', email: '', telefone: '', status_usuario: 'ativo', status_pagamento: 'pendente', data_vencimento: '', objetivos: '' })
   const [editSaving, setEditSaving] = useState(false)
+  const [alunoHistorico, setAlunoHistorico] = useState<HistPag[]>([])
+  const [loadingHistorico, setLoadingHistorico] = useState(false)
 
   const fetchAlunos = useCallback(async () => {
     if (!usuario?.academia_id) { setLoading(false); return }
@@ -142,6 +156,18 @@ export default function AlunosPage() {
       data_vencimento: aluno.data_vencimento ? aluno.data_vencimento.split('T')[0] : '',
       objetivos: aluno.objetivos ?? '',
     })
+    setAlunoHistorico([])
+    setLoadingHistorico(true)
+    supabase
+      .from('pagamentos')
+      .select('id, valor, valor_desconto, status, data_vencimento, data_pagamento, forma_pagamento, plano:planos (nome)')
+      .eq('aluno_id', aluno.id)
+      .order('data_vencimento', { ascending: false })
+      .limit(10)
+      .then(({ data }) => {
+        setAlunoHistorico((data as unknown as HistPag[]) ?? [])
+        setLoadingHistorico(false)
+      })
   }
 
   const salvarEdicao = async () => {
@@ -403,6 +429,56 @@ export default function AlunosPage() {
                 <textarea className="input-base resize-none" rows={3} value={editForm.objetivos}
                   onChange={e => setEditForm(f => ({ ...f, objetivos: e.target.value }))}
                   placeholder="Ex: Perda de peso, hipertrofia..." />
+              </div>
+
+              {/* Histórico de Pagamentos */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-3)' }}>
+                  Histórico de Pagamentos
+                </p>
+                {loadingHistorico ? (
+                  <div className="flex justify-center py-5">
+                    <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--text-3)' }} />
+                  </div>
+                ) : alunoHistorico.length === 0 ? (
+                  <div className="text-center py-4 rounded-xl" style={{ background: 'var(--bg-input)' }}>
+                    <CreditCard className="w-6 h-6 mx-auto mb-1 opacity-30" style={{ color: 'var(--text-3)' }} />
+                    <p className="text-xs" style={{ color: 'var(--text-3)' }}>Nenhum pagamento registrado</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {alunoHistorico.map(p => {
+                      const dias = differenceInDays(parseISO(p.data_vencimento), new Date())
+                      const isVencido = p.status !== 'pago' && dias < 0
+                      const isAVencer = p.status !== 'pago' && dias >= 0 && dias <= 7
+                      const color = p.status === 'pago' ? '#22c55e' : isVencido ? '#ef4444' : isAVencer ? '#f59e0b' : 'var(--text-3)'
+                      const Icon = p.status === 'pago' ? CheckCircle2 : isVencido ? AlertTriangle : Clock
+                      return (
+                        <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl"
+                          style={{ background: 'var(--bg-input)', border: '1px solid var(--border)' }}>
+                          <Icon className="w-4 h-4 flex-shrink-0" style={{ color }} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium" style={{ color: 'var(--text-1)' }}>
+                              {(p.plano as unknown as { nome: string } | null)?.nome ?? 'Mensalidade'}
+                            </p>
+                            <p className="text-[10px]" style={{ color: 'var(--text-3)' }}>
+                              {format(parseISO(p.data_vencimento), "MMM yyyy", { locale: ptBR })}
+                              {p.data_pagamento ? ` · Pago em ${format(parseISO(p.data_pagamento), 'dd/MM')}` : ''}
+                            </p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-xs font-bold" style={{ color: 'var(--text-1)' }}>
+                              R$ {(p.valor - (p.valor_desconto || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                            <p className="text-[10px] font-semibold" style={{ color }}>
+                              {p.status === 'pago' ? 'Pago' : isVencido ? `${Math.abs(dias)}d atraso` : isAVencer ? `${dias}d` : 'Pendente'}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Link para treinos */}

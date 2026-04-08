@@ -6,9 +6,9 @@ import { supabase } from '@/lib/supabase/client'
 import {
   Users, UserCheck, AlertCircle, DollarSign, CheckSquare,
   TrendingUp, Dumbbell, Calendar, Trophy, ArrowRight,
-  Flame, Target, Clock, Activity, Bell, RefreshCw,
+  Flame, Target, Clock, Activity, Bell, RefreshCw, AlertTriangle, CreditCard,
 } from 'lucide-react'
-import { format } from 'date-fns'
+import { format, differenceInDays, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import { SkeletonDashboard } from '@/components/UIComponents'
@@ -33,6 +33,8 @@ interface AlunoStats {
   sequencia: number
   statusAvaliacao: 'pendente' | 'aprovado' | null
   proximaAvaliacao: string | null
+  statusPagamento: string | null
+  dataVencimento: string | null
 }
 
 // ── Professor Stats ─────────────────────────────────────────
@@ -137,7 +139,7 @@ export default function DashboardPage() {
     const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
 
     const { data: alunoRow } = await supabase
-      .from('alunos').select('id').eq('usuario_id', usuario.id).maybeSingle()
+      .from('alunos').select('id, status_pagamento, data_vencimento').eq('usuario_id', usuario.id).maybeSingle()
     if (!alunoRow) return
 
     const [
@@ -172,6 +174,8 @@ export default function DashboardPage() {
       sequencia,
       statusAvaliacao: (solicitacao?.status as 'pendente' | 'aprovado' | null) ?? null,
       proximaAvaliacao: solicitacao?.horarios_disponiveis?.data_hora ?? null,
+      statusPagamento: (alunoRow as unknown as { status_pagamento: string }).status_pagamento ?? null,
+      dataVencimento: (alunoRow as unknown as { data_vencimento: string | null }).data_vencimento ?? null,
     })
   }, [usuario?.id, usuario?.academia_id])
 
@@ -383,6 +387,56 @@ export default function DashboardPage() {
       {/* ── ALUNO STATS ── */}
       {role === 'aluno' && alunoStats && (
         <>
+          {/* Alerta financeiro */}
+          {(() => {
+            const { statusPagamento, dataVencimento } = alunoStats
+            if (statusPagamento === 'vencido') {
+              const diasAtraso = dataVencimento
+                ? Math.abs(differenceInDays(parseISO(dataVencimento), new Date()))
+                : null
+              return (
+                <Link href="/aluno/pagamentos"
+                  className="flex items-center gap-3 p-4 rounded-2xl animate-fade-in active:scale-[0.98] transition-transform"
+                  style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)' }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'rgba(239,68,68,0.15)' }}>
+                    <AlertTriangle className="w-5 h-5 text-red-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-red-500">Mensalidade vencida</p>
+                    <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+                      {diasAtraso ? `Há ${diasAtraso} dia${diasAtraso > 1 ? 's' : ''} em atraso` : 'Regularize para manter o acesso'}
+                    </p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-red-400 flex-shrink-0" />
+                </Link>
+              )
+            }
+            if (statusPagamento === 'pendente' && dataVencimento) {
+              const dias = differenceInDays(parseISO(dataVencimento), new Date())
+              if (dias >= 0 && dias <= 5) {
+                return (
+                  <Link href="/aluno/pagamentos"
+                    className="flex items-center gap-3 p-4 rounded-2xl animate-fade-in active:scale-[0.98] transition-transform"
+                    style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)' }}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'rgba(245,158,11,0.15)' }}>
+                      <Clock className="w-5 h-5 text-amber-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-amber-500">
+                        {dias === 0 ? 'Mensalidade vence hoje!' : `Mensalidade vence em ${dias} dia${dias > 1 ? 's' : ''}`}
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--text-3)' }}>Toque para ver detalhes</p>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  </Link>
+                )
+              }
+            }
+            return null
+          })()}
+
           {/* Bento stats — block-based layout */}
           <div className="grid grid-cols-2 gap-3 animate-fade-in stagger-1">
             {/* Check-ins — large block */}

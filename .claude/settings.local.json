@@ -19,7 +19,8 @@
       "Bash(xargs wc:*)",
       "Bash(npm list:*)",
       "Bash(npm install:*)",
-      "Bash(node -e \"const webpush = require\\('web-push'\\); const keys = webpush.generateVAPIDKeys\\(\\); console.log\\('PUBLIC:', keys.publicKey\\); console.log\\('PRIVATE:', keys.privateKey\\);\")"
+      "Bash(node -e \"const webpush = require\\('web-push'\\); const keys = webpush.generateVAPIDKeys\\(\\); console.log\\('PUBLIC:', keys.publicKey\\); console.log\\('PRIVATE:', keys.privateKey\\);\")",
+      "mcp__claude_ai_Gamma__generate"
     ]
   }
 }
