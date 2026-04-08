@@ -138,14 +138,26 @@ export default function PerfilPage() {
   }
 
   const alterarSenha = async () => {
+    if (!pwdForm.current) { toast.error('Informe sua senha atual'); return }
     if (!pwdForm.novo || pwdForm.novo.length < 6) { toast.error('Nova senha deve ter mínimo 6 caracteres'); return }
     if (pwdForm.novo !== pwdForm.confirmar) { toast.error('Senhas não coincidem'); return }
+    if (!usuario?.email) return
     setSaving(true)
-    const { error } = await supabase.auth.updateUser({ password: pwdForm.novo })
-    setSaving(false)
-    if (error) { toast.error(error.message); return }
-    toast.success('Senha alterada com sucesso!')
-    setPwdForm({ current: '', novo: '', confirmar: '' })
+    try {
+      // Re-autentica com a senha atual para satisfazer o Supabase Auth (evita 422)
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: usuario.email,
+        password: pwdForm.current,
+      })
+      if (authError) { toast.error('Senha atual incorreta'); return }
+
+      const { error } = await supabase.auth.updateUser({ password: pwdForm.novo })
+      if (error) { toast.error(error.message); return }
+      toast.success('Senha alterada com sucesso!')
+      setPwdForm({ current: '', novo: '', confirmar: '' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const tabs = [
@@ -234,6 +246,15 @@ export default function PerfilPage() {
       {activeTab === 'senha' && (
         <div className="card-base p-5 space-y-4">
           <div className="flex items-center gap-2 mb-2"><Lock className="w-5 h-5 text-primary-500" /><h3 className="font-semibold text-gray-900 dark:text-gray-100">Alterar Senha</h3></div>
+          <div>
+            <label className="label-base">Senha atual</label>
+            <div className="relative">
+              <input type={showCurrentPwd ? 'text' : 'password'} value={pwdForm.current} onChange={e => setPwdForm(p => ({ ...p, current: e.target.value }))} className="input-base pr-10" placeholder="Sua senha atual" />
+              <button type="button" onClick={() => setShowCurrentPwd(!showCurrentPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                {showCurrentPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
           <div>
             <label className="label-base">Nova senha</label>
             <div className="relative">
