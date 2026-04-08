@@ -39,7 +39,8 @@ interface Avaliacao {
 }
 
 // Medidas extraídas de forma segura (o join retorna array)
-function getMedidas(av: Avaliacao): MedidasCorporais | null {
+function getMedidas(av: Avaliacao | null | undefined): MedidasCorporais | null {
+  if (!av) return null
   if (!av.medidas_corporais) return null
   if (Array.isArray(av.medidas_corporais) && av.medidas_corporais.length > 0) {
     return av.medidas_corporais[0]
@@ -443,11 +444,11 @@ export default function AvaliacoesAlunoPage() {
     )
   }
 
-  const ultima = avaliacoes[0]
-  const penultima = avaliacoes[1]
+  const ultima = avaliacoes[0] ?? null
+  const penultima = avaliacoes[1] ?? null
   const ultimaMedidas = getMedidas(ultima)
-  const penultimaMedidas = getMedidas(penultima ?? null as unknown as Avaliacao)
-  const imcInfo = ultima.imc ? getIMCLabel(ultima.imc) : null
+  const penultimaMedidas = getMedidas(penultima)
+  const imcInfo = ultima?.imc ? getIMCLabel(ultima.imc) : null
 
   const diff = (a: number | null | undefined, b: number | null | undefined) =>
     a != null && b != null ? Number((a - b).toFixed(1)) : null
@@ -618,7 +619,14 @@ export default function AvaliacoesAlunoPage() {
       </div>
 
       {/* ── RESUMO ── */}
-      {activeTab === 'resumo' && (
+      {activeTab === 'resumo' && !ultima && (
+        <div className="card-base p-10 text-center space-y-2">
+          <Activity className="w-10 h-10 mx-auto opacity-30" style={{ color: 'var(--text-3)' }} />
+          <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>Nenhuma avaliação registrada ainda</p>
+          <p className="text-xs" style={{ color: 'var(--text-3)' }}>Solicite uma avaliação ao seu professor.</p>
+        </div>
+      )}
+      {activeTab === 'resumo' && ultima && (
         <div className="space-y-4">
           <div className="card-base p-5 space-y-4">
             <div className="flex items-center justify-between">
